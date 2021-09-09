@@ -114,5 +114,5 @@ dmypy.json
 .pyre/
 .DS_Store
 /BPP-Net/train
-/wandb
+/BPP-Net/wandb
 /FFA-Net/net/data

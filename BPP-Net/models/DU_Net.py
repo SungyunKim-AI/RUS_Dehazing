@@ -122,8 +122,8 @@ class DU_Net(nn.Module):
   
 
     def psnr(self, pred, gt):
-        pred = pred.clamp(0,1).cpu().numpy()
-        gt = gt.clamp(0,1).cpu().numpy()
+        pred = pred.clamp(0,1).cpu().detach().numpy()
+        gt = gt.clamp(0,1).cpu().detach().numpy()
         
         imdff = pred - gt
         rmse = math.sqrt(np.mean(imdff ** 2))
