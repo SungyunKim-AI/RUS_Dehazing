@@ -1,3 +1,4 @@
+import wandb
 import torch,os,sys,torchvision,argparse
 import torchvision.transforms as tfs
 from metrics import psnr,ssim
@@ -52,6 +53,7 @@ def train(net,loader_train,loader_test,optim,criterion):
 		print(f'start_step:{start_step} start training ---')
 	else :
 		print('train from scratch *** ')
+  
 	for step in range(start_step+1,opt.steps+1):
 		net.train()
 		lr=opt.lr
@@ -73,7 +75,8 @@ def train(net,loader_train,loader_test,optim,criterion):
 		optim.zero_grad()
 		losses.append(loss.item())
 		print(f'\rtrain loss : {loss.item():.5f}| step :{step}/{opt.steps}|lr :{lr :.7f} |time_used :{(time.time()-start_time)/60 :.1f}',end='',flush=True)
-
+		wandb.log({"Train Loss" : loss.item(), "global_step" : step})
+  
 		#with SummaryWriter(logdir=log_dir,comment=log_dir) as writer:
 		#	writer.add_scalar('data/loss',loss,step)
 
@@ -82,6 +85,7 @@ def train(net,loader_train,loader_test,optim,criterion):
 				ssim_eval,psnr_eval=test(net,loader_test, max_psnr,max_ssim,step)
 
 			print(f'\nstep :{step} |ssim:{ssim_eval:.4f}| psnr:{psnr_eval:.4f}')
+			wandb.log({"SSIM" : ssim_eval, "PSNR" : psnr_eval, "global_step" : step})
 
 			# with SummaryWriter(logdir=log_dir,comment=log_dir) as writer:
 			# 	writer.add_scalar('data/ssim',ssim_eval,step)
@@ -136,23 +140,33 @@ def test(net,loader_test,max_psnr,max_ssim,step):
 
 
 if __name__ == "__main__":
-	loader_train=loaders_[opt.trainset]
-	loader_test=loaders_[opt.testset]
-	net=models_[opt.net]
-	net=net.to(opt.device)
-	if opt.device=='cuda':
-		net=torch.nn.DataParallel(net)
-		cudnn.benchmark=True
-	criterion = []
-	criterion.append(nn.L1Loss().to(opt.device))
-	if opt.perloss:
-			vgg_model = vgg16(pretrained=True).features[:16]
-			vgg_model = vgg_model.to(opt.device)
-			for param in vgg_model.parameters():
-				param.requires_grad = False
-			criterion.append(PerLoss(vgg_model).to(opt.device))
-	optimizer = optim.Adam(params=filter(lambda x: x.requires_grad, net.parameters()),lr=opt.lr, betas = (0.9, 0.999), eps=1e-08)
-	optimizer.zero_grad()
-	train(net,loader_train,loader_test,optimizer,criterion)
-	
-
+    # ============== Config Init ==============
+    config_defaults = {
+		'model_name' : 'FFA_Net'
+	}
+    wandb.init(config=config_defaults, project='Dehazing', entity='rus')
+    wandb.run.name = config_defaults['model_name']
+    config = wandb.config
+    
+    # ============== Data Load ==============
+    loader_train=loaders_[opt.trainset]
+    loader_test=loaders_[opt.testset]
+    net=models_[opt.net]
+    net=net.to(opt.device)
+    if opt.device=='cuda':
+        net=torch.nn.DataParallel(net)
+        cudnn.benchmark=True
+    
+    criterion = []
+    criterion.append(nn.L1Loss().to(opt.device))
+    if opt.perloss:
+        vgg_model = vgg16(pretrained=True).features[:16]
+        vgg_model = vgg_model.to(opt.device)
+        for param in vgg_model.parameters():
+            param.requires_grad = False
+        criterion.append(PerLoss(vgg_model).to(opt.device))
+        
+    optimizer = optim.Adam(params=filter(lambda x: x.requires_grad, net.parameters()),lr=opt.lr, betas = (0.9, 0.999), eps=1e-08)
+    optimizer.zero_grad()
+    train(net,loader_train,loader_test,optimizer,criterion)
+    
