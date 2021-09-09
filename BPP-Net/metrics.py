@@ -1,11 +1,12 @@
-from math import exp
+import math
+import numpy as np
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
 import torch.nn.functional as F
 
 def gaussian(window_size, sigma):
-    gauss = torch.Tensor([exp(-(x - window_size//2)**2/float(2*sigma**2)) for x in range(window_size)])
+    gauss = torch.Tensor([math.exp(-(x - window_size//2)**2/float(2*sigma**2)) for x in range(window_size)])
     return gauss/gauss.sum()
 
 def create_window(window_size, channel):
