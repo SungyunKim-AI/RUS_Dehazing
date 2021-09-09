@@ -49,7 +49,7 @@ class RESIDE_Dataset(data.Dataset):
                 index=random.randint(0,20000)
                 haze=Image.open(self.haze_imgs[index])
         img=self.haze_imgs[index]
-        id=img.split('/')[-1].split('_')[0]
+        id=img.split('\\')[-1].split('_')[0]
         # clear_name=id+self.format
         clear_name=id
         clear=Image.open(os.path.join(self.clear_dir,clear_name))
@@ -79,7 +79,7 @@ class RESIDE_Dataset(data.Dataset):
 import os
 pwd=os.getcwd()
 print(pwd)
-path='/Users/sungyoon-kim/Documents/GitHub/RUS_Dehazing/FFA-Net/net/data'#path to your 'data' folder
+path='data' #path to your 'data' folder
 
 # ITS_train_loader=DataLoader(dataset=RESIDE_Dataset(path+'/RESIDE/ITS',train=True,size=crop_size),batch_size=BS,shuffle=True)
 # ITS_test_loader=DataLoader(dataset=RESIDE_Dataset(path+'/RESIDE/SOTS/indoor',train=False,size='whole img'),batch_size=1,shuffle=False)
