@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from models.VGG19 import VGG19
 
 class ContentLoss(nn.Module):
     r"""
