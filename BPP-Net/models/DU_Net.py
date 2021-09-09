@@ -14,11 +14,11 @@ class DU_Net(nn.Module):
 
 
         unet = UNet(in_channels=unet_input ,out_channels=unet_output)
-        unet = nn.DataParallel(unet, device_ids=[0, 1])
+        #unet = nn.DataParallel(unet, device_ids=[0, 1])
         unet = unet.cuda()
 
         discriminator = Discriminator(in_channels=discriminator_input , use_sigmoid=True)
-        discriminator = nn.DataParallel(discriminator, device_ids=[0, 1])
+        #discriminator = nn.DataParallel(discriminator, device_ids=[0, 1])
         discriminator = discriminator.cuda()
 
         criterion = nn.MSELoss()
@@ -97,8 +97,6 @@ class DU_Net(nn.Module):
         unet_loss += unet_criterion
 
 
-
-
         gen_content_loss = self.content_loss(outputs.cuda(), dehaze_images.cuda())
         gen_content_loss = (gen_content_loss * 0.7).cuda()
         unet_loss += gen_content_loss.cuda()
@@ -107,7 +105,7 @@ class DU_Net(nn.Module):
         ssim_loss =  self.ssim_loss(outputs.cuda(), dehaze_images.cuda())
         ssim_loss = (1-ssim_loss)*2
         unet_loss += ssim_loss.cuda()
-
+        
         return unet_loss, dis_loss, unet_criterion, 1-ssim_loss/2
 
     def backward(self, unet_loss, dis_loss):

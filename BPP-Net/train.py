@@ -18,7 +18,7 @@ class Dataset(torch.utils.data.Dataset):
         self.dehaze_list = dehaze_list
         
     def __len__(self):
-        return 210
+        return 45
 
     def __getitem__(self, index):
         try:
@@ -83,8 +83,9 @@ def train(max_epochs, model):
         ssim_epoch = 0.0
         unet_epoch = 0.0
         for haze_images, dehaze_images, in train_loader:
-            unet_loss, dis_loss, mse, ssim = model.process(haze_images.cuda(), dehaze_images.cuda())
-            model.backward(unet_loss.cuda(), dis_loss.cuda())
+            with torch.autograd.set_detect_anomaly(True):
+                unet_loss, dis_loss, mse, ssim = model.process(haze_images.cuda(), dehaze_images.cuda())
+                model.backward(unet_loss.cuda(), dis_loss.cuda())
             print('Epoch: '+str(epoch+1)+ ' || Batch: '+str(i)+ " || unet loss: "+str(unet_loss.cpu().item()) + " || dis loss: "+str(dis_loss.cpu().item()) + " || mse: "+str(mse.cpu().item()) + " | ssim:" + str(ssim.cpu().item()) )
             mse_epoch =  mse_epoch + mse.cpu().item() 
             ssim_epoch = ssim_epoch + ssim.cpu().item()
@@ -102,8 +103,8 @@ def train(max_epochs, model):
 
 if __name__ == '__main__':
     # ================ DataLoader ================
-    path_of_train_hazy_images = 'train/haze/*.png'
-    path_of_train_gt_images = 'train/gt/*.png'
+    path_of_train_hazy_images = 'train/hazy/*.jpg'
+    path_of_train_gt_images = 'train/GT/*.jpg'
 
     images_paths_train_gt=glob.glob(path_of_train_gt_images)
     image_paths_train_hazy=glob.glob(path_of_train_hazy_images)
@@ -112,7 +113,7 @@ if __name__ == '__main__':
 
     train_loader = DataLoader(
                 dataset=train_dataset,
-                batch_size=2,
+                batch_size=1,
                 num_workers=0,
                 drop_last=True,
                 shuffle=False
