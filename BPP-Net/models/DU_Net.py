@@ -11,8 +11,6 @@ class DU_Net(nn.Module):
 
     def __init__(self, unet_input, unet_output, discriminator_input):
         super().__init__()
-
-
         unet = UNet(in_channels=unet_input ,out_channels=unet_output)
         #unet = nn.DataParallel(unet, device_ids=[0, 1])
         unet = unet.cuda()
@@ -106,7 +104,9 @@ class DU_Net(nn.Module):
         ssim_loss = (1-ssim_loss)*2
         unet_loss += ssim_loss.cuda()
         
-        return unet_loss, dis_loss, unet_criterion, 1-ssim_loss/2
+        psnr = self.psnr(outputs.cuda(), dehaze_images.cuda())
+        
+        return unet_loss, dis_loss, unet_criterion, 1-ssim_loss/2, psnr
 
     def backward(self, unet_loss, dis_loss):
         dis_loss.backward(retain_graph = True)
@@ -119,3 +119,15 @@ class DU_Net(nn.Module):
     def predict(self, haze_images):
       predict_mask = self.unet(haze_images.cuda())
       return predict_mask
+  
+
+    def psnr(self, pred, gt):
+        pred = pred.clamp(0,1).cpu().numpy()
+        gt = gt.clamp(0,1).cpu().numpy()
+        
+        imdff = pred - gt
+        rmse = math.sqrt(np.mean(imdff ** 2))
+        if rmse == 0:
+            return 100
+        
+        return 20 * math.log10(1.0 / rmse)
