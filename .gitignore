@@ -116,3 +116,4 @@ dmypy.json
 /BPP-Net/train
 /BPP-Net/wandb
 /FFA-Net/net/data
+*.pth

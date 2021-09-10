@@ -42,7 +42,7 @@ class O_Haze_Train_Dataset(torch.utils.data.Dataset):
         return haze, clear
         
 class RESIDE_Beta_Train_Dataset(torch.utils.data.Dataset):
-    def __init__(self,path):
+    def __init__(self,path,folders_count):
         super().__init__()
         images_clear_path = path+'/clear/*.jpg'
         self.images_clear_list = glob.glob(images_clear_path)
@@ -50,10 +50,12 @@ class RESIDE_Beta_Train_Dataset(torch.utils.data.Dataset):
         images_hazy_folders_path = path+'/hazy/*/'
         self.images_hazy_lists = []
         images_hazy_folders=glob.glob(images_hazy_folders_path)
-        for images_hazy_folder in images_hazy_folders:
+        for i in range(folders_count):
+            images_hazy_folder = images_hazy_folders[i]
+            print(images_hazy_folder + ' dataset ready!')
             self.images_hazy_lists.append(glob.glob(images_hazy_folder+'*.jpg'))
             
-        self.folders_count = len(self.images_hazy_lists)
+        self.folders_count = folders_count
         self.images_count = len(self.images_hazy_lists[0])
         
     def __len__(self):
