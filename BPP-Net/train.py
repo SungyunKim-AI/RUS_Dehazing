@@ -55,7 +55,8 @@ def train(max_epochs, model, train_loader):
 if __name__ == '__main__':
     # ============== Config Init ==============
     config_defaults = {
-		'model_name' : 'BPP-Net'
+		'model_name' : 'BPP-Net',
+        'dataset' : 'RESIDE-beta(0.85_0.04)'
 	}
     wandb.init(config=config_defaults, project='Dehazing', entity='rus')
     wandb.run.name = config_defaults['model_name']

@@ -29,8 +29,8 @@ def load_item(haze, clear):
 class O_Haze_Train_Dataset(torch.utils.data.Dataset):
     def __init__(self,path):
         super().__init__()
-        images_clear_path = path+'/clear/*.jpg'
-        images_hazy_path = path+'/hazy/*.jpg'
+        images_clear_path = path+'/clear/*.png'
+        images_hazy_path = path+'/hazy/*.png'
         self.images_clear_list=glob.glob(images_clear_path)
         self.images_hazy_list =glob.glob(images_hazy_path)
     
