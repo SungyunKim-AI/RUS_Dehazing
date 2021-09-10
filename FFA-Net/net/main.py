@@ -1,5 +1,6 @@
 import wandb
-import torch,os,sys,torchvision,argparse
+from HazeDataset import RESIDE_Beta_Dataset, O_Haze_Dataset
+import torch,os
 import torchvision.transforms as tfs
 from metrics import psnr,ssim
 from models import *
@@ -18,15 +19,6 @@ from torchvision.models import vgg16
 print('log_dir :',log_dir)
 print('model_name:',model_name)
 
-models_={
-	'ffa':FFA(gps=opt.gps,blocks=opt.blocks),
-}
-loaders_={
-	# 'its_train':ITS_train_loader,
-	# 'its_test':ITS_test_loader,
-	'ots_train':OTS_train_loader,
-	'ots_test':OTS_test_loader
-}
 start_time=time.time()
 T=opt.steps	
 def lr_schedule_cosdecay(t,T,init_lr=opt.lr):
@@ -62,6 +54,7 @@ def train(net,loader_train,loader_test,optim,criterion):
 			for param_group in optim.param_groups:
 				param_group["lr"] = lr  
 		x,y=next(iter(loader_train))
+		print(x.shape)
 		x=x.to(opt.device);y=y.to(opt.device)
 		out=net(x)
 		loss=criterion[0](out,y)
@@ -149,9 +142,25 @@ if __name__ == "__main__":
     config = wandb.config
     
     # ============== Data Load ==============
-    loader_train=loaders_[opt.trainset]
-    loader_test=loaders_[opt.testset]
-    net=models_[opt.net]
+    dataset_train=RESIDE_Beta_Dataset('D:/data/RESIDE-beta/train',[0])
+    dataset_test=O_Haze_Dataset('D:/data/O-Haze/train')
+    
+    print(dataset_test.__len__())
+    loader_train = DataLoader(
+                dataset=dataset_train,
+                batch_size=1,
+                num_workers=0,
+                drop_last=True,
+                shuffle=True)
+    loader_test = DataLoader(
+		dataset=dataset_test,
+		batch_size=1,
+		num_workers=0,
+		drop_last=True,
+		shuffle=True
+	)
+    
+    net=FFA(gps=opt.gps,blocks=opt.blocks)
     net=net.to(opt.device)
     if opt.device=='cuda':
         net=torch.nn.DataParallel(net)

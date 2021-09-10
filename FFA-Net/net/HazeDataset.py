@@ -18,8 +18,8 @@ def load_item(haze, clear):
         hazy_image = Image.fromarray(hazy_image)
         clear_image = Image.fromarray(clear_image)
  
-        hazy_resize = hazy_image.resize((512,512), resample=PIL.Image.BICUBIC)
-        clear_resize = clear_image.resize((512,512), resample=PIL.Image.BICUBIC)
+        hazy_resize = hazy_image.resize((256,256), resample=PIL.Image.BICUBIC)
+        clear_resize = clear_image.resize((256,256), resample=PIL.Image.BICUBIC)
         
         hazy_resize = to_tensor(hazy_resize).cuda()
         clear_resize = to_tensor(clear_resize).cuda()
@@ -29,8 +29,8 @@ def load_item(haze, clear):
 class O_Haze_Dataset(torch.utils.data.Dataset):
     def __init__(self,path):
         super().__init__()
-        images_clear_path = path+'/clear/*.png'
-        images_hazy_path = path+'/hazy/*.png'
+        images_clear_path = path+'/clear/*.jpg'
+        images_hazy_path = path+'/hazy/*.jpg'
         self.images_clear_list=glob.glob(images_clear_path)
         self.images_hazy_list =glob.glob(images_hazy_path)
     

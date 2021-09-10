@@ -64,7 +64,7 @@ if __name__ == '__main__':
     
     # ================ DataLoader ================
 
-    train_dataset = RESIDE_Beta_Train_Dataset('D:/data/RESIDE-beta/train',1)
+    train_dataset = RESIDE_Beta_Train_Dataset('D:/data/RESIDE-beta/train',[0])
     #train_dataset = O_Haze_Train_Dataset('D:/data/O-Haze/train')
     train_loader = DataLoader(
                 dataset=train_dataset,
