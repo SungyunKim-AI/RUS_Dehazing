@@ -12,12 +12,6 @@ from torch.utils.data import DataLoader
 from matplotlib import pyplot as plt
 from torchvision.utils import make_grid
 from metrics import *
-from option import opt
-BS=opt.bs
-print(BS)
-crop_size='whole_img'
-if opt.crop:
-    crop_size=opt.crop_size
 
 def tensorShow(tensors,titles=None):
         '''

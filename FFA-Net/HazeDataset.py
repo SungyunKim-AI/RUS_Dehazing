@@ -18,8 +18,8 @@ def load_item(haze, clear):
         hazy_image = Image.fromarray(hazy_image)
         clear_image = Image.fromarray(clear_image)
  
-        hazy_resize = hazy_image.resize((256,256), resample=PIL.Image.BICUBIC)
-        clear_resize = clear_image.resize((256,256), resample=PIL.Image.BICUBIC)
+        hazy_resize = hazy_image.resize((128,128), resample=PIL.Image.BICUBIC)
+        clear_resize = clear_image.resize((128,128), resample=PIL.Image.BICUBIC)
         
         hazy_resize = to_tensor(hazy_resize).cuda()
         clear_resize = to_tensor(clear_resize).cuda()
@@ -59,8 +59,9 @@ class RESIDE_Beta_Dataset(torch.utils.data.Dataset):
         self.images_count = len(self.images_hazy_lists[0])
         
     def __len__(self):
-        return self.folders_count * self.images_count
-    
+        #return self.folders_count * self.images_count
+        return 10
+        
     def __getitem__(self,index):
         haze, clear = load_item(self.images_hazy_lists[index//self.images_count][index%self.images_count],
                                 self.images_clear_list[index%self.images_count])

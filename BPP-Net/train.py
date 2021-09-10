@@ -17,10 +17,9 @@ def train(max_epochs, model, train_loader):
         psnr_epoch = 0.0
         unet_epoch = 0.0
         for batch in tqdm(train_loader):
-            haze_images, dehaze_images = batch
-            with torch.autograd.set_detect_anomaly(True):
-                unet_loss, dis_loss, mse, ssim, psnr = model.process(haze_images.cuda(), dehaze_images.cuda())
-                model.backward(unet_loss.cuda(), dis_loss.cuda())
+            haze_images, clear_images = batch
+            unet_loss, dis_loss, mse, ssim, psnr, outputs = model.process(haze_images.cuda(), clear_images.cuda())
+            model.backward(unet_loss.cuda(), dis_loss.cuda())
             #print('Epoch: '+str(epoch+1)+ ' || Batch: '+str(i)+ " || unet loss: "+str(unet_loss.cpu().item()) + " || dis loss: "+str(dis_loss.cpu().item()) + " || mse: "+str(mse.cpu().item()) + " | ssim:" + str(ssim.cpu().item()) + " | psnr:" + str(psnr))
             
             mse_epoch =  mse_epoch + mse.cpu().item() 
