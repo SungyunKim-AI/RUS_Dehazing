@@ -1,55 +1,60 @@
-# python test.py --task='ots' --test_imgs='test_imgs'
-
-import os,argparse
-import numpy as np
-from PIL import Image
-from models import *
 import torch
-import torch.nn as nn
-import torchvision.transforms as tfs 
-import torchvision.utils as vutils
-import matplotlib.pyplot as plt
-from torchvision.utils import make_grid
-abs=os.getcwd()+'/'
-def tensorShow(tensors,titles=['haze']):
-        fig=plt.figure()
-        for tensor,tit,i in zip(tensors,titles,range(len(tensors))):
-            img = make_grid(tensor)
-            npimg = img.numpy()
-            ax = fig.add_subplot(221+i)
-            ax.imshow(np.transpose(npimg, (1, 2, 0)))
-            ax.set_title(tit)
-        plt.show()
+from models import FFA
+from HazeDataset import O_Haze_Dataset, RESIDE_Beta_Dataset
+from torch.utils.data import DataLoader, dataset
+import cv2
+from torch import nn
+from metrics import psnr, ssim
 
-parser=argparse.ArgumentParser()
-parser.add_argument('--task',type=str,default='its',help='its or ots')
-parser.add_argument('--test_imgs',type=str,default='test_imgs',help='Test imgs folder')
-opt=parser.parse_args()
-dataset=opt.task
-gps=3
-blocks=19
-img_dir=abs+opt.test_imgs+'/'
-output_dir=abs+f'pred_FFA_{dataset}/'
-print("pred_dir:",output_dir)
-if not os.path.exists(output_dir):
-    os.mkdir(output_dir)
-model_dir=abs+f'trained_models/{dataset}_train_ffa_{gps}_{blocks}.pk'
-device='cuda' if torch.cuda.is_available() else 'cpu'
-ckp=torch.load(model_dir,map_location=device)
-net=FFA(gps=gps,blocks=blocks)
-net=nn.DataParallel(net)
-net.load_state_dict(ckp['model'])
-net.eval()
-for im in os.listdir(img_dir):
-    print(f'\r {im}',end='',flush=True)
-    haze = Image.open(img_dir+im)
-    haze1= tfs.Compose([
-        tfs.ToTensor(),
-        tfs.Normalize(mean=[0.64, 0.6, 0.58],std=[0.14,0.15, 0.152])
-    ])(haze)[None,::]
-    haze_no=tfs.ToTensor()(haze)[None,::]
+if __name__=='__main__':
+    gps = 3
+    blocks = 20
+    img_size = [512,512]
+    
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model = FFA(gps,blocks).to(device)
+    weight_path = 'weights/weight_015.pth'
+    weight = torch.load(weight_path)
+    model.load_state_dict(weight)
+    
+    #test_dataset = RESIDE_Beta_Dataset('D:/data/RESIDE-beta/train',[0])
+    test_dataset = O_Haze_Dataset('D:/data/O-Haze/train',img_size)
+    test_loader = DataLoader(
+        dataset=test_dataset,
+        batch_size=1,
+        num_workers=0,
+        drop_last=True,
+        shuffle=False
+    )
+    print(test_dataset.__len__())
+    model.eval()
     with torch.no_grad():
-        pred = net(haze1)
-    ts=torch.squeeze(pred.clamp(0,1).cpu())
-    tensorShow([haze_no,pred.clamp(0,1).cpu()],['haze','pred'])
-    vutils.save_image(ts,output_dir+im.split('.')[0]+'_FFA.png')
+        for one_batch in test_loader:
+            hazy_images, clear_images = one_batch
+            
+            hazy_images = hazy_images.to(device)
+            clear_images = clear_images.to(device)
+            outputs = model(hazy_images)
+            
+            MSELoss = nn.MSELoss()
+            mse_ = MSELoss(outputs, clear_images)
+            ssim_ = ssim(outputs, clear_images)
+            psnr_ = psnr(outputs, clear_images)
+            
+            print("mse: "+str(mse_.cpu().item()) + " | ssim:" + str(ssim_.cpu().item()) + " | psnr:" + str(psnr_))
+            output = outputs[0].cpu().detach().numpy()
+            output = output.transpose(1,2,0)
+            
+            hazy_image = hazy_images[0].cpu().detach().numpy()
+            hazy_image = hazy_image.transpose(1,2,0)
+            
+            clear_image = clear_images[0].cpu().detach().numpy()
+            clear_image = clear_image.transpose(1,2,0)
+            
+            
+            print(hazy_image.shape)
+            cv2.imshow("input",hazy_image)
+            cv2.imshow("output",output)
+            cv2.imshow("gt",clear_image)
+            cv2.waitKey(0)
+            

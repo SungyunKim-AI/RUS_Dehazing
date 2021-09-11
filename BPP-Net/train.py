@@ -6,7 +6,7 @@ from tqdm import tqdm
 from models import *
 from metrics import *
 from torch.utils.data import DataLoader
-from HazeDataset import RESIDE_Beta_Train_Dataset, O_Haze_Train_Dataset
+from HazeDataset import RESIDE_Beta_Dataset, O_Haze_Dataset
 
 def train(max_epochs, model, train_loader):
     
@@ -53,21 +53,24 @@ def train(max_epochs, model, train_loader):
 
 if __name__ == '__main__':
     # ============== Config Init ==============
+    img_size = [256,256]
+    batch_size = 1
+    train_dataset = RESIDE_Beta_Dataset('D:/data/RESIDE-beta/train',[0], img_size)
+    #train_dataset = O_Haze_Dataset('D:/data/O-Haze/train',img_size)
     config_defaults = {
 		'model_name' : 'BPP-Net',
-        'dataset' : 'RESIDE-beta(0.85_0.04)'
+        'dataset' : 'RESIDE-beta(0.85_0.04)',
+        'batch_size': batch_size,
+        'img_size' : img_size
 	}
     wandb.init(config=config_defaults, project='Dehazing', entity='rus')
     wandb.run.name = config_defaults['model_name']
     config = wandb.config
     
     # ================ DataLoader ================
-
-    train_dataset = RESIDE_Beta_Train_Dataset('D:/data/RESIDE-beta/train',[0])
-    #train_dataset = O_Haze_Train_Dataset('D:/data/O-Haze/train')
     train_loader = DataLoader(
                 dataset=train_dataset,
-                batch_size=1,
+                batch_size=batch_size,
                 num_workers=0,
                 drop_last=True,
                 shuffle=True

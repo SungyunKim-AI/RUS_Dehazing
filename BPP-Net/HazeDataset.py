@@ -11,15 +11,15 @@ def to_tensor(img):
     img_t = F.to_tensor(img).float()
     return img_t
     
-def load_item(haze, clear):
+def load_item(haze, clear, img_size):
         hazy_image = cv2.imread(haze)
         clear_image = cv2.imread(clear)
         
         hazy_image = Image.fromarray(hazy_image)
         clear_image = Image.fromarray(clear_image)
  
-        hazy_resize = hazy_image.resize((512,512), resample=PIL.Image.BICUBIC)
-        clear_resize = clear_image.resize((512,512), resample=PIL.Image.BICUBIC)
+        hazy_resize = hazy_image.resize(img_size, resample=PIL.Image.BICUBIC)
+        clear_resize = clear_image.resize(img_size, resample=PIL.Image.BICUBIC)
         
         hazy_resize = to_tensor(hazy_resize).cuda()
         clear_resize = to_tensor(clear_resize).cuda()
@@ -27,10 +27,11 @@ def load_item(haze, clear):
         return hazy_resize, clear_resize
 
 class O_Haze_Dataset(torch.utils.data.Dataset):
-    def __init__(self,path):
+    def __init__(self,path,img_size):
         super().__init__()
-        images_clear_path = path+'/clear/*.png'
-        images_hazy_path = path+'/hazy/*.png'
+        self.img_size = img_size
+        images_clear_path = path+'/clear/*.jpg'
+        images_hazy_path = path+'/hazy/*.jpg'
         self.images_clear_list=glob.glob(images_clear_path)
         self.images_hazy_list =glob.glob(images_hazy_path)
     
@@ -38,12 +39,13 @@ class O_Haze_Dataset(torch.utils.data.Dataset):
         return len(self.images_clear_list)
     
     def __getitem__(self,index):
-        haze, clear = load_item(self.images_hazy_list[index], self.images_clear_list[index])
+        haze, clear = load_item(self.images_hazy_list[index], self.images_clear_list[index], self.img_size)
         return haze, clear
         
 class RESIDE_Beta_Dataset(torch.utils.data.Dataset):
-    def __init__(self,path,folders_num):
+    def __init__(self,path,folders_num,img_size):
         super().__init__()
+        self.img_size = img_size
         images_clear_path = path+'/clear/*.jpg'
         self.images_clear_list = glob.glob(images_clear_path)
         
@@ -59,19 +61,21 @@ class RESIDE_Beta_Dataset(torch.utils.data.Dataset):
         self.images_count = len(self.images_hazy_lists[0])
         
     def __len__(self):
-        return self.folders_count * self.images_count
-    
+        #return self.folders_count * self.images_count
+        return 10
+        
     def __getitem__(self,index):
         haze, clear = load_item(self.images_hazy_lists[index//self.images_count][index%self.images_count],
-                                self.images_clear_list[index%self.images_count])
+                                self.images_clear_list[index%self.images_count],
+                                self.img_size)
         return haze, clear
 
 
 class Train_Dataset(torch.utils.data.Dataset):
-    def __init__(self, path):
+    def __init__(self, path, img_size):
         super().__init__()
-        self.RBTD = RESIDE_Beta_Dataset(path+'/RESIDE-beta/train')
-        self.OHTD = O_Haze_Dataset(path+'/O-Haze/train')
+        self.RBTD = RESIDE_Beta_Dataset(path+'/RESIDE-beta/train',[range(35)],img_size)
+        self.OHTD = O_Haze_Dataset(path+'/O-Haze/train',img_size)
         
     def __len__(self):
         return self.RBTD.__len__() + self.OHTD.__len__()

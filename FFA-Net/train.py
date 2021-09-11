@@ -6,7 +6,7 @@ from models import *
 import math
 from torch.backends import cudnn
 from torch import optim
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, dataset
 import torch,warnings
 from torch import nn
 warnings.filterwarnings('ignore')
@@ -62,7 +62,7 @@ def train(model,train_loader,optim,criterion, epochs, init_lr, device):
             mse_epoch += mse_.cpu().item()
             ssim_epoch += ssim_.cpu().item()
             psnr_epoch += psnr_
-            i = i+1
+            i += 1
             
             step+=1
             
@@ -77,7 +77,7 @@ def train(model,train_loader,optim,criterion, epochs, init_lr, device):
                    "PSNR" : psnr_epoch,
                    "global_step" : epoch+1})
         
-        path_of_weight = f'weight/weight_{epoch+1:03}.pth'  #path for storing the weights of genertaor
+        path_of_weight = f'weights/weight_{epoch+1:03}.pth'  #path for storing the weights of genertaor
         torch.save(model.state_dict(), path_of_weight)
          
 
@@ -87,6 +87,10 @@ if __name__ == "__main__":
     epochs = 15
     gps = 3
     blocks = 20
+    img_size = [256,256]
+    batch_size = 1
+    dataset_train=RESIDE_Beta_Dataset('D:/data/RESIDE-beta/train',[0],img_size)
+    #dataset_train = O_Haze_Dataset('D:/data/O-Haze/train',img_size)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     config_defaults = {
@@ -94,18 +98,20 @@ if __name__ == "__main__":
         'init_lr' : lr,
         'epochs' : epochs,
         'gps' : gps,
-        'blocks': blocks}
+        'blocks': blocks,
+        'dataset' : 'RESIDE-beta(0.85_0.04)',
+        #'dataset' : 'O-Haze',
+        'batch_size': batch_size,
+        'image_size': img_size}
     
     wandb.init(config=config_defaults, project='Dehazing', entity='rus')
     wandb.run.name = config_defaults['model_name']
     config = wandb.config
     
-    # ============== Data Load ==============
-    dataset_train=RESIDE_Beta_Dataset('D:/data/RESIDE-beta/train',[0])
-
+    # ============== Data Load =============
     loader_train = DataLoader(
                 dataset=dataset_train,
-                batch_size=1,
+                batch_size=batch_size,
                 num_workers=0,
                 drop_last=True,
                 shuffle=True)
