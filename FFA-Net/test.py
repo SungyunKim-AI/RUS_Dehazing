@@ -13,11 +13,11 @@ if __name__=='__main__':
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = FFA(gps,blocks).to(device)
-    weight_path = 'weights/weight_015.pth'
+    weight_path = 'weights_reside/weight_015.pth'
     weight = torch.load(weight_path)
     model.load_state_dict(weight)
     
-    #test_dataset = RESIDE_Beta_Dataset('D:/data/RESIDE-beta/train',[0])
+    #test_dataset = RESIDE_Beta_Dataset('D:/data/RESIDE-beta/train',[5], img_size)
     test_dataset = O_Haze_Dataset('D:/data/O-Haze/train',img_size)
     test_loader = DataLoader(
         dataset=test_dataset,
