@@ -1,26 +1,26 @@
 import torch
 import wandb
+import os
 from tqdm import tqdm
 
 from models import *
 from metrics import *
 from torch.utils.data import DataLoader
-from HazeDataset import RESIDE_Beta_Train_Dataset
+from HazeDataset import RESIDE_Beta_Dataset, O_Haze_Dataset
 
 def train(max_epochs, model, train_loader):
     
     for epoch in range(max_epochs):
-        i=1
+        i=0
         mse_epoch = 0.0
         ssim_epoch = 0.0
         psnr_epoch = 0.0
         unet_epoch = 0.0
         for batch in tqdm(train_loader):
-            haze_images, dehaze_images = batch
-            with torch.autograd.set_detect_anomaly(True):
-                unet_loss, dis_loss, mse, ssim, psnr = model.process(haze_images.cuda(), dehaze_images.cuda())
-                model.backward(unet_loss.cuda(), dis_loss.cuda())
-            print('Epoch: '+str(epoch+1)+ ' || Batch: '+str(i)+ " || unet loss: "+str(unet_loss.cpu().item()) + " || dis loss: "+str(dis_loss.cpu().item()) + " || mse: "+str(mse.cpu().item()) + " | ssim:" + str(ssim.cpu().item()) + " | psnr:" + str(psnr))
+            haze_images, clear_images = batch
+            unet_loss, dis_loss, mse, ssim, psnr, outputs = model.process(haze_images.cuda(), clear_images.cuda())
+            model.backward(unet_loss.cuda(), dis_loss.cuda())
+            #print('Epoch: '+str(epoch+1)+ ' || Batch: '+str(i)+ " || unet loss: "+str(unet_loss.cpu().item()) + " || dis loss: "+str(dis_loss.cpu().item()) + " || mse: "+str(mse.cpu().item()) + " | ssim:" + str(ssim.cpu().item()) + " | psnr:" + str(psnr))
             
             mse_epoch =  mse_epoch + mse.cpu().item() 
             ssim_epoch = ssim_epoch + ssim.cpu().item()
@@ -28,7 +28,7 @@ def train(max_epochs, model, train_loader):
             unet_epoch = unet_epoch + unet_loss.cpu().item()
             i=i+1
         
-        print()
+        #print()
         mse_epoch = mse_epoch/i
         ssim_epoch = ssim_epoch/i
         psnr_epoch = psnr_epoch/i
@@ -43,22 +43,34 @@ def train(max_epochs, model, train_loader):
                    "PSNR" : psnr_epoch,
                    "global_step" : epoch+1})
         
+        # ================ Saving weights ================
+        if not os.path.exists(f'weight/{epoch+1:03}'):
+            os.makedirs(f'weight/{epoch+1:03}')
+        path_of_generator_weight = f'weight/{epoch+1:03}/generator.pth'  #path for storing the weights of genertaor
+        path_of_discriminator_weight = f'weight/{epoch+1:03}/discriminator.pth'  #path for storing the weights of discriminator
+        DUNet.save_weight(path_of_generator_weight,path_of_discriminator_weight)
+        
 
 if __name__ == '__main__':
     # ============== Config Init ==============
+    img_size = [256,256]
+    batch_size = 1
+    train_dataset = RESIDE_Beta_Dataset('D:/data/RESIDE-beta/train',[0], img_size)
+    #train_dataset = O_Haze_Dataset('D:/data/O-Haze/train',img_size)
     config_defaults = {
-		'model_name' : 'BPP-Net'
+		'model_name' : 'BPP-Net',
+        'dataset' : 'RESIDE-beta(0.85_0.04)',
+        'batch_size': batch_size,
+        'img_size' : img_size
 	}
     wandb.init(config=config_defaults, project='Dehazing', entity='rus')
     wandb.run.name = config_defaults['model_name']
     config = wandb.config
     
     # ================ DataLoader ================
-
-    train_dataset = RESIDE_Beta_Train_Dataset('D:/data/RESIDE-beta/train')
     train_loader = DataLoader(
                 dataset=train_dataset,
-                batch_size=1,
+                batch_size=batch_size,
                 num_workers=0,
                 drop_last=True,
                 shuffle=True
@@ -75,9 +87,3 @@ if __name__ == '__main__':
     # ================ Training ================
     epochs = 150
     train(epochs, DUNet, train_loader)
-    
-    
-    # ================ Saving weights ================
-    path_of_generator_weight = 'weight/generator.pth'  #path for storing the weights of genertaor
-    path_of_discriminator_weight = 'weight/discriminator.pth'  #path for storing the weights of discriminator
-    DUNet.save_weight(path_of_generator_weight,path_of_discriminator_weight)

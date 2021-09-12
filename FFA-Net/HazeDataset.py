@@ -61,8 +61,8 @@ class RESIDE_Beta_Dataset(torch.utils.data.Dataset):
         self.images_count = len(self.images_hazy_lists[0])
         
     def __len__(self):
-        #return self.folders_count * self.images_count
-        return 10
+        return self.folders_count * self.images_count
+        #return 10
         
     def __getitem__(self,index):
         haze, clear = load_item(self.images_hazy_lists[index//self.images_count][index%self.images_count],
