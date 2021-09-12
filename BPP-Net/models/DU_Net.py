@@ -106,7 +106,7 @@ class DU_Net(nn.Module):
         
         psnr = self.psnr(outputs.cuda(), dehaze_images.cuda())
         
-        return unet_loss, dis_loss, unet_criterion, 1-ssim_loss/2, psnr
+        return unet_loss, dis_loss, unet_criterion, 1-ssim_loss/2, psnr, outputs
 
     def backward(self, unet_loss, dis_loss):
         dis_loss.backward(retain_graph = True)

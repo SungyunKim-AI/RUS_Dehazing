@@ -54,8 +54,8 @@ def ssim(img1, img2, window_size=11, size_average=True):
     window = window.type_as(img1)
     return _ssim(img1, img2, window, window_size, channel, size_average)
 def psnr(pred, gt):
-    pred=pred.clamp(0,1).cpu().numpy()
-    gt=gt.clamp(0,1).cpu().numpy()
+    pred=pred.clamp(0,1).cpu().detach().numpy()
+    gt=gt.clamp(0,1).cpu().detach().numpy()
     imdff = pred - gt
     rmse = math.sqrt(np.mean(imdff ** 2))
     if rmse == 0:
