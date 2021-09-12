@@ -1,106 +1,119 @@
-import os, glob, cv2, math
+import cv2
+import glob
+import math
+import os
 import numpy as np
 
-def DarkChannel(image,sz):
-    b,g,r = cv2.split(image)
-    dc = cv2.min(cv2.min(r,g),b);
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT,(sz,sz))
-    dark = cv2.erode(dc,kernel)
-    return dark
+class DCP:
+    def __init__(self, image, patch_size):
+        self.image = image
+        self.patch_size = patch_size
+        self.omega = 0.95
+        self.A = self.get_A(image, self.getDarkChannel(image))
 
-def TransmissionEstimate(image,A,sz):
-    omega = 0.95;
-    im3 = np.empty(image.shape,image.dtype);
+    def get_A(self, image, dcp):
+        [h, w] = image.shape[:2]
+        image_size = h * w
+        numpx = int(max(math.floor(image_size / 1000), 1))
+        darkvec = dcp.reshape(image_size)
+        imvec = image.reshape(image_size, 3)
 
-    for ind in range(0,3):
-        im3[:,:,ind] = image[:,:,ind]/A[0,ind]
+        indices = darkvec.argsort()
+        indices = indices[image_size - numpx::]
 
-    transmission = 1 - omega*DarkChannel(im3,sz);
-    return transmission
+        atmsum = np.zeros([1, 3])
+        for ind in range(1, numpx):
+            atmsum = atmsum + imvec[indices[ind]]
 
-def Guidedfilter(im,p,r,eps):
-    mean_I = cv2.boxFilter(im,cv2.CV_64F,(r,r));
-    mean_p = cv2.boxFilter(p, cv2.CV_64F,(r,r));
-    mean_Ip = cv2.boxFilter(im*p,cv2.CV_64F,(r,r));
-    cov_Ip = mean_Ip - mean_I*mean_p;
+        A = atmsum / numpx
+        return A
 
-    mean_II = cv2.boxFilter(im*im,cv2.CV_64F,(r,r));
-    var_I   = mean_II - mean_I*mean_I;
+    def getDarkChannel(self, image):
+        b, g, r = cv2.split(image)
+        dc = cv2.min(cv2.min(r, g), b)
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (self.patch_size, self.patch_size))
+        dark = cv2.erode(dc, kernel)
+        return dark
 
-    a = cov_Ip/(var_I + eps);
-    b = mean_p - a*mean_I;
+    def estimateTransmission(self, image, threshold):
+        image2 = np.empty(image.shape, image.dtype)
 
-    mean_a = cv2.boxFilter(a,cv2.CV_64F,(r,r));
-    mean_b = cv2.boxFilter(b,cv2.CV_64F,(r,r));
+        for ind in range(0, 3):
+            image2[:, :, ind] = image[:, :, ind] / self.A[0, ind]
 
-    q = mean_a*im + mean_b;
-    q2 = mean_a*im + mean_b;
-    
-    q2[q2 < 0.2] = 1.
-    
-    return q, q2;
+        transmission = 1 - self.omega * self.getDarkChannel(image2)
+        
+        if threshold is not None:
+            transmission[transmission < threshold] = 1.
+            
+        return transmission
 
-def TransmissionRefine(im,et):
-    gray = cv2.cvtColor(im,cv2.COLOR_BGR2GRAY);
-    gray = np.float64(gray)/255;
-    r = 60;
-    eps = 0.0001;
-    t, t2 = Guidedfilter(gray,et,r,eps);
+    def guidedFilter(self, image, p, r, eps):
+        mean_I = cv2.boxFilter(image, cv2.CV_64F, (r, r))
+        mean_p = cv2.boxFilter(p, cv2.CV_64F, (r, r))
+        mean_Ip = cv2.boxFilter(image * p, cv2.CV_64F, (r, r))
+        cov_Ip = mean_Ip - mean_I * mean_p
 
-    return t, t2;
+        mean_II = cv2.boxFilter(image * image, cv2.CV_64F, (r, r))
+        var_I = mean_II - mean_I * mean_I
 
-def AtmLight(im,dark):
-    [h,w] = im.shape[:2]
-    imsz = h*w
-    numpx = int(max(math.floor(imsz/1000),1))
-    darkvec = dark.reshape(imsz);
-    imvec = im.reshape(imsz,3);
+        a = cov_Ip / (var_I + eps)
+        b = mean_p - a * mean_I
 
-    indices = darkvec.argsort();
-    indices = indices[imsz-numpx::]
+        mean_a = cv2.boxFilter(a, cv2.CV_64F, (r, r))
+        mean_b = cv2.boxFilter(b, cv2.CV_64F, (r, r))
 
-    atmsum = np.zeros([1,3])
-    for ind in range(1,numpx):
-       atmsum = atmsum + imvec[indices[ind]]
+        q = mean_a * image + mean_b
 
-    A = atmsum / numpx;
-    return A
+        return q
 
-def Recover(im,t,A,tx = 0.1):
-    res = np.empty(im.shape,im.dtype);
-    t = cv2.max(t,tx);
+    def refineTransmission(self, image, et):
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        gray = np.float64(gray) / 255
+        
+        r = 60
+        eps = 0.0001
+        t = self.guidedFilter(gray, et, r, eps)
 
-    for ind in range(0,3):
-        res[:,:,ind] = (im[:,:,ind]-A[0,ind])/t + A[0,ind]
+        return t
 
-    return res
+    def getRecoverImage(self, im, t, A, tx=0.1):
+        res = np.empty(im.shape, im.dtype)
+        t = cv2.max(t, tx)
 
-if __name__=="__main__":
+        for ind in range(0, 3):
+            res[:, :, ind] = (im[:, :, ind] - A[0, ind]) / t + A[0, ind]
+
+        return res
+
+
+if __name__ == "__main__":
     load_path = "/Users/sungyoon-kim/Downloads/BeDDE_part"
     save_path = "/Users/sungyoon-kim/Downloads/BeDDE_part/transmission_dcp/"
-    
+
     for folder in glob.glob(load_path + '/*'):
         file_path = os.path.join(folder, 'fog')
         for file in glob.glob(file_path + '/*'):
             src = cv2.imread(file)
-            img = src.astype('float64')/255
-            
-            dark = DarkChannel(img, 15)
-            A = AtmLight(img, dark);
-            te = TransmissionEstimate(img, A, 15)
-            t, t2 = TransmissionRefine(src, te)
-            
+            image = src.astype('float64') / 255
+            dcp = DCP(image, patch_size=15)
+
+            transmission = dcp.estimateTransmission(image, threshold=0.2)
+            # cv2.imshow('transmission', transmission)
+            # cv2.waitKey(0)
+            t = dcp.refineTransmission(src, transmission)
+            # cv2.imshow('refined transmission', t)
+            # cv2.waitKey(0)
+
             # Recover
             # J = Recover(img, t, A, 0.1)
             # J2 = Recover(img, t2, A, 0.1)
             # addhJ = cv2.hconcat([J, J2])
             # cv2.imshow('J', addhJ)
             # cv2.waitKey()
-            
-            addh = cv2.hconcat([t, t2])
+
             # cv2.imshow('Dark Channel', addh)
             # cv2.waitKey(0)
-            
+
             save_file = os.path.join(save_path, os.path.basename(file).split('.')[0])
-            cv2.imwrite(save_file +  '.jpeg', addh*255)
-    
+            cv2.imwrite(save_file + '.jpeg', addh * 255)
