@@ -117,3 +117,4 @@ dmypy.json
 /BPP-Net/wandb
 /FFA-Net/net/data
 *.pth
+.idea/*
