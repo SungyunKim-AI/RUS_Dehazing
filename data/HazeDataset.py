@@ -1,8 +1,7 @@
+import glob, os
 import torch
 import cv2
 import torchvision.transforms.functional as F
-import glob
-import random
 
 def to_tensor(img):
     img_t = F.to_tensor(img).float()
@@ -82,7 +81,7 @@ class NH_Haze_Dataset(torch.utils.data.Dataset):
         return haze, clear
         
 class RESIDE_Beta_Dataset(torch.utils.data.Dataset):
-    def __init__(self,path,folders_num,img_size,printName=False):
+    def __init__(self, path, img_size, printName=False, verbose=True):
         super().__init__()
         self.img_size = img_size
         images_clear_path = path+'/clear/*.jpg'
@@ -91,17 +90,15 @@ class RESIDE_Beta_Dataset(torch.utils.data.Dataset):
         
         images_hazy_folders_path = path+'/hazy/*/'
         self.images_hazy_lists = []
-        images_hazy_folders=glob.glob(images_hazy_folders_path)
-        for folder_num in folders_num:
-            images_hazy_folder = images_hazy_folders[folder_num]
-            print(images_hazy_folder + ' dataset ready!')
+        for images_hazy_folder in glob.glob(images_hazy_folders_path):
+            if verbose:
+                print(images_hazy_folder + ' dataset ready!')
             self.images_hazy_lists.append(glob.glob(images_hazy_folder+'*.jpg'))
-            
-        self.folders_count = len(folders_num)
+        
         self.images_count = len(self.images_hazy_lists[0])
         
     def __len__(self):
-        return self.folders_count * self.images_count
+        return len(self.images_hazy_lists) * self.images_count
         #return 10
         
     def __getitem__(self,index):
@@ -114,14 +111,16 @@ class RESIDE_Beta_Dataset(torch.utils.data.Dataset):
 
 
 class Dataset(torch.utils.data.Dataset):
-    def __init__(self, path, img_size, train_flag='train'):
+    def __init__(self, path, img_size, train_flag='train', verbose=True):
         super().__init__()
-        self.RBTD = RESIDE_Beta_Dataset(path + f'/RESIDE-beta/{train_flag}',range(35), img_size)
+        self.RBTD = RESIDE_Beta_Dataset(path + f'/RESIDE-beta/{train_flag}', range(35), img_size, verbose)
         self.OHTD = O_Haze_Dataset(path + f'/O-Haze/{train_flag}', img_size)
         self.NHTD = NH_Haze_Dataset(path + f'/NH-Haze/{train_flag}', img_size)
         
-        
     def __len__(self):
+        # print("RESIDE-beta len : ", self.RBTD.__len__())
+        # print("O-Haze len      : ", self.OHTD.__len__())
+        # print("NH-Haze len     : ", self.NHTD.__len__())
         return self.RBTD.__len__() + self.OHTD.__len__() + self.NHTD.__len__()
 
     def __getitem__(self, index):
@@ -134,11 +133,12 @@ class Dataset(torch.utils.data.Dataset):
         return haze, clear
     
 if __name__ == '__main__':
-    # train_set = Dataset('D:/data', train_flag='train')
-    # test_set = Dataset('D:/data', train_flag='test')
+    # data_path = 'D:/data'
+    data_path = 'C:/Users/IIPL/Desktop/data'
+    # data_path = '/Users/sungyoon-kim/Documents/GitHub/RUS_Dehazing/data_sample'
     
-    train_set = Dataset('C:/Users/IIPL/Desktop/data', [256,256],train_flag='train')
-    test_set = Dataset('C:/Users/IIPL/Desktop/data', [256,256],train_flag='test')
+    train_set = Dataset(data_path, [256,256],train_flag='train') 
+    test_set = Dataset(data_path, [256,256],train_flag='test')
     
     print("Train Set : ", train_set.__len__())  # 70000 + 40 + 50 = 70090
     print("Test Set : ", test_set.__len__())    # 2135 + 5 + 5 = 2145
