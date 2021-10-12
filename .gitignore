@@ -118,3 +118,4 @@ dmypy.json
 /FFA-Net/net/data
 *.pth
 .idea/*
+data_sample/
