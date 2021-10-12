@@ -1,4 +1,6 @@
 import warnings
+
+from vanilla_transformer.models import backbone
 warnings.filterwarnings('ignore')
 
 import sys, os
@@ -12,8 +14,6 @@ from torch.utils.data import DataLoader
 from data import HazeDataset
 import models
 
-def train():
-    
 
 if __name__=='__main__':
     # ============== Config Init ==============
@@ -44,13 +44,13 @@ if __name__=='__main__':
     loader_train = DataLoader(dataset_train, batch_size, num_workers=0, shuffle=True)
     loader_test  = DataLoader(dataset_test, batch_size, num_workers=0)
     
-    model = models.Transformer(d_model=256, nhead=8, num_encoder_layers=6,
-                               num_decoder_layers=6, dim_feedforward=2048, dropout=0.1,
-                               activation="relu", normalize_before=False,
-                               return_intermediate_dec=False)
+    model = models.VT(num_queries=100, hidden_dim=256)
+    model.to(device)
+    
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, lr_drop)
     
     
-    optimizer = torch.optim.AdamW(param_dicts, lr=lr, weight_decay=weight_decay)
-    lr_scheduler = torch.optim.lr_scheduㅁler.StepLR(optimizer, lr_drop)
+    # ============== Train ==============
     
     
