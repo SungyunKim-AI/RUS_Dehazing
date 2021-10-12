@@ -6,7 +6,7 @@ from models import *
 import math
 from torch.backends import cudnn
 from torch import optim
-from torch.utils.data import DataLoader, dataset
+from torch.utils.data import DataLoader
 import torch,warnings
 from torch import nn
 warnings.filterwarnings('ignore')

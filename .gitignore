@@ -113,9 +113,7 @@ dmypy.json
 # Pyre type checker
 .pyre/
 .DS_Store
-/BPP-Net/train
-/BPP-Net/wandb
-/FFA-Net/net/data
 *.pth
 .idea/*
 data_sample/
+/FFA-Net/wandb
