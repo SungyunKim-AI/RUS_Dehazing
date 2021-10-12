@@ -1,16 +1,10 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
-
 import copy
 from typing import Optional, List
 
 import torch
 import torch.nn.functional as F
 from torch import nn, Tensor
-
-from util.misc import (NestedTensor, nested_tensor_from_tensor_list,
-                       accuracy, get_world_size, interpolate,
-                       is_dist_avail_and_initialized)
-from .backbone import build_backbone
 
 class Transformer(nn.Module):
 
@@ -48,9 +42,9 @@ class Transformer(nn.Module):
         # flatten NxCxHxW(batch size x channel x height x width) to HWxNxC((height*width) x batch size x channel)
         bs, c, h, w = src.shape     # batch size, channel, height, width
         src = src.flatten(2).permute(2, 0, 1)
-        pos_embed = pos_embed.flatten(2).permute(2, 0, 1)
-        query_embed = query_embed.unsqueeze(1).repeat(1, bs, 1)
         mask = mask.flatten(1)
+        query_embed = query_embed.unsqueeze(1).repeat(1, bs, 1)
+        pos_embed = pos_embed.flatten(2).permute(2, 0, 1)
 
         tgt = torch.zeros_like(query_embed)
         memory = self.encoder(src, src_key_padding_mask=mask, pos=pos_embed)
@@ -272,20 +266,6 @@ class TransformerDecoderLayer(nn.Module):
 def _get_clones(module, N):
     return nn.ModuleList([copy.deepcopy(module) for _ in range(N)])
 
-
-def build_transformer(args):
-    return Transformer(
-        d_model=args.hidden_dim,
-        dropout=args.dropout,
-        nhead=args.nheads,
-        dim_feedforward=args.dim_feedforward,
-        num_encoder_layers=args.enc_layers,
-        num_decoder_layers=args.dec_layers,
-        normalize_before=args.pre_norm,
-        return_intermediate_dec=True,
-    )
-
-
 def _get_activation_fn(activation):
     """Return an activation function given a string"""
     if activation == "relu":
@@ -295,43 +275,3 @@ def _get_activation_fn(activation):
     if activation == "glu":
         return F.glu
     raise RuntimeError(F"activation should be relu/gelu, not {activation}.")
-
-
-if __name__ == '__main__':
-    # output positional encodings (object queries)
-    hidden_dim = 256
-    num_queries = 100
-    samples = torch.randn((1,3,256,256))
-    
-    backbone = build_backbone(args)
-    if isinstance(samples, (list, torch.Tensor)):
-        samples = nested_tensor_from_tensor_list(samples)
-    features, pos = backbone(samples)
-    
-    query_pos = nn.Parameter(torch.rand(100, hidden_dim))
-    query_embed = nn.Embedding(num_queries, hidden_dim)
-    input_proj = nn.Conv2d(3, hidden_dim, kernel_size=1)
-    
-    # spatial positional encodings
-    # note that in baseline DETR we use sine positional encodings
-    row_embed = nn.Parameter(torch.rand(50, hidden_dim // 2))
-    col_embed = nn.Parameter(torch.rand(50, hidden_dim // 2))
-    
-    # construct positional encodings
-    # test_input = torch.randn((16, 256, 8, 8))
-    H, W = test_input.shape[-2:]
-    pos = torch.cat([
-        col_embed[:W].unsqueeze(0).repeat(H, 1, 1),
-        row_embed[:H].unsqueeze(1).repeat(1, W, 1),
-    ], dim=-1).flatten(0, 1).unsqueeze(1)
-
-    # propagate through the transformer
-    transformer = Transformer(d_model=256, nhead=8, num_encoder_layers=6,
-                num_decoder_layers=6, dim_feedforward=2048, dropout=0.1,
-                activation="relu", normalize_before=False,
-                return_intermediate_dec=False)
-    
-    # test_output = transformer(pos + 0.1 * test_input.flatten(2).permute(2, 0, 1), query_pos.unsqueeze(1)).transpose(0, 1)
-    transformer(input_proj(src), mask, self.query_embed.weight, pos[-1])
-    
-    print(test_output.shape)
