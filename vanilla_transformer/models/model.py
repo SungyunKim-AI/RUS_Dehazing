@@ -1,11 +1,14 @@
+import sys, os
+sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
+
 import torch
-import torch.nn as nn
+from torch import nn
 
 from util.misc import *
 from .transfomer import *
 from .backbone import *
 
-class VT(nn.module):
+class VT(nn.Module):
     def __init__(self, num_queries, hidden_dim):
         super().__init__()
         self.num_queries = num_queries

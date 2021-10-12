@@ -113,21 +113,22 @@ class RESIDE_Beta_Dataset(torch.utils.data.Dataset):
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, path, img_size, train_flag='train', verbose=True):
         super().__init__()
-        self.RBTD = RESIDE_Beta_Dataset(path + f'/RESIDE-beta/{train_flag}', range(35), img_size, verbose)
+        self.RBTD = RESIDE_Beta_Dataset(path + f'/RESIDE-beta/{train_flag}', img_size, verbose)
         self.OHTD = O_Haze_Dataset(path + f'/O-Haze/{train_flag}', img_size)
         self.NHTD = NH_Haze_Dataset(path + f'/NH-Haze/{train_flag}', img_size)
-        
-    def __len__(self):
+                
         # print("RESIDE-beta len : ", self.RBTD.__len__())
         # print("O-Haze len      : ", self.OHTD.__len__())
         # print("NH-Haze len     : ", self.NHTD.__len__())
+        
+    def __len__(self):
         return self.RBTD.__len__() + self.OHTD.__len__() + self.NHTD.__len__()
 
     def __getitem__(self, index):
         if index >= self.RBTD.__len__() and index <= (self.RBTD.__len__()+self.OHTD.__len__()):
             haze, clear = self.OHTD[index-self.RBTD.__len__()]
         elif index >= (self.RBTD.__len__()+self.OHTD.__len__()):
-            haze, clear = self.OHTD[index-(self.RBTD.__len__()+self.OHTD.__len__())]
+            haze, clear = self.NHTD[index-(self.RBTD.__len__()+self.OHTD.__len__())]
         else:
             haze, clear = self.RBTD[index]
         return haze, clear
