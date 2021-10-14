@@ -117,3 +117,4 @@ dmypy.json
 .idea/*
 data_sample/
 /FFA-Net/wandb
+*.pt
