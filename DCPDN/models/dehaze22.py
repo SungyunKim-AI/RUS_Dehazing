@@ -35,33 +35,33 @@ def deconv_block(in_dim,out_dim):
 def blockUNet1(in_c, out_c, name, transposed=False, bn=False, relu=True, dropout=False):
   block = nn.Sequential()
   if relu:
-    block.add_module('%s.relu' % name, nn.ReLU(inplace=True))
+    block.add_module(f'{name}_relu', nn.ReLU(inplace=True))
   else:
-    block.add_module('%s.leakyrelu' % name, nn.LeakyReLU(0.2, inplace=True))
+    block.add_module(f'{name}_leakyrelu', nn.LeakyReLU(0.2, inplace=True))
   if not transposed:
-    block.add_module('%s.conv' % name, nn.Conv2d(in_c, out_c, 3, 1, 1, bias=False))
+    block.add_module(f'{name}_conv', nn.Conv2d(in_c, out_c, 3, 1, 1, bias=False))
   else:
-    block.add_module('%s.tconv' % name, nn.ConvTranspose2d(in_c, out_c, 3, 1, 1, bias=False))
+    block.add_module(f'{name}_tconv', nn.ConvTranspose2d(in_c, out_c, 3, 1, 1, bias=False))
   if bn:
-    block.add_module('%s.bn' % name, nn.BatchNorm2d(out_c))
+    block.add_module(f'{name}_bn', nn.BatchNorm2d(out_c))
   if dropout:
-    block.add_module('%s.dropout' % name, nn.Dropout2d(0.5, inplace=True))
+    block.add_module(f'{name}_dropout', nn.Dropout2d(0.5, inplace=True))
   return block
 
 def blockUNet(in_c, out_c, name, transposed=False, bn=False, relu=True, dropout=False):
   block = nn.Sequential()
   if relu:
-    block.add_module('%s.relu' % name, nn.ReLU(inplace=True))
+    block.add_module(f'{name}_relu', nn.ReLU(inplace=True))
   else:
-    block.add_module('%s.leakyrelu' % name, nn.LeakyReLU(0.2, inplace=True))
+    block.add_module(f'{name}_leakyrelu', nn.LeakyReLU(0.2, inplace=True))
   if not transposed:
-    block.add_module('%s.conv' % name, nn.Conv2d(in_c, out_c, 4, 2, 1, bias=False))
+    block.add_module(f'{name}_conv', nn.Conv2d(in_c, out_c, 4, 2, 1, bias=False))
   else:
-    block.add_module('%s.tconv' % name, nn.ConvTranspose2d(in_c, out_c, 4, 2, 1, bias=False))
+    block.add_module(f'{name}_tconv', nn.ConvTranspose2d(in_c, out_c, 4, 2, 1, bias=False))
   if bn:
-    block.add_module('%s.bn' % name, nn.BatchNorm2d(out_c))
+    block.add_module(f'{name}_bn', nn.BatchNorm2d(out_c))
   if dropout:
-    block.add_module('%s.dropout' % name, nn.Dropout2d(0.5, inplace=True))
+    block.add_module(f'{name}_s.dropout', nn.Dropout2d(0.5, inplace=True))
   return block
 
 
@@ -118,35 +118,35 @@ class D(nn.Module):
     main = nn.Sequential()
     # 256
     layer_idx = 1
-    name = 'layer%d' % layer_idx
-    main.add_module('%s.conv' % name, nn.Conv2d(nc, nf, 4, 2, 1, bias=False))
+    name = f'layer{layer_idx}'
+    main.add_module(f'{name}_conv', nn.Conv2d(nc, nf, 4, 2, 1, bias=False))
 
     # 128
     layer_idx += 1
-    name = 'layer%d' % layer_idx
+    name = f'layer{layer_idx}'
     main.add_module(name, blockUNet(nf, nf*2, name, transposed=False, bn=True, relu=False, dropout=False))
 
     # 64
     layer_idx += 1
-    name = 'layer%d' % layer_idx
+    name = f'layer{layer_idx}'
     nf = nf * 2
     main.add_module(name, blockUNet(nf, nf*2, name, transposed=False, bn=True, relu=False, dropout=False))
 
     # 32
     layer_idx += 1
-    name = 'layer%d' % layer_idx
+    name = f'layer{layer_idx}'
     nf = nf * 2
-    main.add_module('%s.leakyrelu' % name, nn.LeakyReLU(0.2, inplace=True))
-    main.add_module('%s.conv' % name, nn.Conv2d(nf, nf*2, 4, 1, 1, bias=False))
-    main.add_module('%s.bn' % name, nn.BatchNorm2d(nf*2))
+    main.add_module(f'{name}_leakyrelu', nn.LeakyReLU(0.2, inplace=True))
+    main.add_module(f'{name}_conv', nn.Conv2d(nf, nf*2, 4, 1, 1, bias=False))
+    main.add_module(f'{name}_bn', nn.BatchNorm2d(nf*2))
 
     # 31
     layer_idx += 1
-    name = 'layer%d' % layer_idx
+    name = f'layer{layer_idx}'
     nf = nf * 2
-    main.add_module('%s.leakyrelu' % name, nn.LeakyReLU(0.2, inplace=True))
-    main.add_module('%s.conv' % name, nn.Conv2d(nf, 1, 4, 1, 1, bias=False))
-    main.add_module('%s.sigmoid' % name , nn.Sigmoid())
+    main.add_module(f'{name}_leakyrelu', nn.LeakyReLU(0.2, inplace=True))
+    main.add_module(f'{name}_conv', nn.Conv2d(nf, 1, 4, 1, 1, bias=False))
+    main.add_module(f'{name}_sigmoid' , nn.Sigmoid())
     # 30 (sizePatchGAN=30)
 
     self.main = main
@@ -163,35 +163,35 @@ class D_tran(nn.Module):
     main = nn.Sequential()
     # 256
     layer_idx = 1
-    name = 'layer%d' % layer_idx
-    main.add_module('%s.conv' % name, nn.Conv2d(nc, nf, 4, 2, 1, bias=False))
+    name = f'layer{layer_idx}'
+    main.add_module(f'{name}_conv', nn.Conv2d(nc, nf, 4, 2, 1, bias=False))
 
     # 128
     layer_idx += 1
-    name = 'layer%d' % layer_idx
+    name = f'layer{layer_idx}'
     main.add_module(name, blockUNet(nf, nf*2, name, transposed=False, bn=True, relu=False, dropout=False))
 
     # 64
     layer_idx += 1
-    name = 'layer%d' % layer_idx
+    name = f'layer{layer_idx}'
     nf = nf * 2
     main.add_module(name, blockUNet(nf, nf*2, name, transposed=False, bn=True, relu=False, dropout=False))
 
     # 32
     layer_idx += 1
-    name = 'layer%d' % layer_idx
+    name = f'layer{layer_idx}'
     nf = nf * 2
-    main.add_module('%s.leakyrelu' % name, nn.LeakyReLU(0.2, inplace=True))
-    main.add_module('%s.conv' % name, nn.Conv2d(nf, nf*2, 4, 1, 1, bias=False))
-    main.add_module('%s.bn' % name, nn.BatchNorm2d(nf*2))
+    main.add_module(f'{name}_leakyrelu', nn.LeakyReLU(0.2, inplace=True))
+    main.add_module(f'{name}_conv', nn.Conv2d(nf, nf*2, 4, 1, 1, bias=False))
+    main.add_module(f'{name}_bn', nn.BatchNorm2d(nf*2))
 
     # 31
     layer_idx += 1
-    name = 'layer%d' % layer_idx
+    name = f'layer{layer_idx}'
     nf = nf * 2
-    main.add_module('%s.leakyrelu' % name, nn.LeakyReLU(0.2, inplace=True))
-    main.add_module('%s.conv' % name, nn.Conv2d(nf, 1, 4, 1, 1, bias=False))
-    main.add_module('%s.sigmoid' % name , nn.Sigmoid())
+    main.add_module(f'{name}_leakyrelu', nn.LeakyReLU(0.2, inplace=True))
+    main.add_module(f'{name}_conv', nn.Conv2d(nf, 1, 4, 1, 1, bias=False))
+    main.add_module(f'{name}_sigmoid', nn.Sigmoid())
     # 30 (sizePatchGAN=30)
 
     self.main = main
@@ -207,86 +207,86 @@ class G(nn.Module):
     super(G, self).__init__()
     # input is 256 x 256
     layer_idx = 1
-    name = 'layer%d' % layer_idx
+    name = f'layer{layer_idx}'
     layer1 = nn.Sequential()
     layer1.add_module(name, nn.Conv2d(input_nc, nf, 4, 2, 1, bias=False))
     # input is 128 x 128
     layer_idx += 1
-    name = 'layer%d' % layer_idx
+    name = f'layer{layer_idx}'
     layer2 = blockUNet(nf, nf*2, name, transposed=False, bn=True, relu=False, dropout=False)
     # input is 64 x 64
     layer_idx += 1
-    name = 'layer%d' % layer_idx
+    name = f'layer{layer_idx}'
     layer3 = blockUNet(nf*2, nf*4, name, transposed=False, bn=True, relu=False, dropout=False)
     # input is 32
     layer_idx += 1
-    name = 'layer%d' % layer_idx
+    name = f'layer{layer_idx}'
     layer4 = blockUNet(nf*4, nf*8, name, transposed=False, bn=True, relu=False, dropout=False)
     # input is 16
     layer_idx += 1
-    name = 'layer%d' % layer_idx
+    name = f'layer{layer_idx}'
     layer5 = blockUNet(nf*8, nf*8, name, transposed=False, bn=True, relu=False, dropout=False)
     # input is 8
     layer_idx += 1
-    name = 'layer%d' % layer_idx
+    name = f'layer{layer_idx}'
     layer6 = blockUNet(nf*8, nf*8, name, transposed=False, bn=True, relu=False, dropout=False)
     # input is 4
     layer_idx += 1
-    name = 'layer%d' % layer_idx
+    name = f'layer{layer_idx}'
     layer7 = blockUNet(nf*8, nf*8, name, transposed=False, bn=True, relu=False, dropout=False)
     # input is 2 x  2
     layer_idx += 1
-    name = 'layer%d' % layer_idx
+    name = f'layer{layer_idx}'
     layer8 = blockUNet(nf*8, nf*8, name, transposed=False, bn=True, relu=False, dropout=False)
 
     ## NOTE: decoder
     # input is 1
-    name = 'dlayer%d' % layer_idx
+    name = f'dlayer{layer_idx}'
     d_inc = nf*8
     dlayer8 = blockUNet(d_inc, nf*8, name, transposed=True, bn=False, relu=True, dropout=True)
 
     # input is 2
     layer_idx -= 1
-    name = 'dlayer%d' % layer_idx
+    name = f'dlayer{layer_idx}'
     d_inc = nf*8*2
     dlayer7 = blockUNet(d_inc, nf*8, name, transposed=True, bn=True, relu=True, dropout=True)
     # input is 4
     layer_idx -= 1
-    name = 'dlayer%d' % layer_idx
+    name = f'dlayer{layer_idx}'
     d_inc = nf*8*2
     dlayer6 = blockUNet(d_inc, nf*8, name, transposed=True, bn=True, relu=True, dropout=True)
     # input is 8
     layer_idx -= 1
-    name = 'dlayer%d' % layer_idx
+    name = f'dlayer{layer_idx}'
     d_inc = nf*8*2
     dlayer5 = blockUNet(d_inc, nf*8, name, transposed=True, bn=True, relu=True, dropout=False)
     # input is 16
     layer_idx -= 1
-    name = 'dlayer%d' % layer_idx
+    name = f'dlayer{layer_idx}'
     d_inc = nf*8*2
     dlayer4 = blockUNet(d_inc, nf*4, name, transposed=True, bn=True, relu=True, dropout=False)
     # input is 32
     layer_idx -= 1
-    name = 'dlayer%d' % layer_idx
+    name = f'dlayer{layer_idx}'
     d_inc = nf*4*2
     dlayer3 = blockUNet(d_inc, nf*2, name, transposed=True, bn=True, relu=True, dropout=False)
     # input is 64
     layer_idx -= 1
-    name = 'dlayer%d' % layer_idx
+    name = f'dlayer{layer_idx}'
     d_inc = nf*2*2
     dlayer2 = blockUNet(d_inc, nf, name, transposed=True, bn=True, relu=True, dropout=False)
     # input is 128
     layer_idx -= 1
-    name = 'dlayer%d' % layer_idx
+    name = f'dlayer{layer_idx}'
     dlayer1 = nn.Sequential()
     d_inc = nf*2
-    dlayer1.add_module('%s.relu' % name, nn.ReLU(inplace=True))
-    dlayer1.add_module('%s.tconv' % name, nn.ConvTranspose2d(d_inc, 20, 4, 2, 1, bias=False))
+    dlayer1.add_module(f'{name}_relu', nn.ReLU(inplace=True))
+    dlayer1.add_module(f'{name}_tconv', nn.ConvTranspose2d(d_inc, 20, 4, 2, 1, bias=False))
 
     dlayerfinal = nn.Sequential()
 
-    dlayerfinal.add_module('%s.conv' % name, nn.Conv2d(24, output_nc, 3, 1, 1, bias=False))
-    dlayerfinal.add_module('%s.tanh' % name, nn.Tanh())
+    dlayerfinal.add_module(f'{name}_conv', nn.Conv2d(24, output_nc, 3, 1, 1, bias=False))
+    dlayerfinal.add_module(f'{name}_tanh', nn.Tanh())
 
     self.conv1010 = nn.Conv2d(20, 1, kernel_size=1,stride=1,padding=0)  # 1mm
     self.conv1020 = nn.Conv2d(20, 1, kernel_size=1,stride=1,padding=0)  # 1mm
@@ -366,83 +366,83 @@ class G2(nn.Module):
     super(G2, self).__init__()
     # input is 256 x 256
     layer_idx = 1
-    name = 'layer%d' % layer_idx
+    name = f'layer{layer_idx}'
     layer1 = nn.Sequential()
     layer1.add_module(name, nn.Conv2d(input_nc, nf, 4, 2, 1, bias=False))
     # input is 128 x 128
     layer_idx += 1
-    name = 'layer%d' % layer_idx
+    name = f'layer{layer_idx}'
     layer2 = blockUNet(nf, nf*2, name, transposed=False, bn=True, relu=False, dropout=False)
     # input is 64 x 64
     layer_idx += 1
-    name = 'layer%d' % layer_idx
+    name = f'layer{layer_idx}'
     layer3 = blockUNet(nf*2, nf*4, name, transposed=False, bn=True, relu=False, dropout=False)
     # input is 32
     layer_idx += 1
-    name = 'layer%d' % layer_idx
+    name = f'layer{layer_idx}'
     layer4 = blockUNet(nf*4, nf*8, name, transposed=False, bn=True, relu=False, dropout=False)
     # input is 16
     layer_idx += 1
-    name = 'layer%d' % layer_idx
+    name = f'layer{layer_idx}'
     layer5 = blockUNet(nf*8, nf*8, name, transposed=False, bn=True, relu=False, dropout=False)
     # input is 8
     layer_idx += 1
-    name = 'layer%d' % layer_idx
+    name = f'layer{layer_idx}'
     layer6 = blockUNet(nf*8, nf*8, name, transposed=False, bn=True, relu=False, dropout=False)
     # input is 4
     layer_idx += 1
-    name = 'layer%d' % layer_idx
+    name = f'layer{layer_idx}'
     layer7 = blockUNet(nf*8, nf*8, name, transposed=False, bn=True, relu=False, dropout=False)
     # input is 2 x  2
     layer_idx += 1
-    name = 'layer%d' % layer_idx
+    name = f'layer{layer_idx}'
     layer8 = blockUNet(nf*8, nf*8, name, transposed=False, bn=True, relu=False, dropout=False)
 
     ## NOTE: decoder
     # input is 1
-    name = 'dlayer%d' % layer_idx
+    name = f'dlayer{layer_idx}'
     d_inc = nf*8
     dlayer8 = blockUNet(d_inc, nf*8, name, transposed=True, bn=False, relu=True, dropout=True)
 
     #import pdb; pdb.set_trace()
     # input is 2
     layer_idx -= 1
-    name = 'dlayer%d' % layer_idx
+    name = f'dlayer{layer_idx}'
     d_inc = nf*8*2
     dlayer7 = blockUNet(d_inc, nf*8, name, transposed=True, bn=True, relu=True, dropout=True)
     # input is 4
     layer_idx -= 1
-    name = 'dlayer%d' % layer_idx
+    name = f'dlayer{layer_idx}'
     d_inc = nf*8*2
     dlayer6 = blockUNet(d_inc, nf*8, name, transposed=True, bn=True, relu=True, dropout=True)
     # input is 8
     layer_idx -= 1
-    name = 'dlayer%d' % layer_idx
+    name = f'dlayer{layer_idx}'
     d_inc = nf*8*2
     dlayer5 = blockUNet(d_inc, nf*8, name, transposed=True, bn=True, relu=True, dropout=False)
     # input is 16
     layer_idx -= 1
-    name = 'dlayer%d' % layer_idx
+    name = f'dlayer{layer_idx}'
     d_inc = nf*8*2
     dlayer4 = blockUNet(d_inc, nf*4, name, transposed=True, bn=True, relu=True, dropout=False)
     # input is 32
     layer_idx -= 1
-    name = 'dlayer%d' % layer_idx
+    name = f'dlayer{layer_idx}'
     d_inc = nf*4*2
     dlayer3 = blockUNet(d_inc, nf*2, name, transposed=True, bn=True, relu=True, dropout=False)
     # input is 64
     layer_idx -= 1
-    name = 'dlayer%d' % layer_idx
+    name = f'dlayer{layer_idx}'
     d_inc = nf*2*2
     dlayer2 = blockUNet(d_inc, nf, name, transposed=True, bn=True, relu=True, dropout=False)
     # input is 128
     layer_idx -= 1
-    name = 'dlayer%d' % layer_idx
+    name = f'dlayer{layer_idx}'
     dlayer1 = nn.Sequential()
     d_inc = nf*2
-    dlayer1.add_module('%s.relu' % name, nn.ReLU(inplace=True))
-    dlayer1.add_module('%s.tconv' % name, nn.ConvTranspose2d(d_inc, output_nc, 4, 2, 1, bias=False))
-    dlayer1.add_module('%s.tanh' % name, nn.LeakyReLU(0.2, inplace=True))
+    dlayer1.add_module(f'{name}_relu', nn.ReLU(inplace=True))
+    dlayer1.add_module(f'{name}_tconv', nn.ConvTranspose2d(d_inc, output_nc, 4, 2, 1, bias=False))
+    dlayer1.add_module(f'{name}_tanh', nn.LeakyReLU(0.2, inplace=True))
 
     self.layer1 = layer1
     self.layer2 = layer2
