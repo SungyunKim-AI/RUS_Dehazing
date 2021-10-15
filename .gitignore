@@ -118,3 +118,4 @@ dmypy.json
 data_sample/
 /FFA-Net/wandb
 *.pt
+/DCPDN/facades/
