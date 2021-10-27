@@ -89,7 +89,6 @@ def build_beit_pretraining_dataset(args):
     print("Data Aug = %s" % str(transform))
     return ImageFolder(args.data_path, transform=transform)
 
-
 def build_dataset(is_train, args):
     transform = build_transform(is_train, args)
 
