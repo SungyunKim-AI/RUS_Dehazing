@@ -61,7 +61,7 @@ def blockUNet(in_c, out_c, name, transposed=False, bn=False, relu=True, dropout=
   if bn:
     block.add_module(f'{name}_bn', nn.BatchNorm2d(out_c))
   if dropout:
-    block.add_module(f'{name}_s.dropout', nn.Dropout2d(0.5, inplace=True))
+    block.add_module(f'{name}_dropout', nn.Dropout2d(0.5, inplace=True))
   return block
 
 

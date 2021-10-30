@@ -43,6 +43,7 @@ class pix2pix(data.Dataset):
     if seed is not None:
       np.random.seed(seed)
     self.paths = glob.glob(self.root + '/*h5')
+    
   def __getitem__(self, index):
     # index = np.random.randint(1,self.__len__())
     # index = np.random.randint(self.__len__(), size=1)[0]

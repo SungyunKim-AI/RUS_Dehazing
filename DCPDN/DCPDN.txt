@@ -1,0 +1,11 @@
+python demo.py --dataroot facades/nat_new4 --valDataroot facades/nat_new4 --netG demo_model/netG_epoch_8.pth
+
+
+python demo.py --dataroot ./your_dataroot --valDataroot ./your_dataroot --netG ./pre_trained/netG_epoch_9.pth
+
+
+[Training Args]
+python train.py --dataroot facades/train512 --valDataroot facades/val512
+
+
+C:\Users\IIPL\Desktop\RUS_Dehazing\DCPDN\models

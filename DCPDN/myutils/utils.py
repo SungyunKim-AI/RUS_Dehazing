@@ -4,8 +4,8 @@ import numpy as np
 import torch
 from PIL import Image
 from torch.autograd import Variable
-import torchfile
-from myutils.vgg16 import Vgg16
+
+
 
 def tensor_load_rgbimage(filename, size=None, scale=None, keep_asp=False):
 	img = Image.open(filename).convert('RGB')
@@ -79,15 +79,3 @@ def preprocess_batch(batch):
 	batch = batch.transpose(0, 1)
 	return batch
 
-
-def init_vgg16(model_folder):
-	"""load the vgg16 model feature"""
-	if not os.path.exists(os.path.join(model_folder, 'vgg16.weight')):
-		if not os.path.exists(os.path.join(model_folder, 'vgg16.t7')):
-			os.system(
-				'wget http://cs.stanford.edu/people/jcjohns/fast-neural-style/models/vgg16.t7 -O ' + os.path.join(model_folder, 'vgg16.t7'))
-		vgglua = torchfile.load(os.path.join(model_folder, 'vgg16.t7'))
-		vgg = Vgg16()
-		for (src, dst) in zip(vgglua.parameters()[0], vgg.parameters()):
-			dst.data[:] = src
-		torch.save(vgg.state_dict(), os.path.join(model_folder, 'vgg16.weight'))
