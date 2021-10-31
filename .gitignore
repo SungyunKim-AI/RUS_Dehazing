@@ -120,3 +120,4 @@ data_sample/
 *.pt
 /DCPDN/facades/
 /DCPDN/sample/
+.airlight/
