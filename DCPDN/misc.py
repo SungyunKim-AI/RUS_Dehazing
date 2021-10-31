@@ -65,7 +65,8 @@ def getLoader(datasetName, dataroot, originalSize, imageSize, batchSize=64, work
   dataloader = torch.utils.data.DataLoader(dataset, 
                                            batch_size=batchSize, 
                                            shuffle=shuffle, 
-                                           num_workers=int(workers))
+                                           num_workers=int(workers),
+                                           drop_last=True)
   return dataloader
 
 
