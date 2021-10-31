@@ -31,6 +31,7 @@ def get_args():
     parser.add_argument('--imageSize', type=int, default=256, help='the height / width of the cropped input image to network')
     parser.add_argument('--inputChannelSize', type=int, default=3, help='size of the input channels')
     parser.add_argument('--outputChannelSize', type=int, default=3, help='size of the output channels')
+    parser.add_argument('--sizePatchGAN', type=int, default=62)
     parser.add_argument('--ngf', type=int, default=64)
     parser.add_argument('--ndf', type=int, default=64)
     parser.add_argument('--niter', type=int, default=400, help='number of epochs to train for')
@@ -66,111 +67,13 @@ def train_one_epoch(opt, netG, netD, dataloader, optim):
     
     for i, data in enumerate(tqdm(dataloader, 0)):
         optim.zero_grad()
-        input_cpu, target_cpu, trans_cpu, ato_cpu, imgname = data
-
-if __name__=='__main__':
-    cudnn.benchmark = True
-    cudnn.fastest = True
-      
-    opt = get_args()
-    print(opt)
-    
-    create_exp_dir(opt.exp)
-    
-    opt.manualSeed = random.randint(1, 10000)
-    # opt.manualSeed = 101
-    random.seed(opt.manualSeed)
-    torch.manual_seed(opt.manualSeed)
-    torch.cuda.manual_seed_all(opt.manualSeed)
-    print("Random Seed: ", opt.manualSeed)
-    
-    # get dataloader
-    dataloader = getLoader(opt, 
-                           mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5),
-                           split='train', shuffle=True)
-    
-    opt.dataset='pix2pix_val2'
-    valDataloader = getLoader(opt, 
-                              mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5),
-                              split='val', shuffle=False)
-    
-
-    
-    # get models
-    netG = net.dehaze(opt.inputChannelSize, opt.outputChannelSize, opt.ngf)
-    netG.apply(weights_init)
-    if opt.netG != '':
-        netG.load_state_dict(torch.load(opt.netG))
-        print(netG)
-    netG.to(opt.device)
+        input, target, trans, ato, imgname = data
         
-    netD = net.D(opt.inputChannelSize + opt.outputChannelSize, opt.ndf)
-    netD.apply(weights_init)
-    if opt.netD != '':
-        netD.load_state_dict(torch.load(opt.netD))
-    netD.to(opt.device)
-
-    # init Loss, Optimizer
-    criterionBCE = nn.BCELoss()
-    criterionCAE = nn.L1Loss()
-    
-    optimizerD = optim.Adam(netD.parameters(), lr = opt.lrD, betas = (opt.beta1, 0.999), weight_decay=opt.wd)
-    optimizerG = optim.Adam(netG.parameters(), lr = opt.lrG, betas = (opt.beta1, 0.999), weight_decay=0.00005)
-    
-    # NOTE: size of 2D output maps in the discriminator
-    sizePatchGAN = 30
-    real_label = 1
-    fake_label = 0
-    
-    # image pool storing previously generated samples from G
-    imagePool = ImagePool(opt.poolSize)
-    
-    # NOTE weight for L_cGAN and L_L1 (i.e. Eq.(4) in the paper)
-    lambdaGAN = opt.lambdaGAN
-    lambdaIMG = opt.lambdaIMG
-    
-    # Initialize VGG-16
-    vgg = vgg16(pretrained=True)
-    vgg.to(opt.device)
-    
-
-    # NOTE training loop
-    for epoch in range(1, opt.niter):
-        if epoch > opt.annealStart:
-            adjust_learning_rate(optimizerD, opt.lrD, epoch, None, opt.annealEvery)
-            adjust_learning_rate(optimizerG, opt.lrG, epoch, None, opt.annealEvery)
-        
-        train_one_epoch(netG, netD, dataloader)
-        
-        # get paired data
-        target.resize_as_(target_cpu).copy_(target_cpu)
-        input.resize_as_(input_cpu).copy_(input_cpu)
-        trans.resize_as_(trans_cpu).copy_(trans_cpu)
-        ato.resize_as_(ato_cpu).copy_(ato_cpu)
- 
-        # target_cpu, input_cpu = target_cpu.float().to(opt.device), input_cpu.float().to(opt.device)
-        # # NOTE paired samples
-        # target.resize_as_(target_cpu).copy_(target_cpu)
-        # input.resize_as_(input_cpu).copy_(input_cpu)
-        # trans.resize_as_(trans_cpu).copy_(trans_cpu)
-
-
-        for p in netD.parameters():
-          p.requires_grad = True
-
-        netD.zero_grad()
-        sizePatchGAN=62
-
         x_hat, tran_hat, atp_hat, dehaze21 = netG(input)
-
-
-        # max_D first
-        for p in netD.parameters():
-          p.requires_grad = True
-        netD.zero_grad()
+        
 
         # NOTE: compute L_cGAN in eq.(2)
-        label_d.resize_((batch_size, 1, sizePatchGAN, sizePatchGAN)).fill_(real_label)
+        label_d.resize_((opt.batchSize, 1, opt.sizePatchGAN, opt.sizePatchGAN)).fill_(real_label)
         output = netD(torch.cat([trans, target], 1)) # conditional
         errD_real = criterionBCE(output, label_d)
         errD_real.backward()
@@ -259,6 +162,95 @@ if __name__=='__main__':
             (errG).backward()
 
         optimizerG.step()
+
+if __name__=='__main__':
+    cudnn.benchmark = True
+    cudnn.fastest = True
+      
+    opt = get_args()
+    print(opt)
+    
+    create_exp_dir(opt.exp)
+    
+    opt.manualSeed = random.randint(1, 10000)
+    # opt.manualSeed = 101
+    random.seed(opt.manualSeed)
+    torch.manual_seed(opt.manualSeed)
+    torch.cuda.manual_seed_all(opt.manualSeed)
+    print("Random Seed: ", opt.manualSeed)
+    
+    # get dataloader
+    dataloader = getLoader(opt, 
+                           mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5),
+                           split='train', shuffle=True)
+    
+    opt.dataset='pix2pix_val2'
+    valDataloader = getLoader(opt, 
+                              mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5),
+                              split='val', shuffle=False)
+    
+
+    
+    # get models
+    netG = net.dehaze(opt.inputChannelSize, opt.outputChannelSize, opt.ngf)
+    netG.apply(weights_init)
+    if opt.netG != '':
+        netG.load_state_dict(torch.load(opt.netG))
+        print(netG)
+    netG.to(opt.device)
+        
+    netD = net.D(opt.inputChannelSize + opt.outputChannelSize, opt.ndf)
+    netD.apply(weights_init)
+    if opt.netD != '':
+        netD.load_state_dict(torch.load(opt.netD))
+    netD.to(opt.device)
+
+    # init Loss, Optimizer
+    criterionBCE = nn.BCELoss()
+    criterionCAE = nn.L1Loss()
+    
+    optimizerD = optim.Adam(netD.parameters(), lr = opt.lrD, betas = (opt.beta1, 0.999), weight_decay=opt.wd)
+    optimizerG = optim.Adam(netG.parameters(), lr = opt.lrG, betas = (opt.beta1, 0.999), weight_decay=0.00005)
+    
+    # NOTE: size of 2D output maps in the discriminator
+    sizePatchGAN = 30
+    real_label = 1
+    fake_label = 0
+    
+    # image pool storing previously generated samples from G
+    imagePool = ImagePool(opt.poolSize)
+    
+    # NOTE weight for L_cGAN and L_L1 (i.e. Eq.(4) in the paper)
+    lambdaGAN = opt.lambdaGAN
+    lambdaIMG = opt.lambdaIMG
+    
+    # Initialize VGG-16
+    vgg = vgg16(pretrained=True)
+    vgg.to(opt.device)
+    
+
+    # NOTE training loop
+    for epoch in range(1, opt.niter):
+        if epoch > opt.annealStart:
+            adjust_learning_rate(optimizerD, opt.lrD, epoch, None, opt.annealEvery)
+            adjust_learning_rate(optimizerG, opt.lrG, epoch, None, opt.annealEvery)
+        
+        train_one_epoch(netG, netD, dataloader)
+        
+        # get paired data
+        target.resize_as_(target_cpu).copy_(target_cpu)
+        input.resize_as_(input_cpu).copy_(input_cpu)
+        trans.resize_as_(trans_cpu).copy_(trans_cpu)
+        ato.resize_as_(ato_cpu).copy_(ato_cpu)
+ 
+        # target_cpu, input_cpu = target_cpu.float().to(opt.device), input_cpu.float().to(opt.device)
+        # # NOTE paired samples
+        # target.resize_as_(target_cpu).copy_(target_cpu)
+        # input.resize_as_(input_cpu).copy_(input_cpu)
+        # trans.resize_as_(trans_cpu).copy_(trans_cpu)
+
+
+        
         # if (ganIterations % opt.display) == 0:
         #   print(f'[{epoch}/{opt.niter}][{i}/{len(dataloader)}] L_D: {L_tran_.item()} L_img: {L_tran_.item()} L_G: {L_img.item()} D(x): {L_img.item()} D(G(z)): {L_img.item()} / {L_img.item()}')
         #   sys.stdout.flush()
