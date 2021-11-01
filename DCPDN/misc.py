@@ -20,52 +20,51 @@ def weights_init(m):
     m.bias.data.fill_(0)
 
 
-def getLoader(datasetName, dataroot, originalSize, imageSize, batchSize=64, workers=4,
-              mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5), split='train', shuffle=True, seed=None):
+def getLoader(opt, mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5), split='train', shuffle=True):
 
   #import pdb; pdb.set_trace()
-  if datasetName == 'pix2pix':
+  if opt.dataset == 'pix2pix':
     from datasets.pix2pix import pix2pix as commonDataset
     import transforms.pix2pix as transforms
-  elif datasetName == 'folder':
+  elif opt.dataset == 'folder':
     from datasets.folder import ImageFolder as commonDataset
     import torchvision.transforms as transforms
-  elif datasetName == 'classification':
+  elif opt.dataset == 'classification':
     from datasets.classification import classification as commonDataset
     import torchvision.transforms as transforms
 
-  elif datasetName == 'pix2pix_val':
+  elif opt.dataset == 'pix2pix_val':
     from datasets.pix2pix_val import pix2pix_val as commonDataset
     import torchvision.transforms as transforms
 
-  elif datasetName == 'pix2pix_val2':
+  elif opt.dataset == 'pix2pix_val2':
     from datasets.pix2pix_val2 import pix2pix_val as commonDataset
     import torchvision.transforms as transforms
     
   if split == 'train':
-    dataset = commonDataset(root=dataroot,
+    dataset = commonDataset(root=opt.dataroot,
                             transform=transforms.Compose([
-                              transforms.Scale(originalSize),
-                              transforms.RandomCrop(imageSize),
+                              transforms.Scale(opt.originalSize),
+                              transforms.RandomCrop(opt.imageSize),
                               transforms.RandomHorizontalFlip(),
                               transforms.ToTensor(),
                               transforms.Normalize(mean, std),
                             ]),
-                            seed=seed)
+                            seed=opt.seed)
   else:
-    dataset = commonDataset(root=dataroot,
+    dataset = commonDataset(root=opt.dataroot,
                             transform=transforms.Compose([
-                              transforms.Scale(originalSize),
-                              transforms.CenterCrop(imageSize),
+                              transforms.Scale(opt.originalSize),
+                              transforms.CenterCrop(opt.imageSize),
                               transforms.ToTensor(),
                               transforms.Normalize(mean, std),
                              ]),
-                             seed=seed)
+                             seed=opt.seed)
 
   dataloader = torch.utils.data.DataLoader(dataset, 
-                                           batch_size=batchSize, 
+                                           batch_size=opt.batchSize, 
                                            shuffle=shuffle, 
-                                           num_workers=int(workers),
+                                           num_workers=opt.workers,
                                            drop_last=True)
   return dataloader
 
