@@ -1,13 +1,11 @@
 import os
-
 import numpy as np
-import torch
 from PIL import Image
+
+import torch
 from torch.autograd import Variable
 from torchvision.models import vgg16
-
 import torchfile
-
 
 
 def tensor_load_rgbimage(filename, size=None, scale=None, keep_asp=False):

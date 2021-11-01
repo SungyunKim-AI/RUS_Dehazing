@@ -62,6 +62,3 @@ def psnr(pred, gt):
     if rmse == 0:
         return 100
     return 20 * math.log10( 1.0 / rmse)
-
-if __name__ == "__main__":
-    pass

@@ -16,8 +16,10 @@ import torch.nn.parallel
 # Self-made Models, Utils
 from misc import *
 import models.dehaze22  as net
-from myutils.vgg16 import Vgg16
 from myutils import utils
+from myutils.vgg16 import Vgg16
+from myutils.metrics import *
+
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -62,10 +64,11 @@ def gradient(y):
     
     return gradient_h, gradient_y
   
-def train_one_epoch(opt, dataloader, vgg, netG, netD, optimizerD, optimizerG, imagePool):
+def train_one_epoch(opt, dataloader, vgg, netG, netD, optimizerD, optimizerG, imagePool, epoch):
+    lossesD_real, lossesD_fake, lossesG = [], [], []
+    losses_trans, losses_content, losses_content1 = [], [], []
     netG.train()
     netD.train()
-    
     for data in tqdm(dataloader):
         # optimizerD.zero_grad()
             
@@ -100,8 +103,11 @@ def train_one_epoch(opt, dataloader, vgg, netG, netD, optimizerD, optimizerG, im
         errD_fake.backward()
         # D_G_z1 = output.data.mean()
         # errD = errD_real + errD_fake
+        
         optimizerD.step() # update parameters
-
+        
+        lossesD_real.append(errD_real.item())
+        lossesD_fake.append(errD_fake.item())
 
         
         # prevent computing gradients of weights in Discriminator
@@ -112,8 +118,7 @@ def train_one_epoch(opt, dataloader, vgg, netG, netD, optimizerD, optimizerG, im
         netG.zero_grad()    # start to update G
 
         # compute L_L1 (eq.(4) in the paper
-        L_img_ = criterionCAE(x_hat, target)
-        L_img = opt.lambdaIMG * L_img_
+        L_img = criterionCAE(x_hat, target) * opt.lambdaIMG
         if opt.lambdaIMG != 0:
             L_img.backward(retain_graph=True)
         
@@ -127,10 +132,10 @@ def train_one_epoch(opt, dataloader, vgg, netG, netD, optimizerD, optimizerG, im
         L_tran_h = criterionCAE(gradie_h_est, gradie_h_gt)
         L_tran_v = criterionCAE(gradie_v_est, gradie_v_gt)
 
-        L_tran =  opt.lambdaIMG * (L_tran_+ 2*L_tran_h + 2*L_tran_v)
-        
+        L_tran =  opt.lambdaIMG * (L_tran_+ (2*L_tran_h) + (2*L_tran_v))
         if opt.lambdaIMG != 0:
             L_tran.backward(retain_graph=True)
+        losses_trans.append(L_tran)
 
         # NOTE feature loss for transmission map
         features_content = vgg(trans)
@@ -139,6 +144,7 @@ def train_one_epoch(opt, dataloader, vgg, netG, netD, optimizerD, optimizerG, im
         features_y = vgg(tran_hat)
         content_loss =  0.8 * opt.lambdaIMG * criterionCAE(features_y[1], f_xc_c)
         content_loss.backward(retain_graph=True)
+        losses_content.append(L_tran)
 
         # Edge Loss 2
         features_content = vgg(trans)
@@ -147,6 +153,7 @@ def train_one_epoch(opt, dataloader, vgg, netG, netD, optimizerD, optimizerG, im
         features_y = vgg(tran_hat)
         content_loss1 =  0.8 * opt.lambdaIMG * criterionCAE(features_y[0], f_xc_c)
         content_loss1.backward(retain_graph=True)
+        losses_content1.append(L_tran)
 
 
         # NOTE compute L1 for atop-map
@@ -159,20 +166,26 @@ def train_one_epoch(opt, dataloader, vgg, netG, netD, optimizerD, optimizerG, im
         # compute  gan_loss for the joint discriminator
         label_d.fill_(1)
         output = netD(torch.cat([tran_hat, x_hat], 1))
-        errG_ = criterionBCE(output, label_d)
-        errG = opt.lambdaGAN * errG_
+        errG = criterionBCE(output, label_d) * opt.lambdaGAN
 
         if opt.lambdaGAN != 0:
-            (errG).backward()
-
+            errG.backward()
+        lossesG.append(errG)
+        
         optimizerG.step()
+    
+    wandb.log({"lossesD_real" : lossesD_real, "lossesD_fake": lossesD_fake, "lossesG" : lossesG,
+               "losses_trans":losses_trans, "losses_content":losses_content, "losses_content1":losses_content1,
+               "global_step" : epoch})
     
     schedulerD.step()
     schedulerG.step()
 
-def validate(opt, valDataloader, vgg, netG, netD, imagePool):
+def validate(opt, valDataloader, netG, epoch):
+    img_ssim_epoch, img_psnr_epoch = 0.0, 0.0
+    tran_ssim_epoch, tran_psnr_epoch = 0.0, 0.0
+    
     netG.eval()
-    netD.eval()
     with torch.no_grad():
         for data in tqdm(valDataloader):
             input, target, trans, ato, imgname = data
@@ -180,64 +193,34 @@ def validate(opt, valDataloader, vgg, netG, netD, imagePool):
             
             x_hat, tran_hat, atp_hat, dehaze21 = netG(input)
             
-            criterionBCE = nn.BCELoss()
-            criterionCAE = nn.L1Loss()
+            img_ssim, img_psnr = ssim(x_hat, target), psnr(x_hat, target)
+            tran_ssim, tran_psnr = ssim(tran_hat, trans), psnr(tran_hat, trans)
             
-            label_d = torch.full((opt.batchSize, 1, opt.sizePatchGAN, opt.sizePatchGAN), 1)
-            output = netD(torch.cat([trans, target], 1)) # conditional
-            errD_real = criterionBCE(output, label_d)
+            img_ssim_epoch += img_ssim.cpu().item()
+            img_psnr_epoch += img_psnr.cpu().item()
+            tran_ssim_epoch += tran_ssim.cpu().item()
+            tran_psnr_epoch += tran_psnr.cpu().item()
             
-            fake = imagePool.query(x_hat)
-            fake_trans = imagePool.query(fake_trans)
-
-            label_d.fill_(0)
-            output = netD(torch.cat([fake_trans, fake], 1)) # conditional
-            errD_fake = criterionBCE(output, label_d)
-
-            # compute L_L1 (eq.(4) in the paper
-            L_img_ = criterionCAE(x_hat, target)
-            L_img = opt.lambdaIMG * L_img_
-            
-            # NOTE compute L1 for transamission map
-            L_tran_ = criterionCAE(tran_hat, trans)
-
-            # NOTE compute gradient loss for transamission map
-            gradie_h_est, gradie_v_est = gradient(tran_hat)
-            gradie_h_gt, gradie_v_gt = gradient(trans)
-
-            L_tran_h = criterionCAE(gradie_h_est, gradie_h_gt)
-            L_tran_v = criterionCAE(gradie_v_est, gradie_v_gt)
-
-            L_tran =  opt.lambdaIMG * (L_tran_+ 2*L_tran_h + 2*L_tran_v)
-
-            # NOTE feature loss for transmission map
-            features_content = vgg(trans)
-            f_xc_c = features_content[1].detach().requires_grad_(False)
-            
-            features_y = vgg(tran_hat)
-            content_loss =  0.8 * opt.lambdaIMG * criterionCAE(features_y[1], f_xc_c)
-            content_loss.backward(retain_graph=True)
-
-            # Edge Loss 2
-            features_content = vgg(trans)
-            f_xc_c = features_content[0].detach().requires_grad_(False)
-
-            features_y = vgg(tran_hat)
-            content_loss1 =  0.8 * opt.lambdaIMG * criterionCAE(features_y[0], f_xc_c)
-            content_loss1.backward(retain_graph=True)
-
-
-            # NOTE compute L1 for atop-map
-            L_ato_ = criterionCAE(atp_hat, ato)
-            L_ato =  opt.lambdaIMG * L_ato_
-            
-            # compute  gan_loss for the joint discriminator
-            label_d.fill_(1)
-            output = netD(torch.cat([tran_hat, x_hat], 1))
-            errG_ = criterionBCE(output, label_d)
-            errG = opt.lambdaGAN * errG_
-            
-        
+            directory = os.path.join('output', f'{epoch:03d}')
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+                
+            for i in range(opt.valBatchSize):
+                utils.save_image(x_hat[i,:,:,:], os.path.join(directory, (imgname[i] + '_dehazed.png')), 
+                                 normalize=True, scale_each=False)
+                utils.save_image(tran_hat[i,:,:,:], os.path.join(directory, (imgname[i] + '_tran.png')), 
+                                 normalize=True, scale_each=False)
+                utils.save_image(atp_hat[i,:,:,:], os.path.join(directory, (imgname[i] + '_atm.png')), 
+                                 normalize=True, scale_each=False)
+                
+    img_ssim_epoch /= i
+    img_psnr_epoch /= i
+    tran_ssim_epoch /= i
+    tran_psnr_epoch /= i
+    
+    wandb.log({"IMAGE_SSIM" : img_ssim_epoch, "IMAGE_PSNR" : img_psnr_epoch,
+               "TRAN_SSIM" : tran_ssim_epoch, "TRAN_SSIM" : tran_psnr_epoch,
+               "global_step" : epoch})
     
 
 if __name__=='__main__':
@@ -254,6 +237,10 @@ if __name__=='__main__':
     torch.manual_seed(opt.seed)
     torch.cuda.manual_seed_all(opt.seed)
     print("Random Seed: ", opt.seed)
+  
+    wandb.init(project='Dehazing', entity='rus')
+    wandb.config.update(opt)
+    wandb.run.name = 'DCPDN'
     
     # get dataloader
     dataloader = getLoader(opt, 
@@ -307,13 +294,13 @@ if __name__=='__main__':
                         optimizerD, optimizerG, 
                         criterionBCE, criterionCAE, 
                         schedulerD, schedulerG, 
-                        imagePool)
+                        imagePool, epoch)
         
         
         if epoch % opt.evalIter == 0:
             validate(opt, valDataloader, 
                      vgg, netG, netD,
-                     imagePool)
+                     imagePool, epoch)
             
             torch.save(netG.state_dict(), f'{opt.exp}/netG_epoch_{epoch:03d}.pth')
             torch.save(netD.state_dict(), f'{opt.exp}/netD_epoch_{epoch:03d}.pth')
