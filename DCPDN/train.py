@@ -71,21 +71,21 @@ def train_one_epoch(opt, dataloader, vgg, netG, netD, optimizerD, optimizerG, cr
     netG.train()
     netD.train()
     for data in tqdm(dataloader):
-        # optimizerD.zero_grad()
+        optimizerD.zero_grad()
             
-        for param in netD.parameters():
-            param.requires_grad = True    # gradients compute
+        # for param in netD.parameters():
+        #     param.requires_grad = True    # gradients compute
         
-        netD.zero_grad()
+        # netD.zero_grad()
         
         input, target, trans, ato, imgname = data
         input, target, trans, ato = input.to(opt.device).float(), target.to(opt.device).float(), trans.to(opt.device).float(), ato.to(opt.device).float()
         x_hat, tran_hat, atp_hat, dehaze21 = netG(input)
         
-        for param in netD.parameters():
-            param.requires_grad = True    # gradients compute
+        # for param in netD.parameters():
+        #     param.requires_grad = True    # gradients compute
         
-        netD.zero_grad()
+        # netD.zero_grad()
         
         # NOTE: compute L_cGAN in eq.(2)
         label_d = torch.full((opt.batchSize, 1, opt.sizePatchGAN, opt.sizePatchGAN), 1).to(opt.device).float()
@@ -114,11 +114,11 @@ def train_one_epoch(opt, dataloader, vgg, netG, netD, optimizerD, optimizerG, cr
 
         
         # prevent computing gradients of weights in Discriminator
-        # optimizerG.zero_grad()
-        for param in netD.parameters():
-            param.requires_grad = False
+        optimizerG.zero_grad()
+        # for param in netD.parameters():
+        #     param.requires_grad = False
         
-        netG.zero_grad()    # start to update G
+        # netG.zero_grad()    # start to update G
 
         # compute L_L1 (eq.(4) in the paper
         # L_img_ = 
