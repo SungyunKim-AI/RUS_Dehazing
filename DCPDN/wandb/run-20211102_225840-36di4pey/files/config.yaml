@@ -1,0 +1,119 @@
+wandb_version: 1
+
+_wandb:
+  desc: null
+  value:
+    cli_version: 0.12.6
+    framework: torch
+    is_jupyter_run: false
+    is_kaggle_kernel: false
+    python_version: 3.8.12
+    start_time: 1635861520
+    t:
+      1:
+      - 1
+      2:
+      - 1
+      3:
+      - 17
+      4: 3.8.12
+      5: 0.12.6
+      8:
+      - 3
+      - 5
+annealEvery:
+  desc: null
+  value: 400
+annealStart:
+  desc: null
+  value: 0
+batchSize:
+  desc: null
+  value: 1
+beta1:
+  desc: null
+  value: 0.5
+dataroot:
+  desc: null
+  value: facades/train512
+dataset:
+  desc: null
+  value: pix2pix
+device:
+  desc: null
+  value: cuda
+display:
+  desc: null
+  value: 5
+evalIter:
+  desc: null
+  value: 5
+exp:
+  desc: null
+  value: sample
+imageSize:
+  desc: null
+  value: 256
+inputChannelSize:
+  desc: null
+  value: 3
+lambdaGAN:
+  desc: null
+  value: 0.35
+lambdaIMG:
+  desc: null
+  value: 1
+lrD:
+  desc: null
+  value: 0.0002
+lrG:
+  desc: null
+  value: 0.0002
+mode:
+  desc: null
+  value: B2A
+modelPath:
+  desc: null
+  value: ./models/
+ndf:
+  desc: null
+  value: 64
+netD:
+  desc: null
+  value: ''
+netG:
+  desc: null
+  value: ''
+ngf:
+  desc: null
+  value: 64
+niter:
+  desc: null
+  value: 400
+originalSize:
+  desc: null
+  value: 286
+outputChannelSize:
+  desc: null
+  value: 3
+poolSize:
+  desc: null
+  value: 50
+seed:
+  desc: null
+  value: 101
+sizePatchGAN:
+  desc: null
+  value: 62
+valBatchSize:
+  desc: null
+  value: 16
+valDataroot:
+  desc: null
+  value: facades/val512
+wd:
+  desc: null
+  value: 0.0
+workers:
+  desc: null
+  value: 4

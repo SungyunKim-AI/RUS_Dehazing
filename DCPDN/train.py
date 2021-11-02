@@ -26,9 +26,10 @@ def get_args():
     parser.add_argument('--dataset', required=False, default='pix2pix',  help='')
     parser.add_argument('--dataroot', required=False, default='', help='path to trn dataset')
     parser.add_argument('--valDataroot', required=False, default='', help='path to val dataset')
+    parser.add_argument('--modelPath', type=str, default='./models/', help='pretrained VGG16 path')
     parser.add_argument('--mode', type=str, default='B2A', help='B2A: facade, A2B: edges2shoes')
     parser.add_argument('--seed', type=int, default=101, help='B2A: facade, A2B: edges2shoes')
-    parser.add_argument('--batchSize', type=int, default=6, help='input batch size')
+    parser.add_argument('--batchSize', type=int, default=1, help='input batch size')
     parser.add_argument('--valBatchSize', type=int, default=16, help='input batch size')
     parser.add_argument('--originalSize', type=int, default=286, help='the height / width of the original input image')
     parser.add_argument('--imageSize', type=int, default=256, help='the height / width of the cropped input image to network')
@@ -64,7 +65,7 @@ def gradient(y):
     
     return gradient_h, gradient_y
   
-def train_one_epoch(opt, dataloader, vgg, netG, netD, optimizerD, optimizerG, imagePool, epoch):
+def train_one_epoch(opt, dataloader, vgg, netG, netD, optimizerD, optimizerG, criterionBCE, criterionCAE, schedulerD, schedulerG, imagePool, epoch):
     lossesD_real, lossesD_fake, lossesG = [], [], []
     losses_trans, losses_content, losses_content1 = [], [], []
     netG.train()
@@ -78,7 +79,7 @@ def train_one_epoch(opt, dataloader, vgg, netG, netD, optimizerD, optimizerG, im
         netD.zero_grad()
         
         input, target, trans, ato, imgname = data
-        input, target, trans, ato = input.to(opt.device), target.to(opt.device), trans.to(opt.device), ato.to(opt.device)
+        input, target, trans, ato = input.to(opt.device).float(), target.to(opt.device).float(), trans.to(opt.device).float(), ato.to(opt.device).float()
         x_hat, tran_hat, atp_hat, dehaze21 = netG(input)
         
         for param in netD.parameters():
@@ -87,14 +88,16 @@ def train_one_epoch(opt, dataloader, vgg, netG, netD, optimizerD, optimizerG, im
         netD.zero_grad()
         
         # NOTE: compute L_cGAN in eq.(2)
-        label_d = torch.full((opt.batchSize, 1, opt.sizePatchGAN, opt.sizePatchGAN), 1)
+        label_d = torch.full((opt.batchSize, 1, opt.sizePatchGAN, opt.sizePatchGAN), 1).to(opt.device).float()
         output = netD(torch.cat([trans, target], 1)) # conditional
         errD_real = criterionBCE(output, label_d)
         errD_real.backward()
         # D_x = output.data.mean()
-        # torch.new_tensor(output, requires_grad=True)
         
-        fake = imagePool.query(x_hat)
+        fake = x_hat.detach()
+        fake = imagePool.query(fake)
+        
+        fake_trans = tran_hat.detach()
         fake_trans = imagePool.query(fake_trans)
 
         label_d.fill_(0)
@@ -118,7 +121,8 @@ def train_one_epoch(opt, dataloader, vgg, netG, netD, optimizerD, optimizerG, im
         netG.zero_grad()    # start to update G
 
         # compute L_L1 (eq.(4) in the paper
-        L_img = criterionCAE(x_hat, target) * opt.lambdaIMG
+        # L_img_ = 
+        L_img = opt.lambdaIMG * criterionCAE(x_hat, target)
         if opt.lambdaIMG != 0:
             L_img.backward(retain_graph=True)
         
@@ -132,12 +136,13 @@ def train_one_epoch(opt, dataloader, vgg, netG, netD, optimizerD, optimizerG, im
         L_tran_h = criterionCAE(gradie_h_est, gradie_h_gt)
         L_tran_v = criterionCAE(gradie_v_est, gradie_v_gt)
 
-        L_tran =  opt.lambdaIMG * (L_tran_+ (2*L_tran_h) + (2*L_tran_v))
+        L_tran =  opt.lambdaIMG * (L_tran_ + (2*L_tran_h) + (2*L_tran_v))
         if opt.lambdaIMG != 0:
             L_tran.backward(retain_graph=True)
         losses_trans.append(L_tran)
 
         # NOTE feature loss for transmission map
+        # [relu1_2, relu2_2, relu3_3, relu4_3]
         features_content = vgg(trans)
         f_xc_c = features_content[1].detach().requires_grad_(False)
         
@@ -280,12 +285,11 @@ if __name__=='__main__':
     # image pool storing previously generated samples from G
     imagePool = ImagePool(opt.poolSize)
     
-    # Initialize VGG-16
+    # Initialize VGG-16)
     vgg = Vgg16()
-    utils.init_vgg16('models/')
-    vgg.load_state_dict(torch.load(os.path.join('models/', "vgg16.weight")))
+    utils.init_vgg16(vgg, opt.modelPath)
+    vgg.load_state_dict(torch.load(os.path.join(opt.modelPath, "vgg16.weight")))
     vgg.to(opt.device)
-    
 
     # NOTE training loop
     for epoch in range(1, opt.niter):
@@ -304,5 +308,4 @@ if __name__=='__main__':
             
             torch.save(netG.state_dict(), f'{opt.exp}/netG_epoch_{epoch:03d}.pth')
             torch.save(netD.state_dict(), f'{opt.exp}/netD_epoch_{epoch:03d}.pth')
-
 

@@ -5,7 +5,7 @@ from PIL import Image
 import torch
 from torch.autograd import Variable
 from torchvision.models import vgg16
-import torchfile
+from myutils.vgg16 import Vgg16
 
 
 def tensor_load_rgbimage(filename, size=None, scale=None, keep_asp=False):
@@ -81,14 +81,14 @@ def preprocess_batch(batch):
 	return batch
 
 
-def init_vgg16(model_folder):
-    """load the vgg16 model feature"""
+def init_vgg16(vgg, model_folder):
     if not os.path.exists(os.path.join(model_folder, 'vgg16.weight')):
-        if not os.path.exists(os.path.join(model_folder, 'vgg16.t7')):
-            os.system('wget http://cs.stanford.edu/people/jcjohns/fast-neural-style/models/vgg16.t7 -O ' + os.path.join(model_folder, 'vgg16.t7'))
+        pretrained_vgg = vgg16(pretrained=True)
         
-        vgglua = torchfile.load(os.path.join(model_folder, 'vgg16.t7'))
-        vgg = vgg16(pretrained=True)
-        for (src, dst) in zip(vgglua.parameters()[0], vgg.parameters()):
-            dst.data[:] = src
+        conv_list = ['conv1_1', 'conv1_2', 'conv2_1', 'conv2_2', 'conv3_1', 'conv3_2', 'conv3_3', 'conv4_1', 'conv4_2', 'conv4_3', 'conv5_1', 'conv5_2', 'conv5_3']
+        fetures_list = [0, 2, 5, 7, 10, 12, 14, 17, 19, 21, 24, 26, 28]
+        for flag in ['weight', 'bias']:
+            for i in range(13):
+                getattr(getattr(getattr(vgg, conv_list[i]), flag), "data").copy_(getattr(getattr(getattr(pretrained_vgg, "features")[fetures_list[i]], flag), "data"))
+                
         torch.save(vgg.state_dict(), os.path.join(model_folder, 'vgg16.weight'))

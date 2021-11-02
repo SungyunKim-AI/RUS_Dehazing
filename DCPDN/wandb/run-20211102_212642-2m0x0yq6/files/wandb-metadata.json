@@ -1,0 +1,29 @@
+{
+    "os": "Windows-10-10.0.19043-SP0",
+    "python": "3.8.12",
+    "heartbeatAt": "2021-11-02T12:26:44.178769",
+    "startedAt": "2021-11-02T12:26:42.902620",
+    "docker": null,
+    "gpu": "GeForce RTX 2080",
+    "gpu_count": 1,
+    "cpu_count": 12,
+    "cuda": null,
+    "args": [
+        "--dataroot",
+        "facades/train512",
+        "--valDataroot",
+        "facades/val512"
+    ],
+    "state": "running",
+    "program": "train.py",
+    "codePath": "DCPDN\\train.py",
+    "git": {
+        "remote": "https://github.com/KimSungYoon-KOK/RUS_Dehazing.git",
+        "commit": "72dcafe27dbde547e074e9e29ea5187b973cef3c"
+    },
+    "email": "53232440+KimSungYoon-KOK@users.noreply.github.com",
+    "root": "C:/Users/IIPL/Desktop/RUS_Dehazing",
+    "host": "DESKTOP-FLGESA6",
+    "username": "IIPL",
+    "executable": "C:\\Users\\IIPL\\Anaconda3\\envs\\dcpdn\\python.exe"
+}

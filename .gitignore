@@ -122,3 +122,4 @@ data_sample/
 /DCPDN/sample/
 .airlight/
 *.t7
+*.weight
