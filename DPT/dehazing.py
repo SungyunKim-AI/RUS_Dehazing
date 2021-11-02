@@ -118,7 +118,7 @@ if __name__ == '__main__':
     
     
     
-    tail =  nn.Sequential(
+    tail =  nn.Sequential( #airlight
             nn.Conv2d(256, 128, kernel_size=3, stride=1, padding=1),
             Interpolate(scale_factor=2, mode="bilinear", align_corners=True),
             nn.Conv2d(128, 64, kernel_size=3, stride=1, padding=1),
@@ -129,7 +129,7 @@ if __name__ == '__main__':
             nn.Sigmoid()
         )
     
-    tail2 = nn.Sequential(
+    tail2 = nn.Sequential( #beta
             nn.Conv2d(256, 32, kernel_size=3, stride=1, padding=1),
             Interpolate(scale_factor=2, mode="bilinear", align_corners=True),
             nn.Conv2d(32, 16, kernel_size=3, stride=1, padding=1),

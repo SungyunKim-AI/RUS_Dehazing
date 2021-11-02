@@ -22,6 +22,34 @@ def load_item(haze, clear, img_size):
         
         return hazy_resize, clear_resize
     
+def load_item_2(haze, clear,transform):
+    haze = util.io.read_image(haze)
+    clear = util.io.read_image(clear)
+    
+    haze_input  = transform({"image": haze})["image"]
+    clear_input = transform({"image": clear})["image"]
+    
+    return haze_input, clear_input
+
+def make_transform(img_size):
+    normalization = NormalizeImage(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+    transform = Compose(
+        [
+            Resize(
+                img_size[0],
+                img_size[1],
+                resize_target=None,
+                keep_aspect_ratio=False,
+                ensure_multiple_of=32,
+                resize_method="minimal",
+                image_interpolation_method=cv2.INTER_CUBIC,
+            ),
+            normalization,
+            PrepareForNet(),
+        ]
+    )
+    return transform
+    
 
 class BeDDE_Dataset(torch.utils.data.Dataset):
     def __init__(self,path,img_size,printName=False):
@@ -56,39 +84,16 @@ class O_Haze_Dataset(torch.utils.data.Dataset):
         self.images_hazy_list =glob.glob(images_hazy_path)
         self.printName = printName
         
-        normalization = NormalizeImage(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
-        self.transform = Compose(
-            [
-                Resize(
-                    self.img_size[0],
-                    self.img_size[1],
-                    resize_target=None,
-                    keep_aspect_ratio=False,
-                    ensure_multiple_of=32,
-                    resize_method="minimal",
-                    image_interpolation_method=cv2.INTER_CUBIC,
-                ),
-                normalization,
-                PrepareForNet(),
-            ]
-        )
+        self.transform = make_transform(self.img_size)
     
     def __len__(self):
         return len(self.images_clear_list)
     
     def __getitem__(self,index):
-        #haze, clear = load_item(self.images_hazy_list[index], self.images_clear_list[index], self.img_size)
-        
-        haze = util.io.read_image(self.images_hazy_list[index])
-        clear = util.io.read_image(self.images_clear_list[index])
-        
-        haze_input  = self.transform({"image": haze})["image"]
-        clear_input = self.transform({"image": clear})["image"]
-        
         if self.printName:
             print(self.images_hazy_list[index])
-        
-        return haze_input, clear_input
+        #return load_item(self.images_hazy_list[index], self.images_clear_list[index], self.img_size)
+        return load_item_2(self.images_hazy_list[index],self.images_clear_list[index],self.transform)
     
 class NH_Haze_Dataset(torch.utils.data.Dataset):
     def __init__(self,path,img_size,printName=False):
@@ -99,15 +104,16 @@ class NH_Haze_Dataset(torch.utils.data.Dataset):
         self.images_clear_list=glob.glob(images_clear_path)
         self.images_hazy_list =glob.glob(images_hazy_path)
         self.printName = printName
+        self.transform = make_transform(self.img_size)
     
     def __len__(self):
         return len(self.images_clear_list)
     
     def __getitem__(self,index):
-        haze, clear = load_item(self.images_hazy_list[index], self.images_clear_list[index], self.img_size)
         if self.printName:
             print(self.images_hazy_list[index])
-        return haze, clear
+        #return load_item(self.images_hazy_list[index], self.images_clear_list[index], self.img_size)
+        return load_item_2(self.images_hazy_list[index], self.images_clear_list[index], self.transform)
         
 class RESIDE_Beta_Dataset(torch.utils.data.Dataset):
     def __init__(self, path, img_size, printName=False, verbose=True):
@@ -125,18 +131,20 @@ class RESIDE_Beta_Dataset(torch.utils.data.Dataset):
             self.images_hazy_lists.append(glob.glob(images_hazy_folder+'*.jpg'))
         
         self.images_count = len(self.images_hazy_lists[0])
+        self.transform = make_transform(img_size)
         
     def __len__(self):
         return len(self.images_hazy_lists) * self.images_count
         #return 10
         
     def __getitem__(self,index):
-        haze, clear = load_item(self.images_hazy_lists[index//self.images_count][index%self.images_count],
-                                self.images_clear_list[index%self.images_count],
-                                self.img_size)
+        haze = self.images_hazy_lists[index//self.images_count][index%self.images_count]
+        clear = self.images_clear_list[index%self.images_count]
         if self.printName:
             print(self.images_hazy_lists[index//self.images_count][index%self.images_count])
-        return haze, clear
+        
+        #return load_item(haze,clear,self.img_size)
+        return load_item_2(haze,clear,self.transform)
 
 
 class Dataset(torch.utils.data.Dataset):
