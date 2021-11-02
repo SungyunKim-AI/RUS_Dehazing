@@ -50,7 +50,7 @@ def getLoader(opt, mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5), split='train', shu
                               transforms.ToTensor(),
                               transforms.Normalize(mean, std),
                             ]),
-                            seed=opt.seed)
+                            seed=opt.manualSeed)
   else:
     dataset = commonDataset(root=opt.dataroot,
                             transform=transforms.Compose([
@@ -59,7 +59,7 @@ def getLoader(opt, mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5), split='train', shu
                               transforms.ToTensor(),
                               transforms.Normalize(mean, std),
                              ]),
-                             seed=opt.seed)
+                             seed=opt.manualSeed)
 
   dataloader = torch.utils.data.DataLoader(dataset, 
                                            batch_size=opt.batchSize, 

@@ -28,7 +28,7 @@ def get_args():
     parser.add_argument('--valDataroot', required=False, default='', help='path to val dataset')
     parser.add_argument('--modelPath', type=str, default='./models/', help='pretrained VGG16 path')
     parser.add_argument('--mode', type=str, default='B2A', help='B2A: facade, A2B: edges2shoes')
-    parser.add_argument('--seed', type=int, default=101, help='B2A: facade, A2B: edges2shoes')
+    parser.add_argument('--manualSeed', type=int, default=101, help='B2A: facade, A2B: edges2shoes')
     parser.add_argument('--batchSize', type=int, default=1, help='input batch size')
     parser.add_argument('--valBatchSize', type=int, default=16, help='input batch size')
     parser.add_argument('--originalSize', type=int, default=286, help='the height / width of the original input image')
@@ -57,42 +57,25 @@ def get_args():
     parser.add_argument('--device', default=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
     
     return parser.parse_args()
-
-# Two directional gradient loss function
-def gradient(y):
-    gradient_h=torch.abs(y[:, :, :, :-1] - y[:, :, :, 1:])
-    gradient_y=torch.abs(y[:, :, :-1, :] - y[:, :, 1:, :])
-    
-    return gradient_h, gradient_y
   
-def train_one_epoch(opt, dataloader, vgg, netG, netD, optimizerD, optimizerG, criterionBCE, criterionCAE, schedulerD, schedulerG, imagePool, epoch):
-    lossesD_real, lossesD_fake, lossesG = [], [], []
-    losses_trans, losses_content, losses_content1 = [], [], []
-    netG.train()
-    netD.train()
+def train_one_epoch(opt, dataloader, vgg, netG, netD, optimizerD, optimizerG, criterionBCE, criterionCAE, imagePool):
+    loss_D, loss_G = 0.0, 0.0
+    loss_img, loss_ato, loss_tran, loss_content, loss_content1 = 0.0, 0.0, 0.0, 0.0, 0.0
+
     for data in tqdm(dataloader):
-        optimizerD.zero_grad()
-            
-        # for param in netD.parameters():
-        #     param.requires_grad = True    # gradients compute
-        
-        # netD.zero_grad()
         
         input, target, trans, ato, imgname = data
         input, target, trans, ato = input.to(opt.device).float(), target.to(opt.device).float(), trans.to(opt.device).float(), ato.to(opt.device).float()
+        
+        optimizerD.zero_grad()
+        
         x_hat, tran_hat, atp_hat, dehaze21 = netG(input)
-        
-        # for param in netD.parameters():
-        #     param.requires_grad = True    # gradients compute
-        
-        # netD.zero_grad()
         
         # NOTE: compute L_cGAN in eq.(2)
         label_d = torch.full((opt.batchSize, 1, opt.sizePatchGAN, opt.sizePatchGAN), 1).to(opt.device).float()
         output = netD(torch.cat([trans, target], 1)) # conditional
         errD_real = criterionBCE(output, label_d)
         errD_real.backward()
-        # D_x = output.data.mean()
         
         fake = x_hat.detach()
         fake = imagePool.query(fake)
@@ -104,91 +87,90 @@ def train_one_epoch(opt, dataloader, vgg, netG, netD, optimizerD, optimizerG, cr
         output = netD(torch.cat([fake_trans, fake], 1)) # conditional
         errD_fake = criterionBCE(output, label_d)
         errD_fake.backward()
-        # D_G_z1 = output.data.mean()
-        # errD = errD_real + errD_fake
         
+        loss_D += (errD_real.item() + errD_fake.item())/2
+        #errD.backward()
+
         optimizerD.step() # update parameters
-        
-        lossesD_real.append(errD_real.item())
-        lossesD_fake.append(errD_fake.item())
 
         
         # prevent computing gradients of weights in Discriminator
         optimizerG.zero_grad()
-        # for param in netD.parameters():
-        #     param.requires_grad = False
-        
-        # netG.zero_grad()    # start to update G
 
         # compute L_L1 (eq.(4) in the paper
-        # L_img_ = 
         L_img = opt.lambdaIMG * criterionCAE(x_hat, target)
+        loss_img += L_img.item()
         if opt.lambdaIMG != 0:
             L_img.backward(retain_graph=True)
+        
         
         # NOTE compute L1 for transamission map
         L_tran_ = criterionCAE(tran_hat, trans)
 
         # NOTE compute gradient loss for transamission map
-        gradie_h_est, gradie_v_est = gradient(tran_hat)
-        gradie_h_gt, gradie_v_gt = gradient(trans)
+        gradie_h_est, gradie_v_est = utils.gradient(tran_hat)
+        gradie_h_gt, gradie_v_gt = utils.gradient(trans)
 
         L_tran_h = criterionCAE(gradie_h_est, gradie_h_gt)
         L_tran_v = criterionCAE(gradie_v_est, gradie_v_gt)
 
         L_tran =  opt.lambdaIMG * (L_tran_ + (2*L_tran_h) + (2*L_tran_v))
+        loss_tran += L_tran.item()
         if opt.lambdaIMG != 0:
             L_tran.backward(retain_graph=True)
-        losses_trans.append(L_tran)
 
         # NOTE feature loss for transmission map
-        # [relu1_2, relu2_2, relu3_3, relu4_3]
         features_content = vgg(trans)
         f_xc_c = features_content[1].detach().requires_grad_(False)
         
         features_y = vgg(tran_hat)
         content_loss =  0.8 * opt.lambdaIMG * criterionCAE(features_y[1], f_xc_c)
+        loss_content += content_loss.item()
         content_loss.backward(retain_graph=True)
-        losses_content.append(L_tran)
 
+        
         # Edge Loss 2
-        features_content = vgg(trans)
         f_xc_c = features_content[0].detach().requires_grad_(False)
-
-        features_y = vgg(tran_hat)
+        
         content_loss1 =  0.8 * opt.lambdaIMG * criterionCAE(features_y[0], f_xc_c)
+        loss_content1 += content_loss1.item()
         content_loss1.backward(retain_graph=True)
-        losses_content1.append(L_tran)
-
-
+        
+        
         # NOTE compute L1 for atop-map
         L_ato_ = criterionCAE(atp_hat, ato)
         L_ato =  opt.lambdaIMG * L_ato_
         if opt.lambdaIMG != 0:
             L_ato_.backward(retain_graph=True)
-        
+        loss_ato += L_ato_.item()
         
         # compute  gan_loss for the joint discriminator
         label_d.fill_(1)
         output = netD(torch.cat([tran_hat, x_hat], 1))
         errG = criterionBCE(output, label_d) * opt.lambdaGAN
-
+        loss_G += errG.item()
+        
         if opt.lambdaGAN != 0:
             errG.backward()
-        lossesG.append(errG)
         
         optimizerG.step()
     
-    wandb.log({"lossesD_real" : lossesD_real, "lossesD_fake": lossesD_fake, "lossesG" : lossesG,
-               "losses_trans":losses_trans, "losses_content":losses_content, "losses_content1":losses_content1,
-               "global_step" : epoch})
-    
-    schedulerD.step()
-    schedulerG.step()
+    dataset_len = len(dataloader.dataset)
+    loss_D /= dataset_len
+    loss_G /= dataset_len
+    loss_img /= dataset_len
+    loss_ato /= dataset_len
+    loss_tran /= dataset_len
+    loss_content /= dataset_len
+    loss_content1 /= dataset_len
+    return {'loss_D':loss_D, 'loss_G':loss_G,
+            'loss_img':loss_img, 'loss_ato':loss_ato, 'loss_tran':loss_tran, 
+            'loss_content':loss_content, 'loss_content1':loss_content1}
+        
 
-def validate(opt, valDataloader, netG, epoch):
-    img_ssim_epoch, img_psnr_epoch = 0.0, 0.0
-    tran_ssim_epoch, tran_psnr_epoch = 0.0, 0.0
+def validate(opt, valDataloader, netG):
+    img_ssim, img_psnr = 0.0, 0.0
+    tran_ssim, tran_psnr = 0.0, 0.0
     
     netG.eval()
     with torch.no_grad():
@@ -198,13 +180,10 @@ def validate(opt, valDataloader, netG, epoch):
             
             x_hat, tran_hat, atp_hat, dehaze21 = netG(input)
             
-            img_ssim, img_psnr = ssim(x_hat, target), psnr(x_hat, target)
-            tran_ssim, tran_psnr = ssim(tran_hat, trans), psnr(tran_hat, trans)
-            
-            img_ssim_epoch += img_ssim.cpu().item()
-            img_psnr_epoch += img_psnr.cpu().item()
-            tran_ssim_epoch += tran_ssim.cpu().item()
-            tran_psnr_epoch += tran_psnr.cpu().item()
+            img_ssim += ssim(x_hat, target).cpu().item()
+            img_psnr += psnr(x_hat, target).cpu().item()
+            tran_ssim += ssim(tran_hat, trans).cpu().item()
+            tran_psnr += psnr(tran_hat, trans).cpu().item()
             
             directory = os.path.join('output', f'{epoch:03d}')
             if not os.path.exists(directory):
@@ -217,15 +196,15 @@ def validate(opt, valDataloader, netG, epoch):
                                  normalize=True, scale_each=False)
                 utils.save_image(atp_hat[i,:,:,:], os.path.join(directory, (imgname[i] + '_atm.png')), 
                                  normalize=True, scale_each=False)
-                
-    img_ssim_epoch /= i
-    img_psnr_epoch /= i
-    tran_ssim_epoch /= i
-    tran_psnr_epoch /= i
     
-    wandb.log({"IMAGE_SSIM" : img_ssim_epoch, "IMAGE_PSNR" : img_psnr_epoch,
-               "TRAN_SSIM" : tran_ssim_epoch, "TRAN_SSIM" : tran_psnr_epoch,
-               "global_step" : epoch})
+    dataset_len = len(valDataloader.dataset) 
+    img_ssim /= dataset_len
+    img_psnr /= dataset_len
+    tran_ssim /= dataset_len
+    tran_psnr /= dataset_len
+    
+    return {'img_ssim':img_ssim, 'img_psnr':img_psnr, 'tran_ssim':tran_ssim, 'tran_psnr':tran_psnr}
+    
     
 
 if __name__=='__main__':
@@ -237,11 +216,11 @@ if __name__=='__main__':
     
     create_exp_dir(opt.exp)
     
-    # opt.seed = random.randint(1, 10000)
-    random.seed(opt.seed)
-    torch.manual_seed(opt.seed)
-    torch.cuda.manual_seed_all(opt.seed)
-    print("Random Seed: ", opt.seed)
+    # opt.manualSeed = random.randint(1, 10000)
+    random.seed(opt.manualSeed)
+    torch.manual_seed(opt.manualSeed)
+    torch.cuda.manual_seed_all(opt.manualSeed)
+    print("Random Seed: ", opt.manualSeed)
   
     wandb.init(project='Dehazing', entity='rus')
     wandb.config.update(opt)
@@ -273,8 +252,8 @@ if __name__=='__main__':
     netD.to(opt.device)
 
     # init Loss, Optimizer, LR_Scheduler
-    criterionBCE = nn.BCELoss()
-    criterionCAE = nn.L1Loss()
+    criterionBCE = nn.BCELoss().to(opt.device)
+    criterionCAE = nn.L1Loss().to(opt.device)
     
     optimizerD = optim.Adam(netD.parameters(), lr = opt.lrD, betas = (opt.beta1, 0.999), weight_decay=opt.wd)
     optimizerG = optim.Adam(netG.parameters(), lr = opt.lrG, betas = (opt.beta1, 0.999), weight_decay=0.00005)
@@ -292,19 +271,30 @@ if __name__=='__main__':
     vgg.to(opt.device)
 
     # NOTE training loop
+    netG.train()
+    netD.train()
     for epoch in range(1, opt.niter):
-        train_one_epoch(opt, dataloader, 
-                        vgg, netG, netD, 
-                        optimizerD, optimizerG, 
-                        criterionBCE, criterionCAE, 
-                        schedulerD, schedulerG, 
-                        imagePool, epoch)
+        # loss_train = {'loss_D', 'loss_G','loss_img', 'loss_ato', 'loss_tran', 'loss_content', 'loss_content1'}
+        loss_train = train_one_epoch(opt, dataloader,
+                                    vgg, netG, netD, 
+                                    optimizerD, optimizerG, 
+                                    criterionBCE, criterionCAE,imagePool)
         
+        schedulerD.step()
+        schedulerG.step()
+        
+        wandb.log({"loss_D" : loss_train['loss_D'], "loss_G": loss_train['loss_G'],
+               "loss_tran":loss_train['loss_tran'], 'loss_ato':loss_train['loss_ato'], 
+               "loss_content":loss_train['loss_content'], "loss_content1":loss_train['loss_content1'],
+               "global_step" : epoch})
         
         if epoch % opt.evalIter == 0:
-            validate(opt, valDataloader, 
-                     vgg, netG, netD,
-                     imagePool, epoch)
+            # loss_dict_val = {'img_ssim', 'img_psnr', 'tran_ssim', 'tran_psnr'}
+            loss_val = validate(opt, valDataloader, netG)
+            
+            wandb.log({"IMAGE_SSIM" : loss_val['img_ssim'], "IMAGE_PSNR" : loss_val['img_psnr'],
+               "TRAN_SSIM" : loss_val['tran_ssim'], "TRAN_SSIM" : loss_val['tran_psnr'],
+               "global_step" : epoch})
             
             torch.save(netG.state_dict(), f'{opt.exp}/netG_epoch_{epoch:03d}.pth')
             torch.save(netD.state_dict(), f'{opt.exp}/netD_epoch_{epoch:03d}.pth')

@@ -8,6 +8,14 @@ from torchvision.models import vgg16
 from myutils.vgg16 import Vgg16
 
 
+# Two directional gradient loss function
+def gradient(y):
+    gradient_h=torch.abs(y[:, :, :, :-1] - y[:, :, :, 1:])
+    gradient_y=torch.abs(y[:, :, :-1, :] - y[:, :, 1:, :])
+    
+    return gradient_h, gradient_y
+
+
 def tensor_load_rgbimage(filename, size=None, scale=None, keep_asp=False):
 	img = Image.open(filename).convert('RGB')
 	if size is not None:
