@@ -33,7 +33,6 @@ import utils
 from scipy import interpolate
 import modeling_finetune
 
-
 def get_args():
     parser = argparse.ArgumentParser('BEiT fine-tuning and evaluation script for image classification', add_help=False)
     parser.add_argument('--batch_size', default=64, type=int)

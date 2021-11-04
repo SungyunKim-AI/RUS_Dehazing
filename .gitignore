@@ -118,3 +118,10 @@ dmypy.json
 data_sample/
 /FFA-Net/wandb
 *.pt
+/DCPDN/facades/
+/DCPDN/sample/
+/DCPDN/output/
+.airlight/
+*.t7
+*.weight
+
