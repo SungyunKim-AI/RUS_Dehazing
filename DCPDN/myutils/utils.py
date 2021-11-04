@@ -97,6 +97,8 @@ def init_vgg16(vgg, model_folder):
         fetures_list = [0, 2, 5, 7, 10, 12, 14, 17, 19, 21, 24, 26, 28]
         for flag in ['weight', 'bias']:
             for i in range(13):
-                getattr(getattr(getattr(vgg, conv_list[i]), flag), "data").copy_(getattr(getattr(getattr(pretrained_vgg, "features")[fetures_list[i]], flag), "data"))
+                vgg_param = getattr(getattr(getattr(vgg, conv_list[i]), flag), "data")
+                pretrained_vgg_param = getattr(getattr(getattr(pretrained_vgg, "features")[fetures_list[i]], flag), "data")
+                vgg_param.copy_(pretrained_vgg_param)
                 
-        torch.save(vgg.state_dict(), os.path.join(model_folder, 'vgg16.weight'))
+        torch.save(vgg.state_dict(), os.path.join(model_folder, 'vgg16.weight'))	 

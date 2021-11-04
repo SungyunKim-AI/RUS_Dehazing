@@ -60,12 +60,12 @@ def get_args():
     return parser.parse_args()
   
 def train_one_epoch(opt, dataloader, vgg, netG, netD, optimizerD, optimizerG, criterionBCE, criterionCAE, imagePool):
-    loss_D, loss_G = 0.0, 0.0
+    i, loss_D, loss_G = 0, 0.0, 0.0
     loss_img, loss_ato, loss_tran, loss_content, loss_content1 = 0.0, 0.0, 0.0, 0.0, 0.0
     netG.train()
     netD.train()
     for data in tqdm(dataloader, desc=f'Train [{opt.epoch:3d}/{opt.niter}]'):
-        
+        i += 1
         input, target, trans, ato, imgname = data
         input, target, trans, ato = input.to(opt.device).float(), target.to(opt.device).float(), trans.to(opt.device).float(), ato.to(opt.device).float()
         
@@ -157,20 +157,19 @@ def train_one_epoch(opt, dataloader, vgg, netG, netD, optimizerD, optimizerG, cr
         
         optimizerG.step()
     
-    dataset_len = len(dataloader.dataset)
-    loss_D /= dataset_len
-    loss_G /= dataset_len
-    loss_img /= dataset_len
-    loss_ato /= dataset_len
-    loss_tran /= dataset_len
-    loss_content /= dataset_len
-    loss_content1 /= dataset_len
+    loss_D /= i
+    loss_G /= i
+    loss_img /= i
+    loss_ato /= i
+    loss_tran /= i
+    loss_content /= i
+    loss_content1 /= i
     return {'loss_D':loss_D, 'loss_G':loss_G,
             'loss_img':loss_img, 'loss_ato':loss_ato, 'loss_tran':loss_tran, 
             'loss_content':loss_content, 'loss_content1':loss_content1}
         
 
-def validate(opt, valDataloader, netG):
+def validate(opt, valDataloader, netG, criterionCAE):
     loss_ato = 0.0
     img_ssim, img_psnr = 0.0, 0.0
     tran_ssim, tran_psnr = 0.0, 0.0
@@ -289,7 +288,7 @@ if __name__=='__main__':
         
         if epoch % opt.evalIter == 0:
             # loss_dict_val = {'loss_ato', 'img_ssim', 'img_psnr', 'tran_ssim', 'tran_psnr'}
-            loss_val = validate(opt, valDataloader, netG)
+            loss_val = validate(opt, valDataloader, netG, criterionCAE)
             
             wandb.log({"loss_ato_val" : loss_val['loss_ato'], 
                     "IMAGE_SSIM" : loss_val['img_ssim'], "IMAGE_PSNR" : loss_val['img_psnr'],

@@ -120,6 +120,8 @@ data_sample/
 *.pt
 /DCPDN/facades/
 /DCPDN/sample/
+/DCPDN/output/
 .airlight/
 *.t7
 *.weight
+
