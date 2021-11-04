@@ -65,14 +65,14 @@ def train_one_epoch(opt, dataloader, vgg, netG, netD, optimizerD, optimizerG, cr
     netG.train()
     netD.train()
     
-    target= torch.FloatTensor(opt.batchSize, opt.outputChannelSize, opt.imageSize, opt.imageSize)
-    input = torch.FloatTensor(opt.batchSize, opt.inputChannelSize, opt.imageSize, opt.imageSize)
-    trans = torch.FloatTensor(opt.batchSize, opt.inputChannelSize, opt.imageSize, opt.imageSize)
-    ato = torch.FloatTensor(opt.batchSize, opt.inputChannelSize, opt.imageSize, opt.imageSize)
+    target= torch.FloatTensor(opt.batchSize, opt.outputChannelSize, opt.imageSize, opt.imageSize).to(opt.device)
+    input = torch.FloatTensor(opt.batchSize, opt.inputChannelSize, opt.imageSize, opt.imageSize).to(opt.device)
+    trans = torch.FloatTensor(opt.batchSize, opt.inputChannelSize, opt.imageSize, opt.imageSize).to(opt.device)
+    ato = torch.FloatTensor(opt.batchSize, opt.inputChannelSize, opt.imageSize, opt.imageSize).to(opt.device)
     
     real_label = 1
     fake_label = 0
-    label_d = torch.FloatTensor(opt.batchSize)
+    label_d = torch.FloatTensor(opt.batchSize).to(opt.device)
 
     for data in tqdm(dataloader, desc=f'Train [{opt.epoch:3d}/{opt.niter}]'):
         i += 1
@@ -80,10 +80,11 @@ def train_one_epoch(opt, dataloader, vgg, netG, netD, optimizerD, optimizerG, cr
         target_cpu, input_cpu, trans_cpu, ato_cpu = target_cpu.float().to(opt.device), input_cpu.float().to(opt.device), trans_cpu.float().to(opt.device), ato_cpu.float().to(opt.device)
         
         # get paired data
-        target.data.resize_as_(target_cpu).copy_(target_cpu)
-        input.data.resize_as_(input_cpu).copy_(input_cpu)
-        trans.data.resize_as_(trans_cpu).copy_(trans_cpu)
-        ato.data.resize_as_(ato_cpu).copy_(ato_cpu)
+        with torch.no_grad():
+            target.resize_as_(target_cpu).copy_(target_cpu)
+            input.resize_as_(input_cpu).copy_(input_cpu)
+            trans.resize_as_(trans_cpu).copy_(trans_cpu)
+            ato.resize_as_(ato_cpu).copy_(ato_cpu)
         
         for p in netD.parameters():
             p.requires_grad = True
@@ -96,7 +97,8 @@ def train_one_epoch(opt, dataloader, vgg, netG, netD, optimizerD, optimizerG, cr
         netD.zero_grad()
         
         # NOTE: compute L_cGAN in eq.(2)
-        label_d.data.resize_((opt.batchSize, 1, opt.sizePatchGAN, opt.sizePatchGAN)).fill_(real_label)
+        with torch.no_grad():
+            label_d.resize_((opt.batchSize, 1, opt.sizePatchGAN, opt.sizePatchGAN)).fill_(real_label)
         output = netD(torch.cat([trans, target], 1)) # conditional
         errD_real = criterionBCE(output, label_d)
         errD_real.backward()
