@@ -12,6 +12,7 @@ import torch
 from torch import nn, optim
 import torch.backends.cudnn as cudnn
 import torch.nn.parallel
+import torchvision.utils as vutils
 
 # Self-made Models, Utils
 from misc import *
@@ -29,8 +30,8 @@ def get_args():
     parser.add_argument('--modelPath', type=str, default='./models/', help='pretrained VGG16 path')
     parser.add_argument('--mode', type=str, default='B2A', help='B2A: facade, A2B: edges2shoes')
     parser.add_argument('--manualSeed', type=int, default=101, help='B2A: facade, A2B: edges2shoes')
-    parser.add_argument('--batchSize', type=int, default=1, help='input batch size')
-    parser.add_argument('--valBatchSize', type=int, default=16, help='input batch size')
+    parser.add_argument('--batchSize', type=int, default=6, help='input batch size')
+    parser.add_argument('--valBatchSize', type=int, default=32, help='input batch size')
     parser.add_argument('--originalSize', type=int, default=286, help='the height / width of the original input image')
     parser.add_argument('--imageSize', type=int, default=256, help='the height / width of the cropped input image to network')
     parser.add_argument('--inputChannelSize', type=int, default=3, help='size of the input channels')
@@ -38,7 +39,8 @@ def get_args():
     parser.add_argument('--sizePatchGAN', type=int, default=62)
     parser.add_argument('--ngf', type=int, default=64)
     parser.add_argument('--ndf', type=int, default=64)
-    parser.add_argument('--niter', type=int, default=400, help='number of epochs to train for')
+    parser.add_argument('--epoch', type=int, default=1, help='number of epochs to train for')
+    parser.add_argument('--niter', type=int, default=200, help='number of epochs to train for')
     parser.add_argument('--lrD', type=float, default=0.0002, help='learning rate, default=0.0002')
     parser.add_argument('--lrG', type=float, default=0.0002, help='learning rate, default=0.0002')
     parser.add_argument('--annealStart', type=int, default=0, help='annealing learning rate start to')
@@ -52,7 +54,6 @@ def get_args():
     parser.add_argument('--netD', default='', help="path to netD (to continue training)")
     parser.add_argument('--workers', type=int, default=4, help='number of data loading workers')
     parser.add_argument('--exp', default='sample', help='folder to output images and model checkpoints')
-    parser.add_argument('--display', type=int, default=5, help='interval for displaying train-logs')
     parser.add_argument('--evalIter', type=int, default=5, help='interval for evauating(generating) images from valDataroot')
     parser.add_argument('--device', default=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
     
@@ -61,8 +62,9 @@ def get_args():
 def train_one_epoch(opt, dataloader, vgg, netG, netD, optimizerD, optimizerG, criterionBCE, criterionCAE, imagePool):
     loss_D, loss_G = 0.0, 0.0
     loss_img, loss_ato, loss_tran, loss_content, loss_content1 = 0.0, 0.0, 0.0, 0.0, 0.0
-
-    for data in tqdm(dataloader):
+    netG.train()
+    netD.train()
+    for data in tqdm(dataloader, desc=f'Train [{opt.epoch:3d}/{opt.niter}]'):
         
         input, target, trans, ato, imgname = data
         input, target, trans, ato = input.to(opt.device).float(), target.to(opt.device).float(), trans.to(opt.device).float(), ato.to(opt.device).float()
@@ -169,41 +171,44 @@ def train_one_epoch(opt, dataloader, vgg, netG, netD, optimizerD, optimizerG, cr
         
 
 def validate(opt, valDataloader, netG):
+    loss_ato = 0.0
     img_ssim, img_psnr = 0.0, 0.0
     tran_ssim, tran_psnr = 0.0, 0.0
     
     netG.eval()
     with torch.no_grad():
-        for data in tqdm(valDataloader):
+        for data in tqdm(valDataloader, desc=f'Valid [{opt.epoch:3d}/{opt.niter}]'):
             input, target, trans, ato, imgname = data
-            input, target, trans, ato = input.to(opt.device), target.to(opt.device), trans.to(opt.device), ato.to(opt.device)
+            input, target, trans, ato = input.to(opt.device).float(), target.to(opt.device).float(), trans.to(opt.device).float(), ato.to(opt.device).float()
             
             x_hat, tran_hat, atp_hat, dehaze21 = netG(input)
             
-            img_ssim += ssim(x_hat, target).cpu().item()
-            img_psnr += psnr(x_hat, target).cpu().item()
-            tran_ssim += ssim(tran_hat, trans).cpu().item()
-            tran_psnr += psnr(tran_hat, trans).cpu().item()
+            loss_ato += criterionCAE(atp_hat, ato).item()
+            img_ssim += ssim(x_hat, target)
+            img_psnr += psnr(x_hat, target)
+            tran_ssim += ssim(tran_hat, trans)
+            tran_psnr += psnr(tran_hat, trans)
             
             directory = os.path.join('output', f'{epoch:03d}')
             if not os.path.exists(directory):
                 os.makedirs(directory)
                 
-            for i in range(opt.valBatchSize):
-                utils.save_image(x_hat[i,:,:,:], os.path.join(directory, (imgname[i] + '_dehazed.png')), 
-                                 normalize=True, scale_each=False)
-                utils.save_image(tran_hat[i,:,:,:], os.path.join(directory, (imgname[i] + '_tran.png')), 
-                                 normalize=True, scale_each=False)
-                utils.save_image(atp_hat[i,:,:,:], os.path.join(directory, (imgname[i] + '_atm.png')), 
-                                 normalize=True, scale_each=False)
+            # for i in range(opt.valBatchSize):
+            #     vutils.save_image(x_hat[i,:,:,:], os.path.join(directory, (imgname[i] + '_dehazed.png')),
+            #                      normalize=True, scale_each=False)
+            #     vutils.save_image(tran_hat[i,:,:,:], os.path.join(directory, (imgname[i] + '_tran.png')), 
+            #                      normalize=True, scale_each=False)
+            #     vutils.save_image(atp_hat[i,:,:,:], os.path.join(directory, (imgname[i] + '_atm.png')), 
+            #                      normalize=True, scale_each=False)
     
     dataset_len = len(valDataloader.dataset) 
+    loss_ato /= dataset_len
     img_ssim /= dataset_len
     img_psnr /= dataset_len
     tran_ssim /= dataset_len
     tran_psnr /= dataset_len
     
-    return {'img_ssim':img_ssim, 'img_psnr':img_psnr, 'tran_ssim':tran_ssim, 'tran_psnr':tran_psnr}
+    return {'loss_ato':loss_ato, 'img_ssim':img_ssim, 'img_psnr':img_psnr, 'tran_ssim':tran_ssim, 'tran_psnr':tran_psnr}
     
     
 
@@ -242,7 +247,6 @@ if __name__=='__main__':
     netG.apply(weights_init)
     if opt.netG != '':
         netG.load_state_dict(torch.load(opt.netG))
-        print(netG)
     netG.to(opt.device)
         
     netD = net.D(opt.inputChannelSize + opt.outputChannelSize, opt.ndf)
@@ -271,8 +275,6 @@ if __name__=='__main__':
     vgg.to(opt.device)
 
     # NOTE training loop
-    netG.train()
-    netD.train()
     for epoch in range(1, opt.niter):
         # loss_train = {'loss_D', 'loss_G','loss_img', 'loss_ato', 'loss_tran', 'loss_content', 'loss_content1'}
         loss_train = train_one_epoch(opt, dataloader,
@@ -280,22 +282,24 @@ if __name__=='__main__':
                                     optimizerD, optimizerG, 
                                     criterionBCE, criterionCAE,imagePool)
         
-        schedulerD.step()
-        schedulerG.step()
-        
         wandb.log({"loss_D" : loss_train['loss_D'], "loss_G": loss_train['loss_G'],
                "loss_tran":loss_train['loss_tran'], 'loss_ato':loss_train['loss_ato'], 
                "loss_content":loss_train['loss_content'], "loss_content1":loss_train['loss_content1'],
                "global_step" : epoch})
         
         if epoch % opt.evalIter == 0:
-            # loss_dict_val = {'img_ssim', 'img_psnr', 'tran_ssim', 'tran_psnr'}
+            # loss_dict_val = {'loss_ato', 'img_ssim', 'img_psnr', 'tran_ssim', 'tran_psnr'}
             loss_val = validate(opt, valDataloader, netG)
             
-            wandb.log({"IMAGE_SSIM" : loss_val['img_ssim'], "IMAGE_PSNR" : loss_val['img_psnr'],
-               "TRAN_SSIM" : loss_val['tran_ssim'], "TRAN_SSIM" : loss_val['tran_psnr'],
-               "global_step" : epoch})
+            wandb.log({"loss_ato_val" : loss_val['loss_ato'], 
+                    "IMAGE_SSIM" : loss_val['img_ssim'], "IMAGE_PSNR" : loss_val['img_psnr'],
+                    "TRAN_SSIM" : loss_val['tran_ssim'], "TRAN_SSIM" : loss_val['tran_psnr'],
+                    "global_step" : epoch})
             
             torch.save(netG.state_dict(), f'{opt.exp}/netG_epoch_{epoch:03d}.pth')
             torch.save(netD.state_dict(), f'{opt.exp}/netD_epoch_{epoch:03d}.pth')
+        
+        opt.epoch += 1
+        schedulerD.step()
+        schedulerG.step()
 
