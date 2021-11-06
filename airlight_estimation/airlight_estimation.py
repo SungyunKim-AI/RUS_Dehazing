@@ -100,21 +100,17 @@ def LLF_Module(image):
                 avg[c].append(RGB[c][row[j]][col[j]])
     
     
-    r = round(np.array(avg['r']).mean())
-    g = round(np.array(avg['g']).mean())
-    b = round(np.array(avg['b']).mean())
+    avgR = round(np.array(avg['r']).mean())
+    avgG = round(np.array(avg['g']).mean())
+    avgB = round(np.array(avg['b']).mean())
     
-    return r, g, b
-                
-def airlight_show(r, g, b):
-    r = np.full((image.shape[0], image.shape[1]), R).astype('uint8')
-    g = np.full((image.shape[0], image.shape[1]), G).astype('uint8')
-    b = np.full((image.shape[0], image.shape[1]), B).astype('uint8')
+    r = np.full((image.shape[0], image.shape[1]), avgR).astype('uint8')
+    g = np.full((image.shape[0], image.shape[1]), avgG).astype('uint8')
+    b = np.full((image.shape[0], image.shape[1]), avgB).astype('uint8')
     rgb = cv2.merge((r, g, b))
     
-    cv2.imshow(f"Airlight ({R}, {G}, {B})", rgb)
-    cv2.waitKey(0)
-    
+    return rgb, [avgR, avgG, avgB]
+
   
 if __name__ == "__main__":
     image = cv2.imread("test01.jpg")
@@ -122,9 +118,10 @@ if __name__ == "__main__":
     
     start = time.time()
     image = AWC_Module(image)
-    R, G, B = LLF_Module(image)
+    airlight, [R, G, B] = LLF_Module(image)
     print("time :", time.time() - start)
     
-    airlight_show(R, G, B)
+    cv2.imshow(f"Airlight ({R}, {G}, {B})", airlight)
+    cv2.waitKey(0)
     
     
