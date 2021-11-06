@@ -6,12 +6,12 @@ Yan-Tsung Peng et al.
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-from PIL import Image
+import time
 
 def show_plt(x, y):
     plt.bar(x, y, align='center')
     plt.xlabel('deg.')
-    plt.xlim([0, 359])
+    plt.xlim([x[0], x[-1]])
     plt.ylabel('prob.')
     for i in range(len(y)):
         plt.vlines(x[i], 0, y[i])
@@ -56,14 +56,75 @@ def AWC_Module(image, color_cast_threshold=5):
     return rgb
         
     
-# def LLF_Module():
+def LLF_Module(image):
     # 1. PMF of minimum channel calculation
+    R, G, B = cv2.split(image)
+    min_channel = np.minimum(R, G, B)
+    # cv2.imshow('Minimum channel', min_channel.astype('uint8'))
+    # cv2.waitKey(0)
+    
+    val, cnt = np.unique(min_channel, return_counts=True)
+    img_size = image.shape[0] * image.shape[1]
+    prob = cnt / img_size    # PMF
+    
+    l = np.zeros((256))
+    for i, v in enumerate(val):
+        l[v] = prob[i]
+    # show_plt(range(256), l)
     
     # 2. 1D minimum filter
+    P_m = []
+    l = np.insert(l, 0, np.array([1,1,1,1,1]))
+    l = np.append(l, np.array([1,1,1,1,1]))
+    for i in range(0+5, 255+6):
+        P_m.append(l[i-5:i+6].min())
+    P_m = np.array(P_m)
+    # show_plt(range(256), P_m)
     
     # 3. Airlight color estimation
+    threshold = 0.0
+    idx = []
+    for i in range(255,-1, -1):
+        if P_m[i] > 0.0:
+            threshold += P_m[i]
+            idx.append(i)
+            if threshold >= 0.01:
+                break
+
+    avg = {'r': [], 'g': [], 'b': []}
+    RGB = {'r': R, 'g': G, 'b': B}
+    for i in idx:
+        row, col = np.where(min_channel == i)
+        for j, _ in enumerate(row):
+            for c in ['r','g','b']:
+                avg[c].append(RGB[c][row[j]][col[j]])
+    
+    
+    r = round(np.array(avg['r']).mean())
+    g = round(np.array(avg['g']).mean())
+    b = round(np.array(avg['b']).mean())
+    
+    return r, g, b
+                
+def airlight_show(r, g, b):
+    r = np.full((image.shape[0], image.shape[1]), R).astype('uint8')
+    g = np.full((image.shape[0], image.shape[1]), G).astype('uint8')
+    b = np.full((image.shape[0], image.shape[1]), B).astype('uint8')
+    rgb = cv2.merge((r, g, b))
+    
+    cv2.imshow(f"Airlight ({R}, {G}, {B})", rgb)
+    cv2.waitKey(0)
+    
   
 if __name__ == "__main__":
-    image = cv2.imread("testImage.jpeg")
-    AWC_Module(image)
+    image = cv2.imread("test01.jpg")
+    image = cv2.resize(image, dsize=(512, 512), interpolation=cv2.INTER_AREA)
+    
+    start = time.time()
+    image = AWC_Module(image)
+    R, G, B = LLF_Module(image)
+    print("time :", time.time() - start)
+    
+    airlight_show(R, G, B)
+    
     
