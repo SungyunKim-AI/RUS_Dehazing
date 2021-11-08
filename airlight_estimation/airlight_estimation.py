@@ -8,6 +8,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import time
 
+import torch
+import torch.nn as nn
+
+import os
+from glob import glob
+from tqdm import tqdm
+
 def show_plt(x, y):
     plt.bar(x, y, align='center')
     plt.xlabel('deg.')
@@ -111,17 +118,53 @@ def LLF_Module(image):
     
     return rgb, [avgR, avgG, avgB]
 
+
+def data_loader(path):
+    hazy_path = os.path.join(path, 'hazy')
+    hazy_list = glob(hazy_path + '/*')
+    
+    airlight_path = os.path.join(path, 'airlight')
+    airlight_list = glob(airlight_path + '/*')
+    
+    data_list = []
+    for i in range(len(hazy_list)):
+        data_list.append([hazy_list[i], airlight_list[i]])
+    print("Data Length : ", len(data_list))
+    
+    return data_list
+    
+        
   
 if __name__ == "__main__":
-    image = cv2.imread("test01.jpg")
-    image = cv2.resize(image, dsize=(512, 512), interpolation=cv2.INTER_AREA)
+    path = 'airlight_validate'
+    data_list = data_loader(path)
     
-    start = time.time()
-    image = AWC_Module(image)
-    airlight, [R, G, B] = LLF_Module(image)
-    print("time :", time.time() - start)
+    criterion = nn.MSELoss()
+    loss = 0.0
+    for hazy, airlight in tqdm(data_list):
+        imgname = os.path.basename(hazy)
+        input_hazy = cv2.imread(hazy)
+        input_hazy2 = AWC_Module(input_hazy)
+        airlight_hat, _ = LLF_Module(input_hazy2)
+        
+        airlight_GT = cv2.imread(airlight)
+        airlight_hat_tensor = torch.Tensor(airlight_hat).unsqueeze(0)
+        airlight_GT_tensor = torch.Tensor(airlight_GT).unsqueeze(0)
+        loss += criterion(airlight_hat_tensor, airlight_GT_tensor).item()
+        
+        cv2.imwrite(f'airlight_validate/airlight_hat/{imgname}', airlight_hat)
+        
+    print("Average Loss : ", loss/len(data_list))
+        
+    # image = cv2.imread("test01.jpg")
+    # image = cv2.resize(image, dsize=(512, 512), interpolation=cv2.INTER_AREA)
     
-    cv2.imshow(f"Airlight ({R}, {G}, {B})", airlight)
-    cv2.waitKey(0)
+    # start = time.time()
+    # image = AWC_Module(image)
+    # airlight, [R, G, B] = LLF_Module(image)
+    # print("time :", time.time() - start)
+    
+    # cv2.imshow(f"Airlight ({R}, {G}, {B})", airlight)
+    # cv2.waitKey(0)
     
     
