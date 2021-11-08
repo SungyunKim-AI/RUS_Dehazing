@@ -13,7 +13,7 @@ from tqdm import tqdm
 from dpt.models import DPTDepthModel
 from dpt.transforms import NormalizeImage
 from dpt.transforms import Resize, NormalizeImage, PrepareForNet
-from HazeDataset import O_Haze_Dataset
+from HazeDataset import NYU_Dataset, O_Haze_Dataset
 from metrics import psnr,ssim
 from dpt.blocks import Interpolate
 
@@ -53,6 +53,7 @@ def train(model, tail, tail2,train_loader, optim, criterion, epochs, init_lr, de
                 tf_prediction, prediction = model.forward(hazy_images)
             t_maps = tail(tf_prediction)
             A = tail2(tf_prediction)
+            
             outputs = (hazy_images-(A-0.5))/(t_maps+1e-5) + A
             
             loss = criterion[0](outputs, clear_images)
@@ -150,7 +151,7 @@ if __name__ == '__main__':
                 batch_size=batch_size,
                 num_workers=0,
                 drop_last=True,
-                shuffle=False)
+                shuffle=True)
     
     criterion = []
     criterion.append(nn.L1Loss().to(device))
