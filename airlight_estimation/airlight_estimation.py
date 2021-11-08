@@ -3,17 +3,12 @@ Reference Paper
 Image Haze Removal Using Airlight White Correction, Local Light Filter, and Aerial Perspective Prior
 Yan-Tsung Peng et al.
 """
-import cv2
+import os, cv2
 import numpy as np
 import matplotlib.pyplot as plt
-import time
-
-import torch
-import torch.nn as nn
-
-import os
 from glob import glob
 from tqdm import tqdm
+
 
 def show_plt(x, y):
     plt.bar(x, y, align='center')
