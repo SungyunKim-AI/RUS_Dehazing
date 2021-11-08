@@ -137,7 +137,7 @@ class Airlight_Module():
         return rgb, [avgR, avgG, avgB]
 
 
-def data_loader(path):
+def data_loader_NYU(path):
     hazy_path = os.path.join(path, 'hazy')
     hazy_list = glob(hazy_path + '/*')
     
@@ -150,6 +150,13 @@ def data_loader(path):
     print("Data Length : ", len(data_list))
     
     return data_list
+
+def data_loader_OHaze(path):
+    hazy_path = os.path.join(path, 'hazy')
+    hazy_list = glob(hazy_path + '/*')
+    
+    return hazy_list
+    
     
         
   
@@ -157,26 +164,37 @@ if __name__ == "__main__":
     if not cv2.useOptimized():
         cv2.setUseOptimized(True)
         
-    path = 'airlight_validate'
-    data_list = data_loader(path)
+    path = '/Users/IIPL/Desktop/data/O-Haze'
+    data_loader = data_loader_OHaze(path)
     
-    criterion = nn.MSELoss()
-    loss = 0.0
-    for hazy, airlight in tqdm(data_list):
+    airlight_module = Airlight_Module()
+    for hazy in tqdm(data_loader):
         imgname = os.path.basename(hazy)
+        
         input_hazy = cv2.imread(hazy)
-        airlight_module = Airlight_Module()
         input_hazy2 = airlight_module.AWC(input_hazy)
         airlight_hat, _ = airlight_module.LLF(input_hazy2)
+    
+        cv2.imwrite(f'airlight_validate/O-Haze/{imgname}', airlight_hat)
+    
+    
+    # criterion = nn.MSELoss()
+    # loss = 0.0
+    # for hazy, airlight in tqdm(data_list):
+    #     imgname = os.path.basename(hazy)
+    #     input_hazy = cv2.imread(hazy)
+    #     airlight_module = Airlight_Module()
+    #     input_hazy2 = airlight_module.AWC(input_hazy)
+    #     airlight_hat, _ = airlight_module.LLF(input_hazy2)
         
-        airlight_GT = cv2.imread(airlight)
-        airlight_hat_tensor = torch.Tensor(airlight_hat).unsqueeze(0)
-        airlight_GT_tensor = torch.Tensor(airlight_GT).unsqueeze(0)
-        loss += criterion(airlight_hat_tensor, airlight_GT_tensor).item()
+    #     airlight_GT = cv2.imread(airlight)
+    #     airlight_hat_tensor = torch.Tensor(airlight_hat).unsqueeze(0)
+    #     airlight_GT_tensor = torch.Tensor(airlight_GT).unsqueeze(0)
+    #     loss += criterion(airlight_hat_tensor, airlight_GT_tensor).item()
         
-        cv2.imwrite(f'airlight_validate/airlight_hat/{imgname}', airlight_hat)
+    #     cv2.imwrite(f'airlight_validate/O-Haze/{imgname}', airlight_hat)
         
-    print("Average Loss : ", loss/len(data_list))
+    # print("Average Loss : ", loss/len(data_list))
     
     # start = time.time()
     # # image = "test01.jpg"
