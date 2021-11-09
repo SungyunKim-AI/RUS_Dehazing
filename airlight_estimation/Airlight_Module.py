@@ -29,12 +29,17 @@ class Airlight_Module():
         self.color_cast_threshold = color_cast_threshold
 
     # Airlight White Correction (AWC)
-    def AWC(self, image):
+    def AWC(self, image, color='RGB'):
         if os.path.isfile(image):
             image = cv2.imread(image)
         
         # 1. RGB to HSV
-        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        if color == 'RGB':
+            hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
+        elif color == 'BGR':
+            hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        else:
+            raise ValueError('color is RGB or BGR')
         hue, saturation, value = cv2.split(hsv)
         
         # 2. Hue histogram labeling
