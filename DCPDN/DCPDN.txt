@@ -1,0 +1,8 @@
+python test.py --dataroot facades/nat_new4 --netG sample/netG_epoch_008.pth
+
+
+[Training Args]
+python train.py --dataroot facades/train512 --valDataroot facades/val512
+
+
+python airlight.py --dataroot facades/train512 --valDataroot facades/val512

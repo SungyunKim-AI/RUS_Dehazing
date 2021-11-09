@@ -9,7 +9,6 @@
 # https://github.com/facebookresearch/deit
 # https://github.com/facebookresearch/dino
 # --------------------------------------------------------'
-
 import argparse
 import datetime
 import numpy as np
@@ -164,6 +163,7 @@ def main(args):
     # random.seed(seed)
 
     cudnn.benchmark = True
+
 
     model = get_model(args)
     patch_size = model.patch_embed.patch_size
