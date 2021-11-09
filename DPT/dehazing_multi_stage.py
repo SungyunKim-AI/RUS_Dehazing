@@ -106,10 +106,8 @@ def test2(model, test_loader, device):
     model.eval()
     psnr_sum, ssim_sum = 0.0, 0.0
     for batch in test_loader:
-        hazy_images, clear_images= batch
-        
-        airlight = 0.85
-        beta = 0.3
+        hazy_images, clear_images, airlight_images= batch
+        beta = 0.8
         beta_per_stage = beta/stage
         
         print(f'beta = {beta}, beta_per_stage = {beta_per_stage}')
@@ -118,15 +116,16 @@ def test2(model, test_loader, device):
         with torch.no_grad():
             hazy_images = hazy_images.to(device)
             clear_images = clear_images.to(device)
+            airlight_images = airlight_images.to(device)
             _, hazy_depth = model.forward(hazy_images)
             
         hazy = (hazy_images[0] * 0.5 + 0.5).detach().cpu().numpy().transpose(1,2,0)
         clear = (clear_images[0] * 0.5 + 0.5).detach().cpu().numpy().transpose(1,2,0)
+        airlight = (airlight_images[0] * 0.5 + 0.5).detach().cpu().numpy().transpose(1,2,0)
         
         hazy_depth = torch.clamp(hazy_depth,0,depth_threshold)
         hazy_depth = hazy_depth.detach().cpu().numpy().transpose(1,2,0)/8
         hazy_trans = np.exp(hazy_depth * beta * -1)
-        airlight, airlight_nh = calc_airlight(hazy,clear,hazy_trans)
         prediction = (hazy-airlight)/(hazy_trans+1e-8) + airlight
         
         print(f'one-shot: psnr = {psnr(clear,prediction)}, ssim = {ssim(clear,prediction).item()}')
@@ -134,16 +133,13 @@ def test2(model, test_loader, device):
         prediction_img = np.clip(prediction,0,1)
         hazy_img = cv2.cvtColor(hazy,cv2.COLOR_BGR2RGB)
         clear_img = cv2.cvtColor(clear,cv2.COLOR_BGR2RGB)
-        airlight_img = cv2.resize(airlight,[hazy.shape[1],hazy.shape[0]])
-        airlight_img = cv2.cvtColor(airlight_img,cv2.COLOR_BGR2RGB)
-        airlight_nh = cv2.cvtColor(airlight_nh,cv2.COLOR_BGR2RGB)
+        airlight_img = cv2.cvtColor(airlight,cv2.COLOR_BGR2RGB)
         prediction_img = cv2.cvtColor((prediction_img*255).astype(np.uint8),cv2.COLOR_BGR2RGB)
         
         
         cv2.imshow("hazy",hazy_img)
         cv2.imshow("clear",clear_img)
         cv2.imshow("airlight",airlight_img)
-        #cv2.imshow("airlight_nh",airlight_nh)
         cv2.imshow("depth", hazy_depth/10)
         cv2.imshow('one-shot',prediction_img)
         
@@ -160,7 +156,7 @@ def test2(model, test_loader, device):
             hazy_depth = hazy_depth.detach().cpu().numpy().transpose(1,2,0)/8
             hazy_depth = np.minimum(hazy_depth,before_hazy_depth)
             hazy_trans = np.exp(hazy_depth * beta_per_stage * -1)
-            airlight, _ = calc_airlight(hazy,clear,hazy_trans)
+            #airlight, _ = calc_airlight(hazy,clear,hazy_trans)
             
             prediction = (hazy-airlight)/(hazy_trans+1e-8) + airlight
             hazy_images = torch.Tensor(((prediction-0.5)/0.5).transpose(2,0,1)).unsqueeze(0)
@@ -262,7 +258,7 @@ if __name__ == '__main__':
     
     model.to(device)
     
-    dataset_test= O_Haze_Dataset('D:/data/O_Haze/train',[net_w,net_h],printName=True)
+    dataset_test= Dense_Haze_Dataset('D:/data/Dense_Haze/train',[net_w,net_h],printName=True)
     loader_test = DataLoader(
                 dataset=dataset_test,
                 batch_size=1,

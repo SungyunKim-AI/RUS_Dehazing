@@ -17,44 +17,39 @@ def calc_airlight(hazy,clear,trans):
     airlight = np.array([airlight_blue,airlight_green,airlight_red])
     airlight = np.clip(airlight,0,1)
     airlight = np.reshape(airlight, (1,1,-1))
+    
+    size = hazy.shape[:2]
+    print(size)
+    exit(0)
+    airlight = cv2.resize(airlight,[hazy.shape[],hazy.shape])
     return airlight, airlight_nh
 
 def test1(model, test_loader, device):
     model.eval()
     for batch in test_loader:
-        hazy_images, clear_images = batch
+        hazy_images, clear_images, airlight_images = batch
         with torch.no_grad():
             hazy_images = hazy_images.to(device)
             clear_images = clear_images.to(device)
+            airlight_images = airlight_images.to(device)
             _, hazy_depth = model.forward(hazy_images)
-            _, clear_depth = model.forward(clear_images)
         
         hazy = (hazy_images[0] * 0.5 + 0.5).detach().cpu().numpy().transpose(1,2,0)
         clear = (clear_images[0] * 0.5 + 0.5).detach().cpu().numpy().transpose(1,2,0)
+        airlight = (airlight_images[0] * 0.5 + 0.5).detach().cpu().numpy().transpose(1,2,0)
         
-        airlight = 0.85
         beta = 0.3
         
-        #hazy_depth = torch.clamp(hazy_depth,0,20)
+        hazy_depth = torch.clamp(hazy_depth,0,20)
         hazy_depth = hazy_depth.detach().cpu().numpy().transpose(1,2,0)/8
-        
-        #clear_depth = torch.clamp(clear_depth,0,20)
-        clear_depth = clear_depth.detach().cpu().numpy().transpose(1,2,0)/8
-
         hazy_trans = np.exp(hazy_depth * beta * -1)
-        
-        airlight, airlight_nh = calc_airlight(hazy,clear,hazy_trans)
-        
-        print(f'air = {airlight}, beta = {beta}')
-        
         prediction = (hazy-airlight)/(hazy_trans+1e-8) + airlight
+        airlight 
         
         hazy = cv2.cvtColor(hazy,cv2.COLOR_BGR2RGB)
         clear = cv2.cvtColor(clear,cv2.COLOR_BGR2RGB)
         prediction = cv2.cvtColor(prediction,cv2.COLOR_BGR2RGB)
-        airlight = cv2.resize(airlight,[hazy.shape[1],hazy.shape[0]])
         airlight = cv2.cvtColor(airlight,cv2.COLOR_BGR2RGB)
-        airlight_nh = cv2.cvtColor(airlight_nh,cv2.COLOR_BGR2RGB)
         
         #hazy_depth = cv2.applyColorMap((hazy_depth/5*255).astype(np.uint8),cv2.COLORMAP_JET)
         
@@ -62,12 +57,10 @@ def test1(model, test_loader, device):
         cv2.imshow("clear",clear)
         
         cv2.imshow("hazy_depth",hazy_depth/10)
-        cv2.imshow("clear_depth",clear_depth/10)
         
         cv2.imshow("hazy_trans", hazy_trans/5)
         
         cv2.imshow("airlight",airlight)
-        cv2.imshow("airlight_nh",airlight_nh)
         
         cv2.imshow("clear_prediction",prediction)
         cv2.waitKey(0)
@@ -197,7 +190,7 @@ if __name__ == '__main__':
     
     model.to(device)
     
-    dataset_test=Dense_Haze_Dataset('D:/data/Dense_Haze/train',[net_w,net_h],printName=True)
+    dataset_test=O_Haze_Dataset('D:/data/O_Haze/train',[net_w,net_h],printName=True)
     loader_test = DataLoader(
                 dataset=dataset_test,
                 batch_size=1,

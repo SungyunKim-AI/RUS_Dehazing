@@ -34,6 +34,17 @@ def load_item_2(haze, clear,transform):
 
     return haze_input, clear_input
 
+def load_item_3(haze, clear, airlight, transform):
+    haze = util.io.read_image(haze)
+    clear = util.io.read_image(clear)
+    airlight = util.io.read_image(airlight)
+    
+    haze_input  = transform({"image": haze})["image"]
+    clear_input = transform({"image": clear})["image"]
+    airlight_input = transform({"image": airlight})["image"]
+
+    return haze_input, clear_input, airlight_input
+
 def make_transform(img_size):
     normalization = NormalizeImage(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
     transform = Compose(
@@ -85,10 +96,11 @@ class O_Haze_Dataset(torch.utils.data.Dataset):
         self.img_size = img_size
         images_clear_path = path+'/clear/*.jpg'
         images_hazy_path = path+'/hazy/*.jpg'
+        images_airlight_path = path+'/airlight/*.jpg'
         self.images_clear_list=glob.glob(images_clear_path)
         self.images_hazy_list =glob.glob(images_hazy_path)
+        self.images_airlight_list =glob.glob(images_airlight_path)
         self.printName = printName
-        
         self.transform = make_transform(self.img_size)
     
     def __len__(self):
@@ -98,7 +110,7 @@ class O_Haze_Dataset(torch.utils.data.Dataset):
         if self.printName:
             print(self.images_hazy_list[index])
         #return load_item(self.images_hazy_list[index], self.images_clear_list[index], self.img_size)
-        return load_item_2(self.images_hazy_list[index],self.images_clear_list[index],self.transform)
+        return load_item_3(self.images_hazy_list[index], self.images_clear_list[index], self.images_airlight_list[index], self.transform)
     
 class NH_Haze_Dataset(torch.utils.data.Dataset):
     def __init__(self,path,img_size,printName=False):
@@ -106,8 +118,10 @@ class NH_Haze_Dataset(torch.utils.data.Dataset):
         self.img_size = img_size
         images_clear_path = path+'/clear/*.png'
         images_hazy_path = path+'/hazy/*.png'
+        images_airlight_path = path+'/airlight/*.png'
         self.images_clear_list=glob.glob(images_clear_path)
         self.images_hazy_list =glob.glob(images_hazy_path)
+        self.images_airlight_list =glob.glob(images_airlight_path)
         self.printName = printName
         self.transform = make_transform(self.img_size)
     
@@ -118,7 +132,7 @@ class NH_Haze_Dataset(torch.utils.data.Dataset):
         if self.printName:
             print(self.images_hazy_list[index])
         #return load_item(self.images_hazy_list[index], self.images_clear_list[index], self.img_size)
-        return load_item_2(self.images_hazy_list[index], self.images_clear_list[index], self.transform)
+        return load_item_3(self.images_hazy_list[index], self.images_clear_list[index], self.images_airlight_list[index], self.transform)
     
 class Dense_Haze_Dataset(torch.utils.data.Dataset):
     def __init__(self,path,img_size,printName=False):
@@ -126,8 +140,10 @@ class Dense_Haze_Dataset(torch.utils.data.Dataset):
         self.img_size = img_size
         images_clear_path = path+'/clear/*.png'
         images_hazy_path = path+'/hazy/*.png'
+        images_airlight_path = path+'/airlight/*.png'
         self.images_clear_list=glob.glob(images_clear_path)
         self.images_hazy_list =glob.glob(images_hazy_path)
+        self.images_airlight_list =glob.glob(images_airlight_path)
         self.printName = printName
         self.transform = make_transform(self.img_size)
     
@@ -138,7 +154,7 @@ class Dense_Haze_Dataset(torch.utils.data.Dataset):
         if self.printName:
             print(self.images_hazy_list[index])
         #return load_item(self.images_hazy_list[index], self.images_clear_list[index], self.img_size)
-        return load_item_2(self.images_hazy_list[index], self.images_clear_list[index], self.transform)
+        return load_item_3(self.images_hazy_list[index], self.images_clear_list[index], self.images_airlight_list[index], self.transform)
     
 class NYU_Dataset_with_Notation(torch.utils.data.Dataset):
     def __init__(self, path, img_size, printName=False, verbose=True):
