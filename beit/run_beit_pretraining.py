@@ -34,7 +34,7 @@ def get_args():
     parser = argparse.ArgumentParser('BEiT pre-training script', add_help=False)
     parser.add_argument('--batch_size', default=64, type=int)
     parser.add_argument('--epochs', default=300, type=int)
-    parser.add_argument('--save_ckpt_freq', default=20, type=int)
+    parser.add_argument('--save_ckpt_freq', default=1, type=int)
     parser.add_argument("--discrete_vae_weight_path", type=str)
     parser.add_argument("--discrete_vae_type", type=str, default="dall-e")
     # Model parameters
@@ -150,7 +150,7 @@ def get_model(args):
 
 
 def main(args):
-    # utils.init_distributed_mode(args)        # 분산 학습
+    utils.init_distributed_mode(args)
 
     print(args)
 
@@ -162,7 +162,8 @@ def main(args):
     np.random.seed(seed)
     # random.seed(seed)
 
-    cudnn.benchmark = True      # 자동 튜서 활성화. 이미지 크기 고정일때 속도 상승
+    cudnn.benchmark = True
+
 
     model = get_model(args)
     patch_size = model.patch_embed.patch_size
@@ -177,7 +178,7 @@ def main(args):
     d_vae = utils.create_d_vae(
         weight_path=args.discrete_vae_weight_path, d_vae_type=args.discrete_vae_type,
         device=device, image_size=args.second_input_size)
- 
+
     if True:  # args.distributed:
         num_tasks = utils.get_world_size()
         global_rank = utils.get_rank()
