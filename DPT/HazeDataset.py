@@ -55,7 +55,7 @@ def make_transform(img_size):
                 resize_target=None,
                 keep_aspect_ratio=False,
                 ensure_multiple_of=32,
-                resize_method="minimal",
+                resize_method="",
                 image_interpolation_method=cv2.INTER_CUBIC,
             ),
             normalization,
@@ -105,7 +105,7 @@ class O_Haze_Dataset(torch.utils.data.Dataset):
     
     def __len__(self):
         return len(self.images_clear_list)
-    
+        
     def __getitem__(self,index):
         if self.printName:
             print(self.images_hazy_list[index])
@@ -341,6 +341,29 @@ class Dataset(torch.utils.data.Dataset):
         else:
             haze, clear = self.RBTD[index]
         return haze, clear
+    
+class NTIRE_Dataset(torch.utils.data.Dataset):
+    def __init__(self, path, img_size, flag='train',verbose=False):
+        super().__init__()
+        self.OD = O_Haze_Dataset(path + f'/O_Haze/{flag}', img_size,verbose)
+        self.DD = Dense_Haze_Dataset(path + f'/Dense_Haze/{flag}', img_size,verbose)
+        self.ND = NH_Haze_Dataset(path + f'/NH_Haze/{flag}', img_size,verbose)
+                
+        print("O_Haze len:     ", self.OD.__len__())
+        print("Dense_Haze len: ", self.DD.__len__())
+        print("NH_Haze len:    ", self.ND.__len__())
+        
+    def __len__(self):
+        return self.OD.__len__() + self.DD.__len__() + self.ND.__len__()
+
+    def __getitem__(self, index):
+        if index >= self.OD.__len__() and index < (self.OD.__len__()+self.DD.__len__()):
+            haze, clear, airlight = self.DD[index-self.OD.__len__()]
+        elif index >= (self.OD.__len__()+self.DD.__len__()):
+            haze, clear, airlight = self.ND[index-(self.OD.__len__()+self.DD.__len__())]
+        else:
+            haze, clear, airlight = self.OD[index]
+        return haze, clear, airlight
     
 if __name__ == '__main__':
     # data_path = 'D:/data'
