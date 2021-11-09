@@ -79,7 +79,7 @@ class Airlight_Module():
     def LLF(self, image):
         # 1. PMF of minimum channel calculation
         R, G, B = cv2.split(image)
-        min_channel = np.minimum(R, G, B)
+        min_channel = np.amin([R, G, B],0)
         # cv2.imshow('Minimum channel', min_channel.astype('uint8'))
         # cv2.waitKey(0)
         
@@ -117,7 +117,7 @@ class Airlight_Module():
             row, col = np.where(min_channel == i)
             for j, _ in enumerate(row):
                 for c in ['r','g','b']:
-                    avg[c].append(RGB[c][row[j]][col[j]])
+                    avg[c].append(RGB[c][row[j]][col[j]]) 
         
         
         avgR = round(np.array(avg['r']).mean())
@@ -130,76 +130,21 @@ class Airlight_Module():
         rgb = cv2.merge((r, g, b))
         
         return rgb, [avgR, avgG, avgB]
-
-
-def data_loader_NYU(path):
-    hazy_path = os.path.join(path, 'hazy')
-    hazy_list = glob(hazy_path + '/*')
-    
-    airlight_path = os.path.join(path, 'airlight')
-    airlight_list = glob(airlight_path + '/*')
-    
-    data_list = []
-    for i in range(len(hazy_list)):
-        data_list.append([hazy_list[i], airlight_list[i]])
-    print("Data Length : ", len(data_list))
-    
-    return data_list
-
-def data_loader_OHaze(path):
-    hazy_path = os.path.join(path, 'hazy')
-    hazy_list = glob(hazy_path + '/*')
-    
-    return hazy_list
-    
     
         
   
 if __name__ == "__main__":
     if not cv2.useOptimized():
         cv2.setUseOptimized(True)
-        
-    path = '/Users/IIPL/Desktop/data/O-Haze'
-    data_loader = data_loader_OHaze(path)
     
+    # image = "test01.jpg"
+    image = cv2.imread("test01.jpg")
     airlight_module = Airlight_Module()
-    for hazy in tqdm(data_loader):
-        imgname = os.path.basename(hazy)
-        
-        input_hazy = cv2.imread(hazy)
-        input_hazy2 = airlight_module.AWC(input_hazy)
-        airlight_hat, _ = airlight_module.LLF(input_hazy2)
+    image = airlight_module.AWC(image)
+    airlight, [R, G, B] = airlight_module.LLF(image)
     
-        cv2.imwrite(f'airlight_validate/O-Haze/{imgname}', airlight_hat)
-    
-    
-    # criterion = nn.MSELoss()
-    # loss = 0.0
-    # for hazy, airlight in tqdm(data_list):
-    #     imgname = os.path.basename(hazy)
-    #     input_hazy = cv2.imread(hazy)
-    #     airlight_module = Airlight_Module()
-    #     input_hazy2 = airlight_module.AWC(input_hazy)
-    #     airlight_hat, _ = airlight_module.LLF(input_hazy2)
-        
-    #     airlight_GT = cv2.imread(airlight)
-    #     airlight_hat_tensor = torch.Tensor(airlight_hat).unsqueeze(0)
-    #     airlight_GT_tensor = torch.Tensor(airlight_GT).unsqueeze(0)
-    #     loss += criterion(airlight_hat_tensor, airlight_GT_tensor).item()
-        
-    #     cv2.imwrite(f'airlight_validate/O-Haze/{imgname}', airlight_hat)
-        
-    # print("Average Loss : ", loss/len(data_list))
-    
-    # start = time.time()
-    # # image = "test01.jpg"
-    # image = cv2.imread("test01.jpg")
-    # airlight_module = Airlight_Module()
-    # image = airlight_module.AWC(image)
-    # airlight, [R, G, B] = airlight_module.LLF(image)
-    # print("time :", time.time() - start)
-    
-    # cv2.imshow(f"Airlight ({R}, {G}, {B})", airlight)
-    # cv2.waitKey(0)
+    cv2.cvtColor(airlight, cv2.COLOR_RGB2BGR)
+    cv2.imshow(f"Airlight ({R}, {G}, {B})", airlight)
+    cv2.waitKey(0)
     
     
