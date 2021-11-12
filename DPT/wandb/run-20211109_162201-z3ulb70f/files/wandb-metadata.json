@@ -1,0 +1,18 @@
+{
+    "os": "Windows-10-10.0.19043-SP0",
+    "python": "3.9.6",
+    "heartbeatAt": "2021-11-09T07:22:02.078970",
+    "startedAt": "2021-11-09T07:22:01.231628",
+    "docker": null,
+    "gpu": "NVIDIA GeForce RTX 3090",
+    "gpu_count": 1,
+    "cpu_count": 16,
+    "cuda": null,
+    "args": [],
+    "state": "running",
+    "program": "C:\\Users\\ivplab1016\\Documents\\GitHub\\RUS_Dehazing\\DPT\\dehazing_train.py",
+    "codePath": "dehazing_train.py",
+    "host": "DESKTOP-CC12AJJ",
+    "username": "ivplab1016",
+    "executable": "C:\\Users\\ivplab1016\\anaconda3\\envs\\rus\\python.exe"
+}

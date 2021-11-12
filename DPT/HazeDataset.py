@@ -1,6 +1,7 @@
 import glob, os
 import h5py
 from numpy import float32
+import numpy
 import torch
 import cv2
 import torchvision.transforms.functional as F
@@ -247,6 +248,9 @@ class RESIDE_Beta_Dataset(torch.utils.data.Dataset):
                 print(images_hazy_folder + ' dataset ready!')
             self.images_hazy_lists.append(glob.glob(images_hazy_folder+'*.jpg'))
         
+        images_airlight_path = path+'/airlight/*.jpg'
+        self.images_airlight_list =glob.glob(images_airlight_path)
+        
         self.images_count = len(self.images_hazy_lists[0])
         self.transform = make_transform(img_size)
         
@@ -257,12 +261,14 @@ class RESIDE_Beta_Dataset(torch.utils.data.Dataset):
     def __getitem__(self,index):
         haze = self.images_hazy_lists[index//self.images_count][index%self.images_count]
         clear = self.images_clear_list[index%self.images_count]
+        airlight = self.images_airlight_list[index%self.images_count]
         
         if self.printName:
             print(self.images_hazy_lists[index//self.images_count][index%self.images_count])
         
         #return load_item(haze,clear,self.img_size)
-        return load_item_2(haze,clear,self.transform)
+        #return load_item_2(haze,clear,self.transform)
+        return load_item_3(haze,clear,airlight,self.transform)
     
 class RESIDE_Beta_Dataset_With_Notation(torch.utils.data.Dataset):
     def __init__(self, path, img_size, printName=False, verbose=True):
@@ -283,6 +289,10 @@ class RESIDE_Beta_Dataset_With_Notation(torch.utils.data.Dataset):
         depth_path = path+'/depth/*.mat'
         self.depth_list = glob.glob(depth_path)
         
+
+        images_airlight_path = path+'/airlight/*.jpg'
+        self.images_airlight_list =glob.glob(images_airlight_path)
+
         self.images_count = len(self.images_hazy_lists[0])
         self.transform = make_transform(img_size)
         
@@ -292,7 +302,7 @@ class RESIDE_Beta_Dataset_With_Notation(torch.utils.data.Dataset):
                 resize_target=None,
                 keep_aspect_ratio=False,
                 ensure_multiple_of=32,
-                resize_method="minimal",
+                resize_method="",
                 image_interpolation_method=cv2.INTER_NEAREST,
             )
         
@@ -303,21 +313,24 @@ class RESIDE_Beta_Dataset_With_Notation(torch.utils.data.Dataset):
     def __getitem__(self,index):
         haze = self.images_hazy_lists[index//self.images_count][index%self.images_count]
         token = haze.split('_')
-        airlight = token[2]
+        airlight_input = token[2]
         beta = token[3].split('\\')[0]
         
-        airlight_input, beta_input = float(airlight), float(beta)
-        
+        airlight_input, beta_input = float(airlight_input), float(beta)
+        airlight_input = numpy.full((3,self.img_size[0],self.img_size[1]),airlight_input,dtype='float32')
+
         clear = self.images_clear_list[index%self.images_count]
         depth_mat = mat73.loadmat(self.depth_list[index%self.images_count])
         depth_input = self.depth_resize({"image": depth_mat['depth']})["image"]
         
+        airlight_post = self.images_airlight_list[index%self.images_count]
         
+
         if self.printName:
             print(self.images_hazy_lists[index//self.images_count][index%self.images_count])
         
-        haze_input, clear_input = load_item_2(haze,clear,self.transform)
-        return haze_input, clear_input, depth_input, airlight_input, beta_input
+        haze_input, clear_input, airlight_post = load_item_3(haze,clear, airlight_post,self.transform)
+        return haze_input, clear_input, airlight_post, depth_input, airlight_input, beta_input
 
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, path, img_size, train_flag='train', verbose=True):

@@ -21,24 +21,24 @@ from dpt.blocks import Interpolate
 
 def calc_trans(hazy,clear,airlight):
     trans = (hazy-airlight)/(clear-airlight+1e-8)
-    trans = np.clip(trans,0,1)
-    trans = np.mean(trans,2)
+    #trans = np.clip(trans,0,1)
+    #trans = np.mean(trans,2)
     return trans
 
 def calc_trans_tensor(hazy,clear,airlight):
     trans = (hazy-airlight)/(clear-airlight+1e-8)
-    trans = torch.clamp(trans,0,1)
-    trans = torch.mean(trans,1)
-    trans = trans.unsqueeze(1)
+    #trans = torch.clamp(trans,0,1)
+    #trans = torch.mean(trans,1)
+    #trans = trans.unsqueeze(1)
     return trans
 
 def lr_schedule_cosdecay(t,T,init_lr):
     lr=0.5*(1+math.cos(t*math.pi/T))*init_lr
     return lr
 
-def train(model, train_loader, loader_valid, optim, criterion, epochs, init_lr, device):
+def train(model, train_loader, loader_valid, optim, criterion, epochs, device):
     batch_num = len(train_loader)
-    steps = batch_num * epochs
+    #steps = batch_num * epochs
     
     losses = []
     i = 0
@@ -49,39 +49,43 @@ def train(model, train_loader, loader_valid, optim, criterion, epochs, init_lr, 
     step = 1 
     for epoch in range(epochs):
         model.train()
+        tail.train()
         i=0
         mse_epoch = 0.0
         ssim_epoch = 0.0
         psnr_epoch = 0.0
         for batch in tqdm(train_loader):
             optim.zero_grad()
-            lr = lr_schedule_cosdecay(step, steps, init_lr)
-            for param_group in optim.param_groups:
-                param_group["lr"] = lr
             hazy_images, clear_images, airlight_images = batch
             
             
             hazy_images = hazy_images.to(device)
             clear_images = clear_images.to(device)
             airlight_images = airlight_images.to(device)
-            _, trans_pred = model.forward(hazy_images)
+            tf_pred, depth_pred = model.forward(hazy_images)
+
+            trans_pred = tail(tf_pred)
             
-            trans_pred = trans_pred.unsqueeze(1)
+            #trans_pred = trans_pred.unsqueeze(1)
             trans_images = calc_trans_tensor(hazy_images,clear_images,airlight_images)
+
+            #trans_pred = trans_pred.repeat([1,3,1,1])
+            #trans_images = trans_images.repeat([1,3,1,1])
+
             clear_pred = (hazy_images-airlight_images)/(trans_pred+1e-8)+airlight_images
             loss = criterion[0](trans_pred, trans_images)
-            #loss2 = criterion[1](clear_pred, clear_images)
+            loss2 = criterion[1](trans_pred, trans_images)
             #loss3 = criterion[0](trans_pred,trans_images)
-            #loss = loss + 0.04*loss2
+            ssim_ = ssim(clear_pred, clear_images)
+            psnr_ = psnr(clear_pred, clear_images)
+            MSELoss = nn.MSELoss()
+            mse_ = MSELoss(clear_pred, clear_images)
+
+            loss = loss + 0.04*loss2 + ssim_ + psnr_ + mse_
             loss.backward()
             
             optim.step()
             losses.append(loss.item())
-            
-            MSELoss = nn.MSELoss()
-            mse_ = MSELoss(clear_pred, clear_images)
-            ssim_ = ssim(clear_pred, clear_images)
-            psnr_ = psnr(clear_pred, clear_images)
             
             mse_epoch += mse_.cpu().item()
             ssim_epoch += ssim_.cpu().item()
@@ -96,8 +100,9 @@ def train(model, train_loader, loader_valid, optim, criterion, epochs, init_lr, 
         print("mse: + "+str(mse_epoch) + " | ssim: "+ str(ssim_epoch) + " | psnr:"+str(psnr_epoch))
         print()
         
-        model.eval()
         '''
+        model.eval()
+        
         for batch in loader_valid:
             hazy_images, clear_images, airlight_images = batch
             with torch.no_grad():
@@ -151,8 +156,8 @@ if __name__ == '__main__':
     epochs = 20
     net_w = 256
     net_h = 256
-    batch_size = 4
-    lr = 0.0001
+    batch_size = 27
+    lr = 0.01
     input_path = 'input'
     output_path = 'output_dehazed'
     
@@ -178,21 +183,31 @@ if __name__ == '__main__':
     
     model = model.to(memory_format=torch.channels_last)
     model.to(device)
+
+    tail =  nn.Sequential( #t_map
+        nn.Conv2d(256, 128, kernel_size=3, stride=1, padding=1),
+        Interpolate(scale_factor=2, mode="bilinear", align_corners=True),
+        nn.Conv2d(128, 32, kernel_size=3, stride=1, padding=1),
+        nn.ReLU(True),
+        nn.Conv2d(32, 3, kernel_size=1, stride=1, padding=0),
+        nn.ReLU(True)
+    )
+    tail.to(device)
     
     dataset_train=NTIRE_Dataset('D:/data',[net_w,net_h],flag='train',verbose=False)
     loader_train = DataLoader(
                 dataset=dataset_train,
                 batch_size=batch_size,
                 num_workers=0,
-                drop_last=True,
+                drop_last=False,
                 shuffle=True)
     
-    dataset_valid=O_Haze_Dataset('D:/data/O_Haze/valid',[net_w,net_h])
+    dataset_valid=NTIRE_Dataset('D:/data',[net_w,net_h],flag='val',verbose=False)
     loader_valid = DataLoader(
                 dataset=dataset_train,
                 batch_size=1,
                 num_workers=0,
-                drop_last=True,
+                drop_last=False,
                 shuffle=False)
     criterion = []
     criterion.append(nn.L1Loss().to(device))
@@ -203,4 +218,4 @@ if __name__ == '__main__':
     criterion.append(PerLoss(vgg_model).to(device))
     optimizer = optim.Adam(model.parameters(),lr, betas = (0.9, 0.999), eps=1e-08)
     
-    train(model, loader_train,loader_valid, optimizer, criterion, epochs, lr, device)
+    train(model, loader_train,loader_valid, optimizer, criterion, epochs, device)
