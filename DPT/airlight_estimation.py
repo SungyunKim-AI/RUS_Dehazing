@@ -53,9 +53,6 @@ class Airlight_Module():
         prob[prob > T_H] = 1
         prob[prob <= T_H] = 0
         binarized_hue = np.zeros(hue.shape, int)
-        for i in range(hue.shape[0]):
-            for j in range(hue.shape[1]):
-                hue[i][j]
         
         for i in range(hue.shape[0]):
             for j in range(hue.shape[1]):

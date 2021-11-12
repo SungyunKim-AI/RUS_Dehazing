@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from glob import glob
 from tqdm import tqdm
+import time
 
 
 def show_plt(x, y):
@@ -22,8 +23,7 @@ def show_plt(x, y):
     
 def show_img(imgName, img):
     cv2.imshow(imgName, img.astype('uint8'))
-    cv2.waitKey(0)
-    
+    cv2.waitKey(0) 
 class Airlight_Module():
     def __init__(self, color_cast_threshold=5):
         self.color_cast_threshold = color_cast_threshold
@@ -50,16 +50,12 @@ class Airlight_Module():
         
         prob[prob > T_H] = 1
         prob[prob <= T_H] = 0
-        binarized_hue = np.zeros(hue.shape, int)
-        for i in range(hue.shape[0]):
-            for j in range(hue.shape[1]):
-                hue[i][j]
         
-        for i in range(hue.shape[0]):
-            for j in range(hue.shape[1]):
-                idx = np.where(val == hue[i][j])
-                if prob[idx] > T_H:
-                    binarized_hue[i][j] = 1
+        binarized_hue = np.zeros(hue.shape, int)
+        for v in val:
+            row, col = np.where(hue == v)
+            for i in range(len(row)):
+                binarized_hue[row[i]][col[i]] = 1
         
         # 3. Color cast attenuation
         binarized_img = binarized_hue.astype('uint8')
@@ -136,17 +132,20 @@ class Airlight_Module():
         
         return rgb, [avgR, avgG, avgB]
     
-        
+          
   
 if __name__ == "__main__":
     if not cv2.useOptimized():
         cv2.setUseOptimized(True)
     
     # image = "test01.jpg"
+    start = time.time()
     image = cv2.imread("test01.jpg")
+    image = cv2.resize(image, (256,256))
     airlight_module = Airlight_Module()
     image = airlight_module.AWC(image)
     airlight, [R, G, B] = airlight_module.LLF(image)
+    print(time.time() - start)
     
     cv2.cvtColor(airlight, cv2.COLOR_RGB2BGR)
     cv2.imshow(f"Airlight ({R}, {G}, {B})", airlight)
