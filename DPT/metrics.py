@@ -45,8 +45,8 @@ def _ssim(img1, img2, window, window_size, channel, size_average=True):
 
 
 def ssim(img1, img2, window_size=11, size_average=True):
-    #img1 = torch.Tensor(img1).unsqueeze(0)
-    #img2 = torch.Tensor(img2).unsqueeze(0)
+    img1 = torch.Tensor(img1).unsqueeze(0)
+    img2 = torch.Tensor(img2).unsqueeze(0)
     
     img1=torch.clamp(img1,min=0,max=1)
     img2=torch.clamp(img2,min=0,max=1)
@@ -58,8 +58,8 @@ def ssim(img1, img2, window_size=11, size_average=True):
     return _ssim(img1, img2, window, window_size, channel, size_average)
 
 def psnr(pred, gt):
-    #pred = torch.Tensor(pred).unsqueeze(0)
-    #gt = torch.Tensor(gt).unsqueeze(0)
+    pred = torch.Tensor(pred).unsqueeze(0)
+    gt = torch.Tensor(gt).unsqueeze(0)
     
     pred=pred.clamp(0,1).cpu().detach().numpy()
     gt=gt.clamp(0,1).cpu().detach().numpy()

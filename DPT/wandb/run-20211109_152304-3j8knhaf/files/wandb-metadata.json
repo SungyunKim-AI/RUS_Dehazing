@@ -1,0 +1,24 @@
+{
+    "os": "Windows-10-10.0.19041-SP0",
+    "python": "3.7.11",
+    "heartbeatAt": "2021-11-09T06:23:05.238863",
+    "startedAt": "2021-11-09T06:23:04.126335",
+    "docker": null,
+    "gpu": "GeForce RTX 2080 SUPER",
+    "gpu_count": 1,
+    "cpu_count": 12,
+    "cuda": null,
+    "args": [],
+    "state": "running",
+    "program": "dehazing_train.py",
+    "codePath": "DPT\\dehazing_train.py",
+    "git": {
+        "remote": "https://github.com/KimSungYoon-KOK/RUS_Dehazing.git",
+        "commit": "6ba2346a793f1271b8f2e10d8de39885f2b9e65a"
+    },
+    "email": "amsa9210@konkuk.ac.kr",
+    "root": "C:/Users/pc/Documents/GitHub/RUS_Dehazing",
+    "host": "DESKTOP-5KGQLF0",
+    "username": "pc",
+    "executable": "C:\\Users\\pc\\anaconda3\\envs\\KJH\\python.exe"
+}

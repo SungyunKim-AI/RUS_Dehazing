@@ -31,10 +31,18 @@ def calc_trans(hazy,clear,airlight):
     #trans = np.stack((trans,)*channel_size, axis=-1)
     return trans
 
+def calc_trans_gray(hazy,clear,airlight):
+    trans = (hazy-airlight)/(clear-airlight+e)
+    trans = np.abs(trans)
+    channel_size = airlight.shape[2]
+    trans = np.mean(trans,2)
+    trans = np.stack((trans,)*channel_size, axis=-1)
+    return trans
+
 def test2(model, test_loader, device):
     model.eval()
     for batch in test_loader:
-        hazy_images, clear_images, airlight_post, _, airlight_input, _ = batch
+        hazy_images, clear_images, airlight_post, depth_images, airlight_input, beta = batch
         with torch.no_grad():
             hazy_images = hazy_images.to(device)
             clear_images = clear_images.to(device)
@@ -43,20 +51,31 @@ def test2(model, test_loader, device):
         
 
         hazy_trans = hazy_trans[0].unsqueeze(2).detach().cpu().numpy()
-        hazy = hazy_images[0].detach().cpu().numpy().transpose(1,2,0)
-        clear = clear_images[0].detach().cpu().numpy().transpose(1,2,0)
-        airlight_post = airlight_post[0].detach().cpu().numpy().transpose(1,2,0)
+        hazy = (hazy_images[0]*0.5+0.5).detach().cpu().numpy().transpose(1,2,0)
+        
+        print(hazy.shape)
+        clear = (clear_images[0]*0.5+0.5).detach().cpu().numpy().transpose(1,2,0)
+        airlight_post = (airlight_post[0]*0.5+0.5).detach().cpu().numpy().transpose(1,2,0)
         airlight_input = airlight_input[0].detach().cpu().numpy().transpose(1,2,0)
-
+        depth = depth_images.detach().cpu().numpy().transpose(1,2,0).astype(np.float32)
+        beta = beta.cpu().numpy().astype(np.float32)
+        
         prediction = (hazy-airlight_post)/(hazy_trans+e) + airlight_post
 
-        trans_calc = calc_trans(hazy,clear,airlight_post)
-        trans_gt = calc_trans(hazy,clear,airlight_input)
+        trans_depth = np.exp(depth * beta * -1)
+        trans_calc = calc_trans_gray(hazy,clear,airlight_post)
+        trans_gt = calc_trans_gray(hazy,clear,airlight_input)
+        
+        print(np.min(trans_depth))
+        print(np.max(trans_depth))
+        
+        print('-------------------')
+        print(np.min(trans_gt))
+        print(np.max(trans_gt))
 
-        print(trans_calc.shape)
-        print(hazy.shape)
         pred_calc = (hazy-airlight_post)/(trans_calc+e) + airlight_post
         pred_gt = (hazy-airlight_input)/(trans_gt+e) + airlight_input
+        pred_depth = (hazy-airlight_input)/(trans_depth+e) + airlight_input
 
         
         ssim_ = ssim(torch.Tensor(prediction).unsqueeze(0), torch.Tensor(clear).unsqueeze(0))
@@ -71,12 +90,14 @@ def test2(model, test_loader, device):
         prediction = cv2.cvtColor(prediction,cv2.COLOR_BGR2RGB)
         pred_calc = cv2.cvtColor(pred_calc,cv2.COLOR_BGR2RGB)
         pred_gt = cv2.cvtColor(pred_gt,cv2.COLOR_BGR2RGB)
+        pred_depth = cv2.cvtColor(pred_depth,cv2.COLOR_BGR2RGB)
 
         airlight_post = cv2.cvtColor(airlight_post,cv2.COLOR_BGR2RGB)
         airlight_input = cv2.cvtColor(airlight_input,cv2.COLOR_BGR2RGB)
 
-        trans_calc = cv2.cvtColor(trans_calc,cv2.COLOR_BGR2RGB)
-        trans_gt = cv2.cvtColor(trans_gt,cv2.COLOR_BGR2RGB)
+        #trans_calc = cv2.cvtColor(trans_calc,cv2.COLOR_BGR2RGB)
+        #trans_gt = cv2.cvtColor(trans_gt,cv2.COLOR_BGR2RGB)
+        #trnas_depth = cv2.cvtColor(trans_gt,cv2.COLOR_BGR2RGB)
 
         cv2.imshow("hazy",hazy)
         cv2.imshow("clear",clear)
@@ -84,12 +105,14 @@ def test2(model, test_loader, device):
         cv2.imshow("hazy_trans", hazy_trans)
         cv2.imshow("calc_trans", trans_calc)
         cv2.imshow("gt_trans", trans_gt)
+        cv2.imshow("depth_trans",trans_depth)
         
         cv2.imshow("airlight_post",airlight_post)
         cv2.imshow("airlight_input",airlight_input)
         
         cv2.imshow("clear_prediction",prediction)
         cv2.imshow("calc_predction",pred_calc)
+        cv2.imshow("depth_prediction",pred_depth)
         cv2.imshow("gt_predction",pred_gt)
 
 
@@ -176,7 +199,7 @@ if __name__ == '__main__':
     output_path = 'output_dehazed'
     
     model = DPTDepthModel(
-        path = 'weights/211109/dpt_hybrid-midas-501f0c75_trans_020.pt',
+        path = 'weights/dpt_hybrid-midas-501f0c75_trans_020.pt',
         scale=0.00006016,
         shift=0.00579,
         invert=True,
@@ -190,8 +213,9 @@ if __name__ == '__main__':
     
     model.to(device)
     
-    dataset_test=NTIRE_Dataset('D:/data',[net_w,net_h],flag='train',verbose=False)
-    #dataset_test = RESIDE_Beta_Dataset_With_Notation('D:/data/RESIDE_Beta/train',[net_w,net_h])
+    #dataset_test=NTIRE_Dataset('D:/data',[net_w,net_h],flag='train',verbose=False)
+    dataset_test = RESIDE_Beta_Dataset_With_Notation('D:/data/RESIDE_Beta/val',[net_w,net_h],printName=True)
+    #dataset_test = RESIDE_Beta_Dataset('D:/data/RESIDE_Beta/val',[net_w,net_h],printName=True)
     loader_test = DataLoader(
                 dataset=dataset_test,
                 batch_size=1,
@@ -199,4 +223,4 @@ if __name__ == '__main__':
                 drop_last=True,
                 shuffle=False)
     
-    test(model,loader_test,device)
+    test2(model,loader_test,device)
