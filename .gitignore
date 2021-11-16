@@ -122,8 +122,7 @@ data_sample/
 /DCPDN/facades/
 /DCPDN/sample/
 /DCPDN/output/
-.airlight/
-airlight_validate/
-.air/
+/Entropy_statistic/
+.rus/
 *.t7
 *.weight

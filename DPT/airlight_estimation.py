@@ -53,9 +53,6 @@ class Airlight_Module():
         prob[prob > T_H] = 1
         prob[prob <= T_H] = 0
         binarized_hue = np.zeros(hue.shape, int)
-        for i in range(hue.shape[0]):
-            for j in range(hue.shape[1]):
-                hue[i][j]
         
         for i in range(hue.shape[0]):
             for j in range(hue.shape[1]):
@@ -187,7 +184,7 @@ if __name__ == "__main__":
         input_hazy = cv2.resize(input_hazy,[300,300])
         #input_hazy[:,:,2] = input_hazy[:,:,2]*1.2
         #input_hazy[:,:,1] = input_hazy[:,:,1]*0.8
-        
+         
         input_hazy2 = airlight_module.AWC(input_hazy)
         
         airlight_hat, [r,g,b] = airlight_module.LLF(input_hazy2)
@@ -197,35 +194,5 @@ if __name__ == "__main__":
         print(f'D:/data/NYU/val_airlight/{imgname}.jpg')
         cv2.imwrite(f'D:/data/NYU/val_airlight/{imgname}.jpg', cv2.resize(airlight_hat,[size[1],size[0]]))
         print()
-    
-    
-    # criterion = nn.MSELoss()
-    # loss = 0.0
-    # for hazy, airlight in tqdm(data_list):
-    #     imgname = os.path.basename(hazy)
-    #     input_hazy = cv2.imread(hazy)
-    #     airlight_module = Airlight_Module()
-    #     input_hazy2 = airlight_module.AWC(input_hazy)
-    #     airlight_hat, _ = airlight_module.LLF(input_hazy2)
-        
-    #     airlight_GT = cv2.imread(airlight)
-    #     airlight_hat_tensor = torch.Tensor(airlight_hat).unsqueeze(0)
-    #     airlight_GT_tensor = torch.Tensor(airlight_GT).unsqueeze(0)
-    #     loss += criterion(airlight_hat_tensor, airlight_GT_tensor).item()
-        
-    #     cv2.imwrite(f'airlight_validate/O-Haze/{imgname}', airlight_hat)
-        
-    # print("Average Loss : ", loss/len(data_list))
-    
-    # start = time.time()
-    # # image = "test01.jpg"
-    # image = cv2.imread("test01.jpg")
-    # airlight_module = Airlight_Module()
-    # image = airlight_module.AWC(image)
-    # airlight, [R, G, B] = airlight_module.LLF(image)
-    # print("time :", time.time() - start)
-    
-    # cv2.imshow(f"Airlight ({R}, {G}, {B})", airlight)
-    # cv2.waitKey(0)
     
     
