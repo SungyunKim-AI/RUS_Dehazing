@@ -11,15 +11,15 @@ from tqdm import tqdm
 import time
 
 
-def show_plt(x, y, index):
-    plt.subplot(index)
+def show_plt(x, y):
     plt.bar(x, y, align='center')
     plt.xlabel('deg.')
     plt.xlim([x[0], x[-1]])
-    plt.ylim(0,np.max(y))
     plt.ylabel('prob.')
     for i in range(len(y)):
         plt.vlines(x[i], 0, y[i])
+    
+    plt.show()
     
 def show_img(imgName, img):
     cv2.imshow(imgName, img.astype('uint8'))
@@ -29,9 +29,9 @@ class Airlight_Module():
         self.color_cast_threshold = color_cast_threshold
 
     # Airlight White Correction (AWC)
-    def AWC(self, image, color='RGB', dtype='path'):
+    def AWC(self, image, is_Image='True', color='BGR'):
         # 1. RGB to HSV
-        if dtype=='path':
+        if not is_Image:
             image = cv2.imread(image)
             hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
         else:
@@ -152,79 +152,26 @@ class Airlight_Module():
             return airlight,  mean_val
         
         else:
-            raise ValueError('mReturn must be RGB or gray')  
-    def getAirlight(self,img,mReturn='RGB'):
-        img = self.AWC(img,color='RGB',dtype='file')
-        airlight, _ = self.LLF(img, mReturn)
-        return airlight
-        
-        
-
+            raise ValueError('mReturn must be RGB or gray')
+          
+  
 if __name__ == "__main__":
     if not cv2.useOptimized():
         cv2.setUseOptimized(True)
-    ''' --> reside
-    image_list = glob('D:/data/RESIDE_beta/val/hazy/*/*.jpg')
     
+    start = time.time()
+    image = cv2.imread("test01.jpg")
+    # image = cv2.resize(image, dsize=(0,0), fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
     airlight_module = Airlight_Module()
-    for image_name in tqdm(image_list):
-        image = cv2.imread(image_name)
-        img_size = image.shape[:2]
-        image = cv2.resize(image,[256,256])
-        airlight = airlight_module.AWC(image,color='BGR',dtype='file')
-        airlight, single_val = airlight_module.LLF(airlight, mReturn='RGB')
-        
-        airlight = cv2.cvtColor(airlight, cv2.COLOR_RGB2BGR)
-        airlight = cv2.resize(airlight, [img_size[1],img_size[0]])
-        
-        airlight_folder = image_name.split('\\')[-2]
-        airlight_folder = f'D:/data/RESIDE_beta/val/airlight/{airlight_folder}'
-        airlight_name = image_name.split('\\')[-1]
-        airlight_path = f'{airlight_folder}/{airlight_name}'
-        
-        if not os.path.exists(airlight_folder):
-            os.makedirs(airlight_folder) 
-        
-        print(airlight_path)
-        cv2.imwrite(airlight_path, airlight)
-    '''
+    image = airlight_module.AWC(image)
+    airlight, single_val = airlight_module.LLF(image, mReturn='gray')    # mReturn = 'RGB' or 'gray
+    print("Single Value : ", single_val)
+    print("Operation Time(s) : ", round(time.time() - start, 3))
     
-    # --> d-hazy
-    path = 'D:/data/NH_Haze2/train'
-    image_list = glob(f'{path}/hazy/*.png')
-    airlight_module = Airlight_Module()
-    for image_name in tqdm(image_list):
-        image = cv2.imread(image_name)
-        img_size = image.shape[:2]
-        image = cv2.resize(image,[256,256])
-        airlight = airlight_module.AWC(image,color='BGR',dtype='file')
-        airlight, single_val = airlight_module.LLF(airlight, mReturn='RGB')
-        
-        airlight = cv2.cvtColor(airlight, cv2.COLOR_RGB2BGR)
-        airlight = cv2.resize(airlight, [img_size[1],img_size[0]])
-        airlight_name = image_name.split('\\')[-1]
-        airlight_path = f'{path}/airlight/{airlight_name}'
-        cv2.imwrite(airlight_path,airlight)
+    if airlight.shape[0] == 3:
+        airlight = cv2.cvtColor(airlight, cv2.COLOR_RGB2BGR) 
+    
+    cv2.imshow(f"Airlight", airlight)
+    cv2.waitKey(0)
     
     
-    '''
-    path = 'D:/data/BeDDE/train'
-    image_list = glob(f'{path}/*/fog/*.png')
-    
-    airlight_module = Airlight_Module()
-    for image_name in tqdm(image_list):
-        image = cv2.imread(image_name)
-        img_size = image.shape[:2]
-        image = cv2.resize(image,[256,256])
-        airlight = airlight_module.AWC(image,color='BGR',dtype='file')
-        airlight, single_val = airlight_module.LLF(airlight, mReturn='RGB')
-        
-        airlight = cv2.cvtColor(airlight, cv2.COLOR_RGB2BGR)
-        airlight = cv2.resize(airlight, [img_size[1],img_size[0]])
-        token = image_name.split('\\')
-        airlight_folder = f'{path}/{token[1]}/airlight'
-        if not os.path.exists(airlight_folder):
-            os.makedirs(airlight_folder)
-        airlight_path = f'{airlight_folder}/{token[-1]}'
-        cv2.imwrite(airlight_path,airlight)
-    '''
