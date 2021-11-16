@@ -19,10 +19,14 @@ def calc_airlight(hazy,clear,trans):
     airlight = np.reshape(airlight, (1,1,-1))
     
     size = hazy.shape[:2]
-    print(size)
-    exit(0)
-    airlight = cv2.resize(airlight,[hazy.shape[],hazy.shape])
+    airlight = cv2.resize(airlight,[size[1],size[0]])
     return airlight, airlight_nh
+
+def calc_trans(hazy,clear,airlight):
+    trans = (hazy-airlight)/(clear-airlight+1e-8)
+    trans = np.clip(trans,0,1)
+    trans = np.mean(trans,2)
+    return trans
 
 def test1(model, test_loader, device):
     model.eval()
@@ -44,12 +48,14 @@ def test1(model, test_loader, device):
         hazy_depth = hazy_depth.detach().cpu().numpy().transpose(1,2,0)/8
         hazy_trans = np.exp(hazy_depth * beta * -1)
         prediction = (hazy-airlight)/(hazy_trans+1e-8) + airlight
-        airlight 
+        airlight_calc, _ =  calc_airlight(hazy,clear,hazy_trans)
+        trans_calc = calc_trans(hazy,clear,airlight)
         
         hazy = cv2.cvtColor(hazy,cv2.COLOR_BGR2RGB)
         clear = cv2.cvtColor(clear,cv2.COLOR_BGR2RGB)
         prediction = cv2.cvtColor(prediction,cv2.COLOR_BGR2RGB)
         airlight = cv2.cvtColor(airlight,cv2.COLOR_BGR2RGB)
+        airlight_calc = cv2.cvtColor(airlight_calc,cv2.COLOR_BGR2RGB)
         
         #hazy_depth = cv2.applyColorMap((hazy_depth/5*255).astype(np.uint8),cv2.COLORMAP_JET)
         
@@ -59,8 +65,10 @@ def test1(model, test_loader, device):
         cv2.imshow("hazy_depth",hazy_depth/10)
         
         cv2.imshow("hazy_trans", hazy_trans/5)
+        cv2.imshow("calc_trans", trans_calc)
         
         cv2.imshow("airlight",airlight)
+        cv2.imshow("airlight_calc",airlight_calc)
         
         cv2.imshow("clear_prediction",prediction)
         cv2.waitKey(0)

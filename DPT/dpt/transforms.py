@@ -155,8 +155,10 @@ class Resize(object):
             new_height = self.constrain_to_multiple_of(scale_height * height)
             new_width = self.constrain_to_multiple_of(scale_width * width)
         else:
-            raise ValueError(f"resize_method {self.__resize_method} not implemented")
-
+            #raise ValueError(f"resize_method {self.__resize_method} not implemented")
+            new_height = self.__height
+            new_width = self.__width
+            
         return (new_width, new_height)
 
     def __call__(self, sample):

@@ -3,45 +3,44 @@ Reference Paper
 Image Haze Removal Using Airlight White Correction, Local Light Filter, and Aerial Perspective Prior
 Yan-Tsung Peng et al.
 """
-import cv2
+import os, cv2
 import numpy as np
 import matplotlib.pyplot as plt
-import time
-
-import torch
-import torch.nn as nn
-
-import os
 from glob import glob
 from tqdm import tqdm
-import h5py
+import time
 
-def show_plt(x, y):
+
+def show_plt(x, y, index):
+    plt.subplot(index)
     plt.bar(x, y, align='center')
     plt.xlabel('deg.')
     plt.xlim([x[0], x[-1]])
+    plt.ylim(0,np.max(y))
     plt.ylabel('prob.')
     for i in range(len(y)):
         plt.vlines(x[i], 0, y[i])
     
-    plt.show()
-    
 def show_img(imgName, img):
     cv2.imshow(imgName, img.astype('uint8'))
-    cv2.waitKey(0)
-    
+    cv2.waitKey(0) 
 class Airlight_Module():
     def __init__(self, color_cast_threshold=5):
         self.color_cast_threshold = color_cast_threshold
 
     # Airlight White Correction (AWC)
-    def AWC(self, image):
-        
-        #if os.path.isfile(image):
-        #    image = cv2.imread(image)
-        
+    def AWC(self, image, color='RGB', dtype='path'):
         # 1. RGB to HSV
-        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        if dtype=='path':
+            image = cv2.imread(image)
+            hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        else:
+            if color == 'RGB':
+                hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
+            elif color == 'BGR':
+                hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+            else:
+                raise ValueError('color is RGB or BGR')
         hue, saturation, value = cv2.split(hsv)
         
         # 2. Hue histogram labeling
@@ -52,13 +51,12 @@ class Airlight_Module():
         
         prob[prob > T_H] = 1
         prob[prob <= T_H] = 0
-        binarized_hue = np.zeros(hue.shape, int)
         
-        for i in range(hue.shape[0]):
-            for j in range(hue.shape[1]):
-                idx = np.where(val == hue[i][j])
-                if prob[idx] > T_H:
-                    binarized_hue[i][j] = 1
+        binarized_hue = np.zeros(hue.shape, int)
+        for v in val:
+            row, col = np.where(hue == v)
+            for i in range(len(row)):
+                binarized_hue[row[i]][col[i]] = 1
         
         # 3. Color cast attenuation
         binarized_img = binarized_hue.astype('uint8')
@@ -80,15 +78,12 @@ class Airlight_Module():
         return rgb
             
     # Local Light Filter (LLF)
-    def LLF(self, image):
+    def LLF(self, image, mReturn):
         # 1. PMF of minimum channel calculation
         R, G, B = cv2.split(image)
-        
-        #min_channel = np.minimum([R, G, B])
         min_channel = np.amin([R, G, B],0)
-        
-        #cv2.imshow('Minimum channel', min_channel.astype('uint8'))
-        #cv2.waitKey(0)
+        # cv2.imshow('Minimum channel', min_channel.astype('uint8'))
+        # cv2.waitKey(0)
         
         val, cnt = np.unique(min_channel, return_counts=True)
         img_size = image.shape[0] * image.shape[1]
@@ -108,91 +103,128 @@ class Airlight_Module():
         P_m = np.array(P_m)
         # show_plt(range(256), P_m)
         
-        # 3. Airlight color estimation
-        threshold = 0.0
-        idx = []
-        for i in range(255,-1, -1):
-            if P_m[i] > 0.0:
-                threshold += P_m[i]
-                idx.append(i)
-                if threshold >= 0.01:
-                    break
-        avg = {'r': [], 'g': [], 'b': []}
-        RGB = {'r': R, 'g': G, 'b': B}
-        for i in idx:
-            row, col = np.where(min_channel == i)
-            for j, _ in enumerate(row):
-                for c in ['r','g','b']:
-                    avg[c].append(RGB[c][row[j]][col[j]])
+        # 3. Airlight color estimation to RGB to RGB
+        if mReturn == 'RGB':
+            threshold = 0.0
+            idx = []
+            for i in range(255,-1, -1):
+                if P_m[i] > 0.0:
+                    threshold += P_m[i]
+                    idx.append(i)
+                    if threshold >= 0.01:
+                        break
+            
+            avg = {'r': [], 'g': [], 'b': []}
+            RGB = {'r': R, 'g': G, 'b': B}
+            for i in idx:
+                row, col = np.where(min_channel == i)
+                for j, _ in enumerate(row):
+                    for c in ['r','g','b']:
+                        avg[c].append(RGB[c][row[j]][col[j]]) 
+            
+            
+            avgR = round(np.array(avg['r']).mean())
+            avgG = round(np.array(avg['g']).mean())
+            avgB = round(np.array(avg['b']).mean())
+            
+            r = np.full((image.shape[0], image.shape[1]), avgR).astype('uint8')
+            g = np.full((image.shape[0], image.shape[1]), avgG).astype('uint8')
+            b = np.full((image.shape[0], image.shape[1]), avgB).astype('uint8')
+            rgb = cv2.merge((r, g, b))
+            
+            return rgb, [avgR, avgG, avgB]
         
         
-        avgR = round(np.array(avg['r']).mean())
-        avgG = round(np.array(avg['g']).mean())
-        avgB = round(np.array(avg['b']).mean())
+        elif mReturn == 'gray':
+            # 3. Airlight color estimation to RGB to Gray-Scale
+            threshold = 0.0
+            idx = np.array([])
+            for i in range(255,-1, -1):
+                if P_m[i] > 0.0:
+                    threshold += P_m[i]
+                    idx = np.append(idx, i)
+                    if threshold >= 0.01:
+                        break
+            
+            mean_val = round(np.mean(idx))
+            airlight = np.full((image.shape[0], image.shape[1]), mean_val).astype('uint8')
+            
+            return airlight,  mean_val
         
-        r = np.full((image.shape[0], image.shape[1]), avgR).astype('uint8')
-        g = np.full((image.shape[0], image.shape[1]), avgG).astype('uint8')
-        b = np.full((image.shape[0], image.shape[1]), avgB).astype('uint8')
-        bgr = cv2.merge((b, g, r))
+        else:
+            raise ValueError('mReturn must be RGB or gray')  
+    def getAirlight(self,img,mReturn='RGB'):
+        img = self.AWC(img,color='RGB',dtype='file')
+        airlight, _ = self.LLF(img, mReturn)
+        return airlight
         
-        return bgr, [avgR, avgG, avgB]
+        
 
-
-def data_loader_NYU(path):
-    hazy_path = os.path.join(path, 'hazy')
-    hazy_list = glob(hazy_path + '/*')
-    
-    airlight_path = os.path.join(path, 'airlight')
-    airlight_list = glob(airlight_path + '/*')
-    
-    data_list = []
-    for i in range(len(hazy_list)):
-        data_list.append([hazy_list[i], airlight_list[i]])
-    print("Data Length : ", len(data_list))
-    
-    return data_list
-
-def data_loader(path):
-    hazy_path = os.path.join(path, 'hazy')
-    hazy_list = glob(path + '/*')
-    
-    return hazy_list
-    
-    
-        
-  
 if __name__ == "__main__":
     if not cv2.useOptimized():
         cv2.setUseOptimized(True)
-        
-    path = 'D:/data/NYU/val'
-    data_loader = data_loader(path)
+    ''' --> reside
+    image_list = glob('D:/data/RESIDE_beta/val/hazy/*/*.jpg')
     
     airlight_module = Airlight_Module()
-    for hazy in tqdm(data_loader):
-        imgname = os.path.basename(hazy)
-        print(imgname)
+    for image_name in tqdm(image_list):
+        image = cv2.imread(image_name)
+        img_size = image.shape[:2]
+        image = cv2.resize(image,[256,256])
+        airlight = airlight_module.AWC(image,color='BGR',dtype='file')
+        airlight, single_val = airlight_module.LLF(airlight, mReturn='RGB')
         
-        f = h5py.File(hazy,'r')
+        airlight = cv2.cvtColor(airlight, cv2.COLOR_RGB2BGR)
+        airlight = cv2.resize(airlight, [img_size[1],img_size[0]])
         
-        haze = f['haze'][:]
-        haze = (haze*255).astype('uint8')
-        input_hazy = cv2.cvtColor(haze,cv2.COLOR_RGB2BGR)
-        #input_hazy = cv2.imread(hazy)
-        size = input_hazy.shape[:2]
-
-        input_hazy = cv2.resize(input_hazy,[300,300])
-        #input_hazy[:,:,2] = input_hazy[:,:,2]*1.2
-        #input_hazy[:,:,1] = input_hazy[:,:,1]*0.8
-         
-        input_hazy2 = airlight_module.AWC(input_hazy)
+        airlight_folder = image_name.split('\\')[-2]
+        airlight_folder = f'D:/data/RESIDE_beta/val/airlight/{airlight_folder}'
+        airlight_name = image_name.split('\\')[-1]
+        airlight_path = f'{airlight_folder}/{airlight_name}'
         
-        airlight_hat, [r,g,b] = airlight_module.LLF(input_hazy2)
-        print('airlight estimated')
-        print(f'r={r}, g={g}, b={b}')
+        if not os.path.exists(airlight_folder):
+            os.makedirs(airlight_folder) 
         
-        print(f'D:/data/NYU/val_airlight/{imgname}.jpg')
-        cv2.imwrite(f'D:/data/NYU/val_airlight/{imgname}.jpg', cv2.resize(airlight_hat,[size[1],size[0]]))
-        print()
+        print(airlight_path)
+        cv2.imwrite(airlight_path, airlight)
+    '''
+    
+    # --> d-hazy
+    path = 'D:/data/NH_Haze2/train'
+    image_list = glob(f'{path}/hazy/*.png')
+    airlight_module = Airlight_Module()
+    for image_name in tqdm(image_list):
+        image = cv2.imread(image_name)
+        img_size = image.shape[:2]
+        image = cv2.resize(image,[256,256])
+        airlight = airlight_module.AWC(image,color='BGR',dtype='file')
+        airlight, single_val = airlight_module.LLF(airlight, mReturn='RGB')
+        
+        airlight = cv2.cvtColor(airlight, cv2.COLOR_RGB2BGR)
+        airlight = cv2.resize(airlight, [img_size[1],img_size[0]])
+        airlight_name = image_name.split('\\')[-1]
+        airlight_path = f'{path}/airlight/{airlight_name}'
+        cv2.imwrite(airlight_path,airlight)
     
     
+    '''
+    path = 'D:/data/BeDDE/train'
+    image_list = glob(f'{path}/*/fog/*.png')
+    
+    airlight_module = Airlight_Module()
+    for image_name in tqdm(image_list):
+        image = cv2.imread(image_name)
+        img_size = image.shape[:2]
+        image = cv2.resize(image,[256,256])
+        airlight = airlight_module.AWC(image,color='BGR',dtype='file')
+        airlight, single_val = airlight_module.LLF(airlight, mReturn='RGB')
+        
+        airlight = cv2.cvtColor(airlight, cv2.COLOR_RGB2BGR)
+        airlight = cv2.resize(airlight, [img_size[1],img_size[0]])
+        token = image_name.split('\\')
+        airlight_folder = f'{path}/{token[1]}/airlight'
+        if not os.path.exists(airlight_folder):
+            os.makedirs(airlight_folder)
+        airlight_path = f'{airlight_folder}/{token[-1]}'
+        cv2.imwrite(airlight_path,airlight)
+    '''

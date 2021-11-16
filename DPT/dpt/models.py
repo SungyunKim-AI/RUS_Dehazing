@@ -122,7 +122,7 @@ class DPTDepthModel(DPT):
             depth = 1.0 / depth
             return tf_prediction, depth
         else:
-            return tf_prediction, inv_depth
+            return tf_prediction, -inv_depth
 
 
 class DPTSegmentationModel(DPT):
