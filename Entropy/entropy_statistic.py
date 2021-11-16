@@ -25,6 +25,30 @@ def data_plot(dfName, df, labels):
     for label in labels:
         df.plot(kind='line', y=label, ax=plt.gca())
     plt.show()
+
+def all_df_plot(all_df_dict):
+    plt.title("Mean of All Data")
+    cur_etp, diff_etp, psnr, ssim = [], [], [], []
+    
+    meanDF = pd.DataFrame()
+    for row in range(1, 300):
+        tempDF = pd.DataFrame()
+        for dfName, df in all_df_dict.items():
+            temp = pd.DataFrame({'cur_etp':[df.loc[[row]]['cur_etp']],
+                                'diff_etp':[df.loc[[row]]['diff_etp']], 
+                                'psnr':[df.loc[[row]]['psnr']], 
+                                'ssim':[df.loc[[row]]['ssim']]})
+            tempDF = pd.concat((tempDF, temp), ignore_index=True)
+
+        meanTemp = pd.DataFrame({'cur_etp':[tempDF['cur_etp'].mean()],
+                                'diff_etp':[tempDF['diff_etp'].mean()], 
+                                'psnr':[tempDF['psnr'].mean()], 
+                                'ssim':[ tempDF['ssim'].mean()]})
+        
+        meanDF = pd.concat((meanDF, meanTemp), ignore_index=True)
+    
+    data_plot('Mean of All data', meanDF, ['cur_etp', 'diff_etp', 'psnr', 'ssim'])
+    
     
 def getCorrelation(all_df_dict):
     corr_etp_psnr, corr_etp_ssim, corr_psnr_ssim, corr_diff_psnr, corr_diff_ssim = [], [], [], [], []
@@ -91,9 +115,7 @@ def getMean_Max_PSNR_SSIM(all_df_dict):
     max_psnr = pd.DataFrame(max_psnr).mean()[0]
     max_ssim = pd.DataFrame(max_ssim).mean()[0]
     
-    print(f'max_psnr={max_psnr}, max_ssim={max_ssim}')
-    
-    
+    print(f'max_psnr={max_psnr}, max_ssim={max_ssim}')    
     
 def getDiff_val(all_df_dict):
     idx_psnr, idx_ssim = [], []
@@ -121,20 +143,22 @@ def getMax_val(all_df_dict, label, val):
     
 
 if __name__ == '__main__':
-    # dataRoot = 'D:/programming/GitHub/RUS_Dehazing/Entropy_statistic'
-    dataRoot = '/Users/sungyoon-kim/Downloads/Entropy_statistic'
+    dataRoot = 'C:/Users/IIPL/Desktop/RUS_Dehazing/Entropy/Entropy_statistic'
+    # dataRoot = '/Users/sungyoon-kim/Downloads/Entropy_statistic'
     header = ['stage', 'step_beta', 'cur_etp', 'diff_etp', 'psnr', 'ssim']
     all_df_dict = read_csv_all(dataRoot, header)
+    
+    all_df_plot(all_df_dict)
     
     # getCorrelation(all_df_dict)
     # getMaxPSNR_SSIM(all_df_dict)
     
     # getMean_Max_PSNR_SSIM(all_df_dict)
     # getDiff_0(all_df_dict)
-    getMax_val(all_df_dict, 'diff_etp', 0.005)
-    getMax_val(all_df_dict, 'diff_etp', 0.010)
-    getMax_val(all_df_dict, 'diff_etp', 0.015)
-    getMax_val(all_df_dict, 'diff_etp', 0.020)
+    # getMax_val(all_df_dict, 'diff_etp', 0.005)
+    # getMax_val(all_df_dict, 'diff_etp', 0.010)
+    # getMax_val(all_df_dict, 'diff_etp', 0.015)
+    # getMax_val(all_df_dict, 'diff_etp', 0.020)
     
     
     # getMax_val(all_df_dict, 'cur_etp', 7.0)
