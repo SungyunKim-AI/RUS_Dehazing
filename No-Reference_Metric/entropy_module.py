@@ -19,6 +19,27 @@ class Entropy_Module():
         H_s = (-1) * np.sum(prob * np.log2(prob + self.eps))
         
         return H_s
+    
+
+class Fildelity_Module():
+    def __init__(self):
+        self.eps = np.finfo(float).eps
+        
+    def get_entropy(self, img, channel_first=False):
+        r, g, b = cv2.split(img)
+        for c_img in [r, g, b]:
+            val, cnt = np.unique(c_img, return_counts=True)
+            
+            if channel_first:
+                self.img_size = img.shape[1] * img.shape[2]
+            else:
+                self.img_size = img.shape[0] * img.shape[1]
+            
+            prob = cnt / self.img_size    # PMF
+            
+            H_s = (-1) * np.sum(prob * np.log2(prob + self.eps))
+        
+        return H_s
 
 
 if __name__=='__main__':
