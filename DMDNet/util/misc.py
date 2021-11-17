@@ -1,5 +1,6 @@
+import cv2
+import numpy as np
 import matplotlib.pyplot as plt
-
 from dpt.vit import get_mean_attention_map
 
 def visualize_attention(input, model, prediction, model_type):
@@ -61,3 +62,71 @@ def visualize_attention(input, model, prediction, model_type):
     plt.subplot(3,4,12), plt.imshow(get_mean_attention_map(attn4, -1, input.shape)), plt.axis("off")
     plt.tight_layout()
     plt.show()
+
+
+def show_plt(x, y, index):
+    plt.subplot(index)
+    plt.bar(x, y, align='center')
+    plt.xlabel('deg.')
+    plt.xlim([x[0], x[-1]])
+    plt.ylim(0,np.max(y))
+    plt.ylabel('prob.')
+    for i in range(len(y)):
+        plt.vlines(x[i], 0, y[i])
+
+def show_histogram(img,index):
+    
+    val, cnt = np.unique(img, return_counts=True)
+    img_size = img.shape[0] * img.shape[1]
+    #prob = cnt / img_size    # PMF
+    prob = cnt
+    
+    l = np.zeros((np.max(val)+1))
+    for i, v in enumerate(val):
+        l[v] = prob[i]
+    show_plt(range((np.max(val)+1)), l,index)
+    
+    
+def multi_show(image_list):
+    """
+    First_hazy       Final_prediction   GT
+    First_depth      Final_depth        depth_GT
+    First_airlight   Final_airlight     airlight_GT
+    one_shot_prediction
+    """
+    
+    init_hazy, prediction, clear, init_depth, depth, clear_depth, init_airlight, airlight, clear_airlight, one_shot_prediction = image_list
+    
+    init_hazy = cv2.cvtColor(init_hazy,cv2.COLOR_RGB2BGR)
+    prediction = cv2.cvtColor(prediction.astype(np.float32),cv2.COLOR_BGR2RGB)
+    clear = cv2.cvtColor(clear,cv2.COLOR_RGB2BGR)
+    init_airlight = cv2.cvtColor(init_airlight,cv2.COLOR_RGB2BGR)
+    airlight = cv2.cvtColor(airlight,cv2.COLOR_RGB2BGR)
+    clear_airlight = cv2.cvtColor(clear_airlight, cv2.COLOR_RGB2BGR)
+    one_shot_prediction = cv2.cvtColor(one_shot_prediction.astype(np.float32),cv2.COLOR_BGR2RGB)
+    
+    init_depth = cv2.cvtColor(init_depth/10, cv2.COLOR_GRAY2BGR)
+    depth = cv2.cvtColor(depth/10, cv2.COLOR_GRAY2BGR)
+    clear_depth = cv2.cvtColor(clear_depth/10, cv2.COLOR_GRAY2BGR)
+
+    v1 = np.vstack((init_hazy,     prediction, clear))
+    v2 = np.vstack((init_depth,    depth,      clear_depth))
+    v3 = np.vstack((init_airlight, airlight,   clear_airlight))
+    final = np.hstack((v1, v2, v3))
+    
+    cv2.imshow('Image List', final)
+    
+    if one_shot_prediction != None:
+        cv2.imshow('One Shot prediction', one_shot_prediction)
+    
+    # cv2.imshow('Final depth', depth)
+    # cv2.imshow('Final prediction', prediction)
+    # cv2.imshow("First hazy", init_hazy_img)
+    # cv2.imshow("GT", GT_img)
+    # cv2.imshow("First airlight", init_airlight_img)
+    # cv2.imshow("Final airlight", airlight_img)
+    # cv2.imshow("First depth", init_depth)
+    # cv2.imshow("First clear depth", depth_GT)
+    
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()

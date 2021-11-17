@@ -1,15 +1,16 @@
-import glob, os
+from glob import glob
 import h5py
-from numpy import float32
-import numpy
-import torch
+import numpy as np
 import cv2
-from torch.functional import _return_inverse
-import torchvision.transforms.functional as F
-from dpt.transforms import Resize, NormalizeImage, PrepareForNet
-from torchvision.transforms import Compose
-import util.io
 import mat73
+
+import torch
+from torch.utils.data import Dataset
+import torchvision.transforms.functional as F
+from torchvision.transforms import Compose
+
+from dpt.transforms import Resize, NormalizeImage, PrepareForNet
+from util import io
 
 def to_tensor(img):
     img_t = F.to_tensor(img).float()
@@ -28,8 +29,8 @@ def load_item(haze, clear, img_size):
         return hazy_resize, clear_resize
     
 def load_item_2(haze, clear,transform):
-    haze = util.io.read_image(haze)
-    clear = util.io.read_image(clear)
+    haze = io.read_image(haze)
+    clear = io.read_image(clear)
     
     haze_input  = transform({"image": haze})["image"]
     clear_input = transform({"image": clear})["image"]
@@ -37,9 +38,9 @@ def load_item_2(haze, clear,transform):
     return haze_input, clear_input
 
 def load_item_3(haze, clear, airlight, transform):
-    haze = util.io.read_image(haze)
-    clear = util.io.read_image(clear)
-    airlight = util.io.read_image(airlight)
+    haze = io.read_image(haze)
+    clear = io.read_image(clear)
+    airlight = io.read_image(airlight)
     
     haze_input  = transform({"image": haze})["image"]
     clear_input = transform({"image": clear})["image"]
@@ -67,15 +68,15 @@ def make_transform(img_size):
     return transform
     
 
-class BeDDE_Dataset(torch.utils.data.Dataset):
+class BeDDE_Dataset(Dataset):
     def __init__(self,path,img_size,printName=False,returnName=False):
         super().__init__()
         self.img_size = img_size
         images_hazy_path = path+'/*/fog/*.png'
-        self.images_hazy_list =glob.glob(images_hazy_path)
+        self.images_hazy_list =glob(images_hazy_path)
 
         images_airlight_path = path+'/*/airlight/*.png'
-        self.images_airlight_list = glob.glob(images_airlight_path)
+        self.images_airlight_list = glob(images_airlight_path)
         
         self.printName = printName
         self.returnName= returnName
@@ -101,16 +102,17 @@ class BeDDE_Dataset(torch.utils.data.Dataset):
             return hazy_input, clear_input, airlight_input, image_hazy_path
         else:
             return hazy_input, clear_input, airlight_input
-class D_Hazy_Middlebury_Dataset(torch.utils.data.Dataset):
+        
+class D_Hazy_Middlebury_Dataset(Dataset):
     def __init__(self,path,img_size,printName=False,returnName=False):
         super().__init__()
         self.img_size = img_size
         images_clear_path = path+'/clear/*.png'
         images_hazy_path = path+'/hazy/*.bmp'
         images_airlight_path = path+'/airlight/*.bmp'
-        self.images_clear_list=glob.glob(images_clear_path)
-        self.images_hazy_list =glob.glob(images_hazy_path)
-        self.images_airlight_list =glob.glob(images_airlight_path)
+        self.images_clear_list=glob(images_clear_path)
+        self.images_hazy_list =glob(images_hazy_path)
+        self.images_airlight_list =glob(images_airlight_path)
         self.printName = printName
         self.returnName = returnName
         self.transform = make_transform(self.img_size)
@@ -128,16 +130,16 @@ class D_Hazy_Middlebury_Dataset(torch.utils.data.Dataset):
         else:
             return hazy_input, clear_input, airlight_input
         
-class D_Hazy_NYU_Dataset(torch.utils.data.Dataset):
+class D_Hazy_NYU_Dataset(Dataset):
     def __init__(self,path,img_size,printName=False,returnName=False):
         super().__init__()
         self.img_size = img_size
         images_clear_path = path+'/clear/*.bmp'
         images_hazy_path = path+'/hazy/*.bmp'
         images_airlight_path = path+'/airlight/*.bmp'
-        self.images_clear_list=glob.glob(images_clear_path)
-        self.images_hazy_list =glob.glob(images_hazy_path)
-        self.images_airlight_list =glob.glob(images_airlight_path)
+        self.images_clear_list=glob(images_clear_path)
+        self.images_hazy_list =glob(images_hazy_path)
+        self.images_airlight_list =glob(images_airlight_path)
         self.printName = printName
         self.returnName = returnName
         self.transform = make_transform(self.img_size)
@@ -155,7 +157,7 @@ class D_Hazy_NYU_Dataset(torch.utils.data.Dataset):
         else:
             return hazy_input, clear_input, airlight_input
         
-class D_Hazy_NYU_Dataset_With_Notation(torch.utils.data.Dataset):
+class D_Hazy_NYU_Dataset_With_Notation(Dataset):
     def __init__(self,path,img_size,printName=False,returnName=False):
         super().__init__()
         self.img_size = img_size
@@ -164,10 +166,10 @@ class D_Hazy_NYU_Dataset_With_Notation(torch.utils.data.Dataset):
         images_airlight_path = path+'/airlight/*.bmp'
         images_depth_path = path+'/depth/*.bmp'
         
-        self.images_clear_list=glob.glob(images_clear_path)
-        self.images_hazy_list =glob.glob(images_hazy_path)
-        self.images_airlight_list =glob.glob(images_airlight_path)
-        self.images_depth_lsit = glob.glob(images_depth_path)
+        self.images_clear_list=glob(images_clear_path)
+        self.images_hazy_list =glob(images_hazy_path)
+        self.images_airlight_list =glob(images_airlight_path)
+        self.images_depth_lsit = glob(images_depth_path)
         
         self.printName = printName
         self.returnName = returnName
@@ -190,23 +192,23 @@ class D_Hazy_NYU_Dataset_With_Notation(torch.utils.data.Dataset):
             print(self.images_hazy_list[index])
             
         hazy_input, clear_input, airlight_input = load_item_3(self.images_hazy_list[index], self.images_clear_list[index], self.images_airlight_list[index], self.transform)
-        depth_input = util.io.read_image(self.images_depth_lsit[index])
+        depth_input = io.read_image(self.images_depth_lsit[index])
         depth_input = self.transform({"image": depth_input})["image"]
         if self.returnName:
             return hazy_input, clear_input, airlight_input, depth_input, self.images_hazy_list[index]
         else:
             return hazy_input, clear_input, airlight_input, depth_input
         
-class O_Haze_Dataset(torch.utils.data.Dataset):
+class O_Haze_Dataset(Dataset):
     def __init__(self,path,img_size,printName=False,returnName=False):
         super().__init__()
         self.img_size = img_size
         images_clear_path = path+'/clear/*.jpg'
         images_hazy_path = path+'/hazy/*.jpg'
         images_airlight_path = path+'/airlight/*.jpg'
-        self.images_clear_list=glob.glob(images_clear_path)
-        self.images_hazy_list =glob.glob(images_hazy_path)
-        self.images_airlight_list =glob.glob(images_airlight_path)
+        self.images_clear_list=glob(images_clear_path)
+        self.images_hazy_list =glob(images_hazy_path)
+        self.images_airlight_list =glob(images_airlight_path)
         self.printName = printName
         self.returnName = returnName
         self.transform = make_transform(self.img_size)
@@ -223,18 +225,17 @@ class O_Haze_Dataset(torch.utils.data.Dataset):
             return hazy_input, clear_input, airlight_input, self.images_hazy_list[index]
         else:
             return hazy_input, clear_input, airlight_input
-            
     
-class NH_Haze_Dataset(torch.utils.data.Dataset):
+class NH_Haze_Dataset(Dataset):
     def __init__(self,path,img_size,printName=False,returnName=False):
         super().__init__()
         self.img_size = img_size
         images_clear_path = path+'/clear/*.png'
         images_hazy_path = path+'/hazy/*.png'
         images_airlight_path = path+'/airlight/*.png'
-        self.images_clear_list=glob.glob(images_clear_path)
-        self.images_hazy_list =glob.glob(images_hazy_path)
-        self.images_airlight_list =glob.glob(images_airlight_path)
+        self.images_clear_list=glob(images_clear_path)
+        self.images_hazy_list =glob(images_hazy_path)
+        self.images_airlight_list =glob(images_airlight_path)
         self.printName = printName
         self.returnName = returnName
         self.transform = make_transform(self.img_size)
@@ -251,16 +252,16 @@ class NH_Haze_Dataset(torch.utils.data.Dataset):
         else:
             return hazy_input, clear_input, airlight_input,
     
-class Dense_Haze_Dataset(torch.utils.data.Dataset):
+class Dense_Haze_Dataset(Dataset):
     def __init__(self,path,img_size,printName=False,returnName=False):
         super().__init__()
         self.img_size = img_size
         images_clear_path = path+'/clear/*.png'
         images_hazy_path = path+'/hazy/*.png'
         images_airlight_path = path+'/airlight/*.png'
-        self.images_clear_list=glob.glob(images_clear_path)
-        self.images_hazy_list =glob.glob(images_hazy_path)
-        self.images_airlight_list =glob.glob(images_airlight_path)
+        self.images_clear_list=glob(images_clear_path)
+        self.images_hazy_list =glob(images_hazy_path)
+        self.images_airlight_list =glob(images_airlight_path)
         self.printName = printName
         self.returnName = returnName
         self.transform = make_transform(self.img_size)
@@ -276,14 +277,13 @@ class Dense_Haze_Dataset(torch.utils.data.Dataset):
             return hazy_input, clear_input, airlight_input, self.images_hazy_list[index]
         else:
             return hazy_input, clear_input, airlight_input
-        
-        
-class NYU_Dataset_With_Notation(torch.utils.data.Dataset):
+            
+class NYU_Dataset_With_Notation(Dataset):
     def __init__(self, path, img_size, printName=False, returnName=False):
         super().__init__()
         self.img_size = img_size
         h5s_path = path+'/*.h5'
-        self.h5s_list = glob.glob(h5s_path)
+        self.h5s_list = glob(h5s_path)
         self.printName = printName
         self.returnName = returnName
         self.transform = make_transform(img_size)
@@ -320,14 +320,14 @@ class NYU_Dataset_With_Notation(torch.utils.data.Dataset):
         else :
             return haze_input, clear_input, airlight_input
 
-class NYU_Dataset(torch.utils.data.Dataset):
+class NYU_Dataset(Dataset):
     def __init__(self, path, img_size, printName=False, returnName=False):
         super().__init__()
         self.img_size = img_size
         h5s_path = path+'/*.h5'
         airlight_path = path+'_airlight/*.png'
-        self.h5s_list = glob.glob(h5s_path)
-        self.airglith_list = glob.glob(airlight_path)
+        self.h5s_list = glob(h5s_path)
+        self.airglith_list = glob(airlight_path)
         self.printName = printName
         self.returnName = returnName
         self.transform = make_transform(img_size)
@@ -351,7 +351,7 @@ class NYU_Dataset(torch.utils.data.Dataset):
         
         haze = f['haze'][:]
         clear = f['gt'][:]
-        airlight = util.io.read_image(self.airglith_list[index])
+        airlight = io.read_image(self.airglith_list[index])
         
         haze_input  = self.transform({"image": haze})["image"]
         clear_input  = self.transform({"image": clear})["image"]
@@ -363,55 +363,57 @@ class NYU_Dataset(torch.utils.data.Dataset):
             return haze_input, clear_input, airlight_input, h5
         else:
             return haze_input, clear_input, airlight_input
-    
-    
-class RESIDE_Beta_Dataset(torch.utils.data.Dataset):
+        
+class RESIDE_Beta_Dataset(Dataset):
     def __init__(self, path, img_size, printName=False, returnName=False ,verbose=False):
         super().__init__()
         self.img_size = img_size
         images_clear_path = path+'/clear/*.jpg'
-        self.images_clear_list = glob.glob(images_clear_path)
+        self.images_clear_list = glob(images_clear_path)
         self.printName = printName
         self.returnName = returnName
         
         images_hazy_folders_path = path+'/hazy/*/'
         self.images_hazy_lists = []
-        for images_hazy_folder in glob.glob(images_hazy_folders_path):
+        for images_hazy_folder in glob(images_hazy_folders_path):
             if verbose:
                 print(images_hazy_folder + ' dataset ready!')
-            self.images_hazy_lists.append(glob.glob(images_hazy_folder+'*.jpg'))
+            self.images_hazy_lists.append(glob(images_hazy_folder+'*.jpg'))
         
         images_airlight_folders_path = path+'/airlight/*/'
         self.images_airlight_list = []
-        for images_airlight_folder in glob.glob(images_airlight_folders_path):
+        for images_airlight_folder in glob(images_airlight_folders_path):
             if verbose:
                 print(images_airlight_folder + ' dataset ready!')
-            self.images_airlight_list.append(glob.glob(images_airlight_folder+'*.jpg'))
+            self.images_airlight_list.append(glob(images_airlight_folder+'*.jpg'))
+        self.airlgiht_flag = False if len(self.images_airlight_list) == 0 else True
         
         self.images_count = len(self.images_hazy_lists[0])
         self.transform = make_transform(img_size)
         
     def __len__(self):
         return len(self.images_hazy_lists) * self.images_count
-        #return 10
         
     def __getitem__(self,index):
         haze = self.images_hazy_lists[index//self.images_count][index%self.images_count]
         clear = self.images_clear_list[index%self.images_count]
-        airlight = self.images_airlight_list[index//self.images_count][index%self.images_count]
+        airlight = self.images_airlight_list[index//self.images_count][index%self.images_count] if self.airlgiht_flag else None
         
         if self.printName:
             print(self.images_hazy_lists[index//self.images_count][index%self.images_count])
         
         #return load_item(haze,clear,self.img_size)
         #return load_item_2(haze,clear,self.transform)
-        hazy_input, clear_input, airlight_input = load_item_3(haze,clear,airlight,self.transform)
-        if self.returnName:
-            return hazy_input, clear_input, airlight_input, haze
+        if airlight == None:
+           return load_item_2(haze,clear,self.transform) 
         else:
-            return hazy_input, clear_input, airlight_input
+            hazy_input, clear_input, airlight_input = load_item_3(haze,clear,airlight,self.transform)
+            if self.returnName:
+                return hazy_input, clear_input, airlight_input, haze
+            else:
+                return hazy_input, clear_input, airlight_input
     
-class RESIDE_Beta_Dataset_With_Notation(torch.utils.data.Dataset):
+class RESIDE_Beta_Dataset_With_Notation(Dataset):
     def __init__(self, path, img_size, printName=False, returnName=False):
         super().__init__()
         self.img_size = img_size
@@ -419,20 +421,20 @@ class RESIDE_Beta_Dataset_With_Notation(torch.utils.data.Dataset):
         self.returnName= returnName
         
         images_clear_path = path+'/clear/*.jpg'
-        self.images_clear_list = glob.glob(images_clear_path)
+        self.images_clear_list = glob(images_clear_path)
         
         images_hazy_folders_path = path+'/hazy/*/'
         self.images_hazy_lists = []
-        for images_hazy_folder in glob.glob(images_hazy_folders_path):
-            self.images_hazy_lists.append(glob.glob(images_hazy_folder+'*.jpg'))
+        for images_hazy_folder in glob(images_hazy_folders_path):
+            self.images_hazy_lists.append(glob(images_hazy_folder+'*.jpg'))
             
         depth_path = path+'/depth/*.mat'
-        self.depth_list = glob.glob(depth_path)
+        self.depth_list = glob(depth_path)
         
         images_airlight_folders_path = path+'/airlight/*/'
         self.images_airlight_list = []
-        for images_airlight_folder in glob.glob(images_airlight_folders_path):
-            self.images_airlight_list.append(glob.glob(images_airlight_folder+'*.jpg'))
+        for images_airlight_folder in glob(images_airlight_folders_path):
+            self.images_airlight_list.append(glob(images_airlight_folder+'*.jpg'))
         
 
         self.images_count = len(self.images_hazy_lists[0])
@@ -459,7 +461,7 @@ class RESIDE_Beta_Dataset_With_Notation(torch.utils.data.Dataset):
         beta = token[3].split('\\')[0]
         
         airlight_input, beta_input = float(airlight_input), float(beta)
-        airlight_input = numpy.full((3,self.img_size[0],self.img_size[1]),airlight_input,dtype='float32')
+        airlight_input = np.full((3,self.img_size[0],self.img_size[1]),airlight_input,dtype='float32')
 
         clear = self.images_clear_list[index%self.images_count]
         depth_mat = mat73.loadmat(self.depth_list[index%self.images_count])
@@ -477,7 +479,7 @@ class RESIDE_Beta_Dataset_With_Notation(torch.utils.data.Dataset):
         else:
             return haze_input, clear_input, airlight_post, depth_input, airlight_input, beta_input
     
-class NTIRE_Dataset(torch.utils.data.Dataset):
+class NTIRE_Dataset(Dataset):
     def __init__(self, path, img_size, flag='train',verbose=False):
         super().__init__()
         self.OD = O_Haze_Dataset(path + f'/O_Haze/{flag}', img_size,verbose)

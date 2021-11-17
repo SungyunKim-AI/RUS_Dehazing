@@ -3,13 +3,10 @@ Reference Paper
 Image Haze Removal Using Airlight White Correction, Local Light Filter, and Aerial Perspective Prior
 Yan-Tsung Peng et al.
 """
-import os, cv2
+import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-from glob import glob
-from tqdm import tqdm
 import time
-
 
 def show_plt(x, y):
     plt.bar(x, y, align='center')
@@ -23,7 +20,8 @@ def show_plt(x, y):
     
 def show_img(imgName, img):
     cv2.imshow(imgName, img.astype('uint8'))
-    cv2.waitKey(0) 
+    cv2.waitKey(0)
+    
 class Airlight_Module():
     def __init__(self, color_cast_threshold=5):
         self.color_cast_threshold = color_cast_threshold
@@ -78,10 +76,17 @@ class Airlight_Module():
         return rgb
             
     # Local Light Filter (LLF)
-    def LLF(self, image, mReturn):
+    def LLF(self, image, mReturn='RGB', color='BGR'):
         # 1. PMF of minimum channel calculation
-        R, G, B = cv2.split(image)
-        min_channel = np.amin([R, G, B],0)
+        if color == 'RGB':
+            R, G, B = cv2.split(image)
+            min_channel = np.amin([R, G, B],0)
+        elif color == 'BGR':
+            B, G, R = cv2.split(image)
+            min_channel = np.amin([B, G, R],0)
+        else:
+            raise ValueError("color must be BGR or RGB")
+            
         # cv2.imshow('Minimum channel', min_channel.astype('uint8'))
         # cv2.waitKey(0)
         
@@ -104,55 +109,48 @@ class Airlight_Module():
         # show_plt(range(256), P_m)
         
         # 3. Airlight color estimation to RGB to RGB
-        if mReturn == 'RGB':
-            threshold = 0.0
-            idx = []
-            for i in range(255,-1, -1):
-                if P_m[i] > 0.0:
-                    threshold += P_m[i]
-                    idx.append(i)
-                    if threshold >= 0.01:
-                        break
-            
-            avg = {'r': [], 'g': [], 'b': []}
-            RGB = {'r': R, 'g': G, 'b': B}
-            for i in idx:
-                row, col = np.where(min_channel == i)
-                for j, _ in enumerate(row):
-                    for c in ['r','g','b']:
-                        avg[c].append(RGB[c][row[j]][col[j]]) 
-            
-            
-            avgR = round(np.array(avg['r']).mean())
-            avgG = round(np.array(avg['g']).mean())
-            avgB = round(np.array(avg['b']).mean())
-            
-            r = np.full((image.shape[0], image.shape[1]), avgR).astype('uint8')
-            g = np.full((image.shape[0], image.shape[1]), avgG).astype('uint8')
-            b = np.full((image.shape[0], image.shape[1]), avgB).astype('uint8')
-            rgb = cv2.merge((r, g, b))
-            
-            return rgb, [avgR, avgG, avgB]
+        threshold = 0.0
+        idx = []
+        for i in range(255, -1, -1):
+            if P_m[i] > 0.0:
+                threshold += P_m[i]
+                idx.append(i)
+                if threshold >= 0.01:
+                    break
         
+        avg = {'r': [], 'g': [], 'b': []}
+        RGB = {'r': R, 'g': G, 'b': B}
+        for i in idx:
+            row, col = np.where(min_channel == i)
+            for j, _ in enumerate(row):
+                for c in ['r','g','b']:
+                    avg[c].append(RGB[c][row[j]][col[j]]) 
         
+        avgR = round(np.array(avg['r']).mean())
+        avgG = round(np.array(avg['g']).mean())
+        avgB = round(np.array(avg['b']).mean())
+        
+        r = np.full((image.shape[0], image.shape[1]), avgR).astype('uint8')
+        g = np.full((image.shape[0], image.shape[1]), avgG).astype('uint8')
+        b = np.full((image.shape[0], image.shape[1]), avgB).astype('uint8')
+        
+        if mReturn == 'RGB':    
+            airlight = cv2.merge((r, g, b))
+            return airlight, [avgR, avgG, avgB]
+        
+        elif mReturn == 'BGR':
+            airlight = cv2.merge((b, g, r))
+            return airlight, [avgB, avgG, avgR]
+            
         elif mReturn == 'gray':
             # 3. Airlight color estimation to RGB to Gray-Scale
-            threshold = 0.0
-            idx = np.array([])
-            for i in range(255,-1, -1):
-                if P_m[i] > 0.0:
-                    threshold += P_m[i]
-                    idx = np.append(idx, i)
-                    if threshold >= 0.01:
-                        break
-            
-            mean_val = round(np.mean(idx))
-            airlight = np.full((image.shape[0], image.shape[1]), mean_val).astype('uint8')
-            
-            return airlight,  mean_val
+            rgb = cv2.merge((r, g, b))
+            airlight = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+            mean_val = airlight[0][0]
+            return airlight, mean_val
         
         else:
-            raise ValueError('mReturn must be RGB or gray')
+            raise ValueError('mReturn must be RGB, BGR or gray')
           
   
 if __name__ == "__main__":
@@ -160,7 +158,7 @@ if __name__ == "__main__":
         cv2.setUseOptimized(True)
     
     start = time.time()
-    image = cv2.imread("test01.jpg")
+    image = cv2.imread("test.jpg")
     # image = cv2.resize(image, dsize=(0,0), fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
     airlight_module = Airlight_Module()
     image = airlight_module.AWC(image)

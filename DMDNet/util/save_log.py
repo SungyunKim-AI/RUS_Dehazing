@@ -2,6 +2,13 @@ import glob
 import csv
 import numpy as np
 
+def write_csv(input_name, log_list):
+    csv_name = input_name[0][:-3]+'csv'
+    csv_file = open(csv_name,'w',newline='')
+    csv_wr = csv.writer(csv_file)
+    csv_wr.writerow(['stage','step_beta','cur_etp','diff_etp','psnr','ssim'])
+    csv_wr.writerows(log_list)
+
 def main(path):
     csv_list = glob.glob(f'{path}/*.csv')
     
