@@ -12,9 +12,9 @@ from airlight_estimation import Airlight_Module, show_plt
 import matplotlib.pyplot as plt
 
 from dpt.models import DPTDepthModel
-from HazeDataset import *
+from dataset.HazeDataset import *
 from entropy_module import Entropy_Module
-from metrics import ssim,psnr
+from Module_Metrics.metrics import ssim,psnr
 
 e=1e-8
 
