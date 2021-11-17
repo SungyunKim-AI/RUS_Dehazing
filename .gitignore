@@ -112,17 +112,19 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
-.DS_Store
-*.pth
-.idea/*
-data_sample/
-/FFA-Net/wandb
-*.pkl
-*.pt
-/DCPDN/facades/
-/DCPDN/sample/
-/DCPDN/output/
-/Entropy_statistic/
-.rus/
+
+# Pretraied model
 *.t7
 *.weight
+*.pth
+*.pkl
+*.pt
+
+.DS_Store
+
+# Data Set
+*.png
+*.jpeg
+*.jpg
+*.bmp
+*.h5
