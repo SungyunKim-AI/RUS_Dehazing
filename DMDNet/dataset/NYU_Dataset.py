@@ -5,7 +5,8 @@ from glob import glob
 from torch.utils.data import Dataset
 
 from dpt.transforms import Resize
-from utils import *
+from dataset import utils
+from util import io
 
 class NYU_Dataset_With_Notation(Dataset):
     def __init__(self, path, img_size, printName=False, returnName=False):
@@ -15,7 +16,7 @@ class NYU_Dataset_With_Notation(Dataset):
         self.h5s_list = glob(h5s_path)
         self.printName = printName
         self.returnName = returnName
-        self.transform = make_transform(img_size)
+        self.transform = utils.make_transform(img_size)
         
         self.air_resize = Resize(
             img_size[0],
@@ -59,7 +60,7 @@ class NYU_Dataset(Dataset):
         self.airglith_list = glob(airlight_path)
         self.printName = printName
         self.returnName = returnName
-        self.transform = make_transform(img_size)
+        self.transform = utils.make_transform(img_size)
         
         self.air_resize = Resize(
             img_size[0],

@@ -1,6 +1,6 @@
 from glob import glob
 from torch.utils.data import Dataset
-from utils import *
+from dataset import utils
 
 class BeDDE_Dataset(Dataset):
     def __init__(self,path,img_size,printName=False,returnName=False):
@@ -14,7 +14,7 @@ class BeDDE_Dataset(Dataset):
         
         self.printName = printName
         self.returnName= returnName
-        self.transform = make_transform(self.img_size)
+        self.transform = utils.make_transform(self.img_size)
     
     def __len__(self):
         return len(self.images_hazy_list)
@@ -31,7 +31,7 @@ class BeDDE_Dataset(Dataset):
             image_clear_path+=(image_clear_path_slice[i]+'\\')
         image_clear_path = image_clear_path+'gt/'+image_clear_path_slice[-3]+'_clear.png'
         
-        hazy_input, clear_input, airlight_input = load_item_3(image_hazy_path,image_clear_path,image_airlight_path, self.transform)
+        hazy_input, clear_input, airlight_input = utils.load_item_3(image_hazy_path,image_clear_path,image_airlight_path, self.transform)
         if self.returnName:
             return hazy_input, clear_input, airlight_input, image_hazy_path
         else:

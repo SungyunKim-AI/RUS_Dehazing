@@ -47,7 +47,7 @@ def get_args():
     
     # test_stop_when_threshold parameters
     parser.add_argument('--one_shot', type=bool, default=True, help='flag of One shot dehazing')
-    parser.add_argument('--result_show', type=bool, default=False, help='result images display flag')
+    parser.add_argument('--result_show', type=bool, default=True, help='result images display flag')
     parser.add_argument('--save_log', type=bool, default=False, help='log save flag')
     parser.add_argument('--airlight_step_flag', type=bool, default=False, help='flag of multi step airlight estimation')
     parser.add_argument('--betaStep', type=float, default=0.001, help='beta step')
@@ -197,7 +197,8 @@ if __name__ == '__main__':
     
     model.to(opt.device)
     
-    opt.dataRoot = '/Users/sungyoon-kim/Documents/GitHub/RUS_Dehazing/DMDNet/data_sample/RESIDE-beta/train'
+    opt.dataRoot = 'C:/Users/IIPL/Desktop/data/RESIDE_beta/train'
+    # opt.dataRoot = '/Users/sungyoon-kim/Documents/GitHub/RUS_Dehazing/DMDNet/data_sample/RESIDE-beta/train'
     dataset_test = RESIDE_Dataset.RESIDE_Beta_Dataset(opt.dataRoot,[opt.imageSize_W, opt.imageSize_H], printName=True, returnName=True)
     loader_test = DataLoader(dataset=dataset_test, batch_size=opt.batchSize_val,
                              num_workers=0, drop_last=False, shuffle=True)

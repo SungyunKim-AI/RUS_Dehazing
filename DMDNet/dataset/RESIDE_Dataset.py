@@ -4,7 +4,7 @@ import cv2
 import mat73
 from torch.utils.data import Dataset
 from dpt.transforms import Resize
-from utils import *
+from dataset import utils
 
 
 class RESIDE_Beta_Dataset(Dataset):
@@ -32,7 +32,7 @@ class RESIDE_Beta_Dataset(Dataset):
         self.airlgiht_flag = False if len(self.images_airlight_list) == 0 else True
         
         self.images_count = len(self.images_hazy_lists[0])
-        self.transform = make_transform(img_size)
+        self.transform = utils.make_transform(img_size)
         
     def __len__(self):
         return len(self.images_hazy_lists) * self.images_count
@@ -48,9 +48,9 @@ class RESIDE_Beta_Dataset(Dataset):
         #return load_item(haze,clear,self.img_size)
         #return load_item_2(haze,clear,self.transform)
         if airlight == None:
-           return load_item_2(haze,clear,self.transform) 
+           return utils.load_item_2(haze,clear,self.transform) 
         else:
-            hazy_input, clear_input, airlight_input = load_item_3(haze,clear,airlight,self.transform)
+            hazy_input, clear_input, airlight_input = utils.load_item_3(haze,clear,airlight,self.transform)
             if self.returnName:
                 return hazy_input, clear_input, airlight_input, haze
             else:
@@ -81,7 +81,7 @@ class RESIDE_Beta_Dataset_With_Notation(Dataset):
         
 
         self.images_count = len(self.images_hazy_lists[0])
-        self.transform = make_transform(img_size)
+        self.transform = utils.make_transform(img_size)
         
         self.depth_resize = Resize(
                 img_size[0],
@@ -116,7 +116,7 @@ class RESIDE_Beta_Dataset_With_Notation(Dataset):
         if self.printName:
             print(haze)
         
-        haze_input, clear_input, airlight_post = load_item_3(haze,clear, airlight_post,self.transform)
+        haze_input, clear_input, airlight_post = utils.load_item_3(haze,clear, airlight_post,self.transform)
         if self.returnName:
             return haze_input, clear_input, airlight_post, depth_input, airlight_input, beta_input, haze
         else:

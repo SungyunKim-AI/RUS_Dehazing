@@ -1,6 +1,6 @@
 from glob import glob
 from torch.utils.data import Dataset
-from utils import *
+from dataset import utils
 
 class O_Haze_Dataset(Dataset):
     def __init__(self,path,img_size,printName=False,returnName=False):
@@ -14,7 +14,7 @@ class O_Haze_Dataset(Dataset):
         self.images_airlight_list =glob(images_airlight_path)
         self.printName = printName
         self.returnName = returnName
-        self.transform = make_transform(self.img_size)
+        self.transform = utils.make_transform(self.img_size)
     
     def __len__(self):
         return len(self.images_clear_list)
@@ -23,7 +23,7 @@ class O_Haze_Dataset(Dataset):
         if self.printName:
             print(self.images_hazy_list[index])
             
-        hazy_input, clear_input, airlight_input = load_item_3(self.images_hazy_list[index], self.images_clear_list[index], self.images_airlight_list[index], self.transform)
+        hazy_input, clear_input, airlight_input = utils.load_item_3(self.images_hazy_list[index], self.images_clear_list[index], self.images_airlight_list[index], self.transform)
         if self.returnName:
             return hazy_input, clear_input, airlight_input, self.images_hazy_list[index]
         else:
@@ -41,7 +41,7 @@ class NH_Haze_Dataset(Dataset):
         self.images_airlight_list =glob(images_airlight_path)
         self.printName = printName
         self.returnName = returnName
-        self.transform = make_transform(self.img_size)
+        self.transform = utils.make_transform(self.img_size)
     
     def __len__(self):
         return len(self.images_clear_list)
@@ -49,7 +49,7 @@ class NH_Haze_Dataset(Dataset):
     def __getitem__(self,index):
         if self.printName:
             print(self.images_hazy_list[index])
-        hazy_input, clear_input, airlight_input = load_item_3(self.images_hazy_list[index], self.images_clear_list[index], self.images_airlight_list[index], self.transform)
+        hazy_input, clear_input, airlight_input = utils.load_item_3(self.images_hazy_list[index], self.images_clear_list[index], self.images_airlight_list[index], self.transform)
         if self.returnName:
             return hazy_input, clear_input, airlight_input, self.images_hazy_list[index]
         else:
@@ -67,7 +67,7 @@ class Dense_Haze_Dataset(Dataset):
         self.images_airlight_list =glob(images_airlight_path)
         self.printName = printName
         self.returnName = returnName
-        self.transform = make_transform(self.img_size)
+        self.transform = utils.make_transform(self.img_size)
     
     def __len__(self):
         return len(self.images_clear_list)
@@ -75,7 +75,7 @@ class Dense_Haze_Dataset(Dataset):
     def __getitem__(self,index):
         if self.printName:
             print(self.images_hazy_list[index])
-        hazy_input, clear_input, airlight_input = load_item_3(self.images_hazy_list[index], self.images_clear_list[index], self.images_airlight_list[index], self.transform)
+        hazy_input, clear_input, airlight_input = utils.load_item_3(self.images_hazy_list[index], self.images_clear_list[index], self.images_airlight_list[index], self.transform)
         if self.returnName:
             return hazy_input, clear_input, airlight_input, self.images_hazy_list[index]
         else:
