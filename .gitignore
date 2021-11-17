@@ -120,6 +120,7 @@ dmypy.json
 *.pkl
 *.pt
 
+# Mac File Structure
 .DS_Store
 
 # Data Set
