@@ -7,8 +7,11 @@ class Entropy_Module():
         self.cur_value = self.get_cur(init_img)
         self.last_value = self.cur_value
         
-    def get_cur(self, img, channel_first=False):
-        gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    def get_cur(self, img, color='BGR', channel_first=False):
+        if color=='BGR':
+            gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        else:
+            gray_img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
         val, cnt = np.unique(gray_img, return_counts=True)
         
         if channel_first:

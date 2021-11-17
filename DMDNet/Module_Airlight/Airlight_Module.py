@@ -5,22 +5,7 @@ Yan-Tsung Peng et al.
 """
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
-import time
-
-def show_plt(x, y):
-    plt.bar(x, y, align='center')
-    plt.xlabel('deg.')
-    plt.xlim([x[0], x[-1]])
-    plt.ylabel('prob.')
-    for i in range(len(y)):
-        plt.vlines(x[i], 0, y[i])
-    
-    plt.show()
-    
-def show_img(imgName, img):
-    cv2.imshow(imgName, img.astype('uint8'))
-    cv2.waitKey(0)
+# from utils import *
     
 class Airlight_Module():
     def __init__(self, color_cast_threshold=5):
@@ -152,24 +137,5 @@ class Airlight_Module():
         else:
             raise ValueError('mReturn must be RGB, BGR or gray')
           
-  
-if __name__ == "__main__":
-    if not cv2.useOptimized():
-        cv2.setUseOptimized(True)
-    
-    start = time.time()
-    image = cv2.imread("test.jpg")
-    # image = cv2.resize(image, dsize=(0,0), fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
-    airlight_module = Airlight_Module()
-    image = airlight_module.AWC(image)
-    airlight, single_val = airlight_module.LLF(image, mReturn='gray')    # mReturn = 'RGB' or 'gray
-    print("Single Value : ", single_val)
-    print("Operation Time(s) : ", round(time.time() - start, 3))
-    
-    if airlight.shape[0] == 3:
-        airlight = cv2.cvtColor(airlight, cv2.COLOR_RGB2BGR) 
-    
-    cv2.imshow(f"Airlight", airlight)
-    cv2.waitKey(0)
     
     
