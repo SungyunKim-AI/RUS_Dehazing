@@ -131,3 +131,4 @@ dmypy.json
 *.bmp
 *.h5
 .mat
+output_log/

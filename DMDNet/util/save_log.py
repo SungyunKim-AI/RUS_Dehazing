@@ -1,10 +1,12 @@
+import os
 import glob
 import csv
 import numpy as np
 
 def write_csv(input_name, log_list):
-    csv_name = input_name[0][:-3]+'csv'
-    csv_file = open(csv_name,'w',newline='')
+    csv_name = os.path.basename(input_name[0])[:-3] + 'csv'
+    save_path = os.path.join('C:/Users/IIPL/Desktop/RUS_Dehazing/DMDNet/output_log/NIQUE', csv_name)
+    csv_file = open(save_path,'w',newline='')
     csv_wr = csv.writer(csv_file)
     csv_wr.writerow(['stage','step_beta','cur_val','diff_val','psnr','ssim'])
     csv_wr.writerows(log_list)

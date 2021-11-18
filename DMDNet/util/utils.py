@@ -1,4 +1,5 @@
 import torch
+import os
 
 def denormalize(x, mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
     # 3, H, W, B
@@ -12,3 +13,9 @@ def depth_norm(depth):
     a = 0.0012
     b = 3.7
     return a * depth + b
+
+
+def get_GT_beta(input_name):
+    fileName = os.path.basename(input_name[0])[:-4]
+    beta = float(fileName.split('_')[-1])
+    return beta

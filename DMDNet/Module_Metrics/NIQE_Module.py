@@ -17,10 +17,10 @@ class NIQE_Module():
         else:
             gray_img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
         
-        return niqe(gray_img)
+        return niqe(gray_img)[0]
     
     def get_diff(self, cur_img, color='BGR'):
         self.cur_value = self.get_cur(cur_img, color)
         diff_etp = self.last_value - self.cur_value
         self.last_value = self.cur_value
-        return abs(diff_etp)
+        return diff_etp

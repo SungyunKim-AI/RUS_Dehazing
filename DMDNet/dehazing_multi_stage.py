@@ -25,7 +25,7 @@ from util import misc, save_log, utils
 def get_args():
     parser = argparse.ArgumentParser()
     # dataset parameters
-    parser.add_argument('--dataset', required=False, default='pix2pix',  help='')
+    parser.add_argument('--dataset', required=False, default='RESIDE-beta',  help='dataset name')
     parser.add_argument('--dataRoot', type=str, default='D:/data/Dense_Haze/train',  help='data file path')
     
     # learning parameters
@@ -51,12 +51,13 @@ def get_args():
     parser.add_argument('--save_log', type=bool, default=True, help='log save flag')
     parser.add_argument('--airlight_step_flag', type=bool, default=False, help='flag of multi step airlight estimation')
     parser.add_argument('--betaStep', type=float, default=0.001, help='beta step')
-    parser.add_argument('--stepLimit', type=int, default=100, help='Multi step limit')
+    parser.add_argument('--stepLimit', type=int, default=200, help='Multi step limit')
     parser.add_argument('--metrics_module', type=str, default='Entropy_Module',  help='No Reference metrics method name')
-    parser.add_argument('--metricsThreshold', type=float, default=-0.001, help='Metrics different threshold')
+    parser.add_argument('--metricsThreshold', type=float, default=-100, help='Metrics different threshold')
     parser.add_argument('--eps', type=float, default=1e-8, help='Epsilon value for non zero calculating')
     
     return parser.parse_args()
+    
 
 
 def test_stop_when_threshold(opt, model, test_loader, metrics_module):
@@ -144,7 +145,9 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
             if (diff_metrics < opt.metricsThreshold or step == opt.stepLimit):
                 psnr_sum += _psnr
                 ssim_sum += _ssim
+                gt_beta = utils.get_GT_beta(input_name)
                 print(f'last_step    = {step}')
+                print(f'last_beta    = {beta}({gt_beta})')
                 print(f'last_psnr    = {_psnr}')
                 print(f'last_ssim    = {_ssim}')
                 print(f'last_metrics = {metrics_module.last_value}')
