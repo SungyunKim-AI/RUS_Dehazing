@@ -199,7 +199,7 @@ if __name__ == '__main__':
     model.to(opt.device)
     
     # opt.dataRoot = 'C:/Users/IIPL/Desktop/data/RESIDE_beta/train'
-    opt.dataRoot = '/Users/sungyoon-kim/Documents/GitHub/RUS_Dehazing/DMDNet/data_sample/RESIDE-beta/train'
+    opt.dataRoot = 'data_sample/RESIDE-beta/train'
     dataset_test = RESIDE_Dataset.RESIDE_Beta_Dataset(opt.dataRoot,[opt.imageSize_W, opt.imageSize_H], printName=True, returnName=True)
     loader_test = DataLoader(dataset=dataset_test, batch_size=opt.batchSize_val,
                              num_workers=0, drop_last=False, shuffle=True)
