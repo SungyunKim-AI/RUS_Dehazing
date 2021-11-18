@@ -67,13 +67,14 @@ def test_stop_when_threshold(opt, model, test_loader):
     
     for batch in tqdm(test_loader):
         # Data Init
-        if len(batch) == 2:
-            hazy_images, clear_images = batch
+        if len(batch) == 3:
+            hazy_images, clear_images, input_name = batch
             airlight_images = None
         else:
             hazy_images, clear_images, airlight_images, input_name = batch
         csv_log = []
         
+        print(hazy_images.shape)        # torch.Size([1, 3, 256, 256])
         
         # Depth Estimation
         with torch.no_grad():
@@ -197,8 +198,8 @@ if __name__ == '__main__':
     
     model.to(opt.device)
     
-    opt.dataRoot = 'C:/Users/IIPL/Desktop/data/RESIDE_beta/train'
-    # opt.dataRoot = '/Users/sungyoon-kim/Documents/GitHub/RUS_Dehazing/DMDNet/data_sample/RESIDE-beta/train'
+    # opt.dataRoot = 'C:/Users/IIPL/Desktop/data/RESIDE_beta/train'
+    opt.dataRoot = '/Users/sungyoon-kim/Documents/GitHub/RUS_Dehazing/DMDNet/data_sample/RESIDE-beta/train'
     dataset_test = RESIDE_Dataset.RESIDE_Beta_Dataset(opt.dataRoot,[opt.imageSize_W, opt.imageSize_H], printName=True, returnName=True)
     loader_test = DataLoader(dataset=dataset_test, batch_size=opt.batchSize_val,
                              num_workers=0, drop_last=False, shuffle=True)
