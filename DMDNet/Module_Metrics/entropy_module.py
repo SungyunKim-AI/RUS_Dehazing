@@ -2,9 +2,13 @@ import cv2
 import numpy as np
 
 class Entropy_Module():
-    def __init__(self, init_img):
+    def __init__(self):
         self.eps = np.finfo(float).eps
-        self.cur_value = self.get_cur(init_img)
+        self.cur_value = None
+        self.last_value = None
+        
+    def reset(self, init_img, color='BGR'):
+        self.cur_value = self.get_cur(init_img, color)
         self.last_value = self.cur_value
         
     def get_cur(self, img, color='BGR', channel_first=False):
@@ -25,8 +29,8 @@ class Entropy_Module():
         
         return H_s
     
-    def get_diff(self, cur_img):
-        self.cur_value = self.get_cur(cur_img)
+    def get_diff(self, cur_img,  color='BGR'):
+        self.cur_value = self.get_cur(cur_img, color)
         diff_etp = self.last_value - self.cur_value
         self.last_value = self.cur_value
         return diff_etp

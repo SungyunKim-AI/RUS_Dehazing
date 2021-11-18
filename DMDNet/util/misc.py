@@ -94,39 +94,38 @@ def multi_show(image_list):
     First_airlight   Final_airlight     airlight_GT
     one_shot_prediction
     """
-    
     init_hazy, prediction, clear, init_depth, depth, clear_depth, init_airlight, airlight, clear_airlight, one_shot_prediction = image_list
     
-    init_hazy = cv2.cvtColor(init_hazy,cv2.COLOR_RGB2BGR)
-    prediction = cv2.cvtColor(prediction.astype(np.float32),cv2.COLOR_BGR2RGB)
-    clear = cv2.cvtColor(clear,cv2.COLOR_RGB2BGR)
-    init_airlight = cv2.cvtColor(init_airlight,cv2.COLOR_RGB2BGR)
-    airlight = cv2.cvtColor(airlight,cv2.COLOR_RGB2BGR)
+    init_hazy = cv2.cvtColor(init_hazy, cv2.COLOR_RGB2BGR)
+    prediction = cv2.cvtColor(prediction, cv2.COLOR_RGB2BGR)
+    clear = cv2.cvtColor(clear, cv2.COLOR_RGB2BGR)
+    init_airlight = cv2.cvtColor(init_airlight, cv2.COLOR_RGB2BGR)
+    airlight = cv2.cvtColor(airlight, cv2.COLOR_RGB2BGR)
     clear_airlight = cv2.cvtColor(clear_airlight, cv2.COLOR_RGB2BGR)
-    one_shot_prediction = cv2.cvtColor(one_shot_prediction.astype(np.float32),cv2.COLOR_BGR2RGB)
+    one_shot_prediction = cv2.cvtColor(one_shot_prediction, cv2.COLOR_RGB2BGR)
     
     init_depth = cv2.cvtColor(init_depth/10, cv2.COLOR_GRAY2BGR)
     depth = cv2.cvtColor(depth/10, cv2.COLOR_GRAY2BGR)
     clear_depth = cv2.cvtColor(clear_depth/10, cv2.COLOR_GRAY2BGR)
 
-    v1 = np.vstack((init_hazy,     prediction, clear))
-    v2 = np.vstack((init_depth,    depth,      clear_depth))
-    v3 = np.vstack((init_airlight, airlight,   clear_airlight))
-    final = np.hstack((v1, v2, v3))
+    v1 = np.hstack((init_hazy,     prediction, clear))
+    v2 = np.hstack((init_depth,    depth,      clear_depth))
+    v3 = np.hstack((init_airlight, airlight,   clear_airlight))
+    final = np.vstack((v1, v2, v3))
     
     cv2.imshow('Image List', final)
     
-    if one_shot_prediction != None:
+    if one_shot_prediction is not None:
         cv2.imshow('One Shot prediction', one_shot_prediction)
     
     # cv2.imshow('Final depth', depth)
     # cv2.imshow('Final prediction', prediction)
-    # cv2.imshow("First hazy", init_hazy_img)
-    # cv2.imshow("GT", GT_img)
-    # cv2.imshow("First airlight", init_airlight_img)
-    # cv2.imshow("Final airlight", airlight_img)
+    # cv2.imshow("First hazy", init_hazy)
+    # cv2.imshow("GT", clear)
+    # cv2.imshow("First airlight", init_airlight)
+    # cv2.imshow("Final airlight", airlight)
     # cv2.imshow("First depth", init_depth)
-    # cv2.imshow("First clear depth", depth_GT)
+    # cv2.imshow("First clear depth", clear_depth)
     
     cv2.waitKey(0)
     cv2.destroyAllWindows()

@@ -61,21 +61,17 @@ class Airlight_Module():
         return rgb
             
     # Local Light Filter (LLF)
-    def LLF(self, image, mReturn='RGB', color='BGR'):
-        # 1. PMF of minimum channel calculation
-        if color == 'RGB':
-            R, G, B = cv2.split(image)
-            min_channel = np.amin([R, G, B],0)
-        elif color == 'BGR':
-            B, G, R = cv2.split(image)
-            min_channel = np.amin([B, G, R],0)
-        else:
-            raise ValueError("color must be BGR or RGB")
+    def LLF(self, image, mReturn='RGB'):
+        # 1. PMF of minimum channel calculation  
+        image = image.astype(np.uint8)      
+        c1, c2, c3 = cv2.split(image)
+        min_channel = np.amin([c1, c2, c3],0)
             
         # cv2.imshow('Minimum channel', min_channel.astype('uint8'))
         # cv2.waitKey(0)
         
         val, cnt = np.unique(min_channel, return_counts=True)
+        # val = val.astype(int)
         img_size = image.shape[0] * image.shape[1]
         prob = cnt / img_size    # PMF
         
@@ -104,7 +100,7 @@ class Airlight_Module():
                     break
         
         avg = {'r': [], 'g': [], 'b': []}
-        RGB = {'r': R, 'g': G, 'b': B}
+        RGB = {'r': c1, 'g': c2, 'b': c3}
         for i in idx:
             row, col = np.where(min_channel == i)
             for j, _ in enumerate(row):

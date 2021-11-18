@@ -45,7 +45,7 @@ class RESIDE_Beta_Dataset(Dataset):
         if self.printName:
             print(self.images_hazy_lists[index//self.images_count][index%self.images_count])
         
-        if airlight == None:
+        if airlight is None:
             hazy_input, clear_input = utils.load_item_2(haze, clear, self.transform)
             if self.returnName:
                 return hazy_input, clear_input, haze

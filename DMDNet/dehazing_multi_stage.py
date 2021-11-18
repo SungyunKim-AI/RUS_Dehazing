@@ -46,20 +46,20 @@ def get_args():
     parser.add_argument('--backbone', type=str, default="vitb_rn50_384", help='DPT backbone')
     
     # test_stop_when_threshold parameters
-    parser.add_argument('--one_shot', type=bool, default=True, help='flag of One shot dehazing')
-    parser.add_argument('--result_show', type=bool, default=True, help='result images display flag')
-    parser.add_argument('--save_log', type=bool, default=False, help='log save flag')
+    parser.add_argument('--one_shot', type=bool, default=False, help='flag of One shot dehazing')
+    parser.add_argument('--result_show', type=bool, default=False, help='result images display flag')
+    parser.add_argument('--save_log', type=bool, default=True, help='log save flag')
     parser.add_argument('--airlight_step_flag', type=bool, default=False, help='flag of multi step airlight estimation')
     parser.add_argument('--betaStep', type=float, default=0.001, help='beta step')
-    parser.add_argument('--stepLimit', type=int, default=1000, help='Multi step limit')
+    parser.add_argument('--stepLimit', type=int, default=100, help='Multi step limit')
     parser.add_argument('--metrics_module', type=str, default='Entropy_Module',  help='No Reference metrics method name')
-    parser.add_argument('--metricsThreshold', type=float, default=0.001, help='Metrics different threshold')
+    parser.add_argument('--metricsThreshold', type=float, default=-0.001, help='Metrics different threshold')
     parser.add_argument('--eps', type=float, default=1e-8, help='Epsilon value for non zero calculating')
     
     return parser.parse_args()
 
 
-def test_stop_when_threshold(opt, model, test_loader):
+def test_stop_when_threshold(opt, model, test_loader, metrics_module):
     airlight_module = Airlight_Module()
     
     model.eval()
@@ -74,8 +74,6 @@ def test_stop_when_threshold(opt, model, test_loader):
             hazy_images, clear_images, airlight_images, input_name = batch
         csv_log = []
         
-        print(hazy_images.shape)        # torch.Size([1, 3, 256, 256])
-        
         # Depth Estimation
         with torch.no_grad():
             hazy_images = hazy_images.to(opt.device)
@@ -83,16 +81,17 @@ def test_stop_when_threshold(opt, model, test_loader):
             _, init_depth = model.forward(hazy_images)
             _, init_clear_depth = model.forward(clear_images)
         
-        init_hazy = utils.denormalize(hazy_images)[0].detach().cpu().numpy().transpose(1,2,0)     # H x W x 3
-        init_clear = utils.denormalize(clear_images)[0].detach().cpu().numpy().transpose(1,2,0)   # H x W x 3
-        
+        init_hazy = utils.denormalize(hazy_images)[0].detach().cpu().numpy().transpose(1,2,0)        # H x W x 3
+        # init_hazy = np.rint(init_hazy*255).astype(np.uint8)
+        init_clear = utils.denormalize(clear_images)[0].detach().cpu().numpy().transpose(1,2,0)      # H x W x 3
+        # init_clear = np.rint(init_clear*255).astype(np.uint8)
         
         # Airlight Estimation
-        if airlight_images == None:
-            init_airlight, _ = airlight_module.LLF(init_hazy)                          # H x W x 3
+        if airlight_images is None:
+            init_airlight, _ = airlight_module.LLF(np.rint(init_hazy*255).astype(np.uint8))                          # H x W x 3
         else:
             init_airlight = utils.denormalize(airlight_images)[0].numpy().transpose(1,2,0)    # H x W x 3
-        clear_airlight = airlight_module.LLF(init_clear)
+        clear_airlight, _ = airlight_module.LLF(np.rint(init_clear*255).astype(np.uint8))
         
         init_depth = init_depth.detach().cpu().numpy().transpose(1,2,0)
         init_depth = utils.depth_norm(init_depth)
@@ -102,12 +101,11 @@ def test_stop_when_threshold(opt, model, test_loader):
         
         
         # Multi-Step Depth Estimation and Dehazing
-        metrics_module = locals()[opt.metrics_module]((init_hazy*255).astype(np.uint8))
+        metrics_module.reset(init_hazy, color='RGB')
         depth = init_depth.copy()
         prediction, airlight = None, None
-        max_flag = True
-        for i in range(1, opt.stepLimit + 1):
-            step = i-1
+        beta = opt.betaStep
+        for step in range(1, opt.stepLimit + 1):
             last_depth = depth.copy()
             
             with torch.no_grad():
@@ -115,18 +113,19 @@ def test_stop_when_threshold(opt, model, test_loader):
                 _, depth = model.forward(hazy_images)
                             
             hazy = utils.denormalize(hazy_images)[0].detach().cpu().numpy().transpose(1,2,0)
+            # hazy = np.rint(hazy*255).astype(np.uint8)
             
             if opt.airlight_step_flag == False:
                 airlight = init_airlight
             else:
-                airlight, _ = airlight_module.LLF(init_hazy)
+                airlight, _ = airlight_module.LLF(np.rint(hazy*255).astype(np.uint8))
             
             depth = depth.detach().cpu().numpy().transpose(1,2,0)
             depth = utils.depth_norm(depth)
             depth = np.minimum(depth, last_depth)
             
             # Transmission Map
-            trans = np.exp(depth * opt.betaStep * -1)
+            trans = np.exp(depth * beta * -1)
             
             # Dehazing
             prediction = (hazy - airlight) / (trans + opt.eps) + airlight
@@ -134,45 +133,48 @@ def test_stop_when_threshold(opt, model, test_loader):
             hazy_images = torch.Tensor(((prediction-0.5)/0.5).transpose(2,0,1)).unsqueeze(0)
             
             # Calculate Metrics
-            diff_metrics = metrics_module.get_diff((prediction*255).astype(np.uint8))
+            diff_metrics = metrics_module.get_diff((np.rint(prediction*255)).astype(np.uint8))
             _psnr = psnr(init_clear,prediction)
             _ssim = ssim(init_clear,prediction).item()
             
+            if opt.save_log:
+                csv_log.append([step, opt.betaStep, metrics_module.cur_value, diff_metrics, _psnr, _ssim])
+            
             # Stop Condition
-            if (diff_metrics < opt.metricsThreshold or i == opt.stepLimit) and max_flag:
+            if (diff_metrics < opt.metricsThreshold or step == opt.stepLimit):
                 psnr_sum += _psnr
                 ssim_sum += _ssim
-                print(f'last_stage   = {step}')
+                print(f'last_step    = {step}')
                 print(f'last_psnr    = {_psnr}')
                 print(f'last_ssim    = {_ssim}')
                 print(f'last_metrics = {metrics_module.last_value}')
-                max_flag = False
+                break
             
-            if opt.save_log:
-                csv_log.append([i,opt.betaStep, metrics_module.cur_value, diff_metrics, _psnr, _ssim])
+            beta += opt.betaStep
                 
         if opt.save_log:
             save_log.write_csv(input_name, csv_log)
         
         # One-Shot Dehazing
         if opt.one_shot == True:
-            trans = np.exp(init_depth * (opt.betaStep*step) * -1)
+            trans = np.exp(init_depth * beta * -1)
             one_shot_prediction = (init_hazy-init_airlight)/(trans+opt.eps) + init_airlight
             one_shot_prediction = np.clip(one_shot_prediction,0,1)
-            oneshot_psnr = psnr(init_clear,one_shot_prediction)
-            oneshot_ssim = ssim(init_clear,one_shot_prediction).item()
-            print(f'one-shot: beta = {opt.betaStep*step}, psnr = {oneshot_psnr}, ssim={oneshot_ssim}')
             
-            clear_etp = metrics_module.get_cur((init_clear*255).astype(np.uint8))
-            print(f'clear_metrics  = {clear_etp}')
+            oneshot_psnr = psnr(init_clear, one_shot_prediction)
+            oneshot_ssim = ssim(init_clear, one_shot_prediction).item()
+            print(f'one-shot: beta = {beta}, psnr = {oneshot_psnr}, ssim={oneshot_ssim}')
+            
+            clear_metrics = metrics_module.get_cur((init_clear*255).astype(np.uint8))
+            print(f'clear_metrics  = {clear_metrics}')
         else:
             one_shot_prediction = None
         
         if opt.result_show:
             misc.multi_show([init_hazy,     prediction, init_clear, 
-                        init_depth,    depth,      init_clear_depth, 
-                        init_airlight, airlight,   clear_airlight, 
-                        one_shot_prediction])
+                             init_depth,    depth,      init_clear_depth, 
+                             init_airlight, airlight,   clear_airlight, 
+                             one_shot_prediction])
     
     batch_num = len(test_loader)
     print(f'mean_psnr = {psnr_sum/batch_num}, mean_ssim = {ssim_sum/batch_num}')
@@ -198,11 +200,12 @@ if __name__ == '__main__':
     
     model.to(opt.device)
     
-    # opt.dataRoot = 'C:/Users/IIPL/Desktop/data/RESIDE_beta/train'
-    opt.dataRoot = 'data_sample/RESIDE-beta/train'
+    opt.dataRoot = 'C:/Users/IIPL/Desktop/data/RESIDE_beta/train'
+    # opt.dataRoot = 'data_sample/RESIDE-beta/train'
     dataset_test = RESIDE_Dataset.RESIDE_Beta_Dataset(opt.dataRoot,[opt.imageSize_W, opt.imageSize_H], printName=True, returnName=True)
     loader_test = DataLoader(dataset=dataset_test, batch_size=opt.batchSize_val,
                              num_workers=0, drop_last=False, shuffle=True)
     
     opt.metrics_module = 'NIQE_Module'
-    test_stop_when_threshold(opt, model, loader_test)
+    metrics_module = locals()[opt.metrics_module]()
+    test_stop_when_threshold(opt, model, loader_test, metrics_module)
