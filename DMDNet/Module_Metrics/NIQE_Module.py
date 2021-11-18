@@ -1,4 +1,5 @@
 import cv2
+import numpy as np
 from skvideo.measure import niqe
 
 class NIQE_Module():
@@ -6,12 +7,17 @@ class NIQE_Module():
         self.cur_value = None
         self.last_value = None
     
-    def reset(self, init_img, color='BGR'):
+    def reset(self, init_img, color='RGB'):
         self.cur_value = self.get_cur(init_img, color)
         self.last_value = self.cur_value
         
     
-    def get_cur(self, img, color='BGR'):
+    def get_cur(self, img, color='RGB'):
+        if np.max(img) <= 1.0:
+            img = np.rint(img*255).astype(np.uint8)
+        else:
+            img = img.astype(np.uint8)
+            
         if color=='BGR':
             gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         else:
@@ -19,7 +25,12 @@ class NIQE_Module():
         
         return niqe(gray_img)[0]
     
-    def get_diff(self, cur_img, color='BGR'):
+    def get_diff(self, cur_img, color='RGB'):
+        if np.max(cur_img) <= 1.0:
+            cur_img = np.rint(cur_img*255).astype(np.uint8)
+        else:
+            cur_img = cur_img.astype(np.uint8)
+        
         self.cur_value = self.get_cur(cur_img, color)
         diff_etp = self.last_value - self.cur_value
         self.last_value = self.cur_value

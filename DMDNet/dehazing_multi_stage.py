@@ -53,8 +53,8 @@ def get_args():
     parser.add_argument('--betaStep', type=float, default=0.001, help='beta step')
     parser.add_argument('--stepLimit', type=int, default=200, help='Multi step limit')
     parser.add_argument('--metrics_module', type=str, default='Entropy_Module',  help='No Reference metrics method name')
-    parser.add_argument('--metricsThreshold', type=float, default=-100, help='Metrics different threshold')
-    parser.add_argument('--eps', type=float, default=1e-8, help='Epsilon value for non zero calculating')
+    parser.add_argument('--metricsThreshold', type=float, default=-1.11, help='Metrics threshold: Entropy(0.001), NIQUE(-1.11)')
+    parser.add_argument('--eps', type=float, default=1e-12, help='Epsilon value for non zero calculating')
     
     return parser.parse_args()
     
@@ -82,17 +82,18 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
             _, init_depth = model.forward(hazy_images)
             _, init_clear_depth = model.forward(clear_images)
         
-        init_hazy = utils.denormalize(hazy_images)[0].detach().cpu().numpy().transpose(1,2,0)        # H x W x 3
-        # init_hazy = np.rint(init_hazy*255).astype(np.uint8)
-        init_clear = utils.denormalize(clear_images)[0].detach().cpu().numpy().transpose(1,2,0)      # H x W x 3
-        # init_clear = np.rint(init_clear*255).astype(np.uint8)
+        # B x 3 x H x W -> B x H x W x 3 :transpose(0, 2, 3, 1)
+        # 3 x H x W -> H x W x 3 :transpose(1,2,0)
+        init_hazy = utils.denormalize(hazy_images)[0].detach().cpu().numpy().transpose(1,2,0)      
+        init_clear = utils.denormalize(clear_images)[0].detach().cpu().numpy().transpose(1,2,0)
+        
         
         # Airlight Estimation
         if airlight_images is None:
-            init_airlight, _ = airlight_module.LLF(np.rint(init_hazy*255).astype(np.uint8))                          # H x W x 3
+            init_airlight, _ = airlight_module.LLF(init_hazy)
         else:
-            init_airlight = utils.denormalize(airlight_images)[0].numpy().transpose(1,2,0)    # H x W x 3
-        clear_airlight, _ = airlight_module.LLF(np.rint(init_clear*255).astype(np.uint8))
+            init_airlight = utils.denormalize(airlight_images)[0].numpy().transpose(1,2,0)
+        clear_airlight, _ = airlight_module.LLF(init_clear)
         
         init_depth = init_depth.detach().cpu().numpy().transpose(1,2,0)
         init_depth = utils.depth_norm(init_depth)
@@ -102,7 +103,7 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
         
         
         # Multi-Step Depth Estimation and Dehazing
-        metrics_module.reset(init_hazy, color='RGB')
+        metrics_module.reset(init_hazy)
         depth = init_depth.copy()
         prediction, airlight = None, None
         beta = opt.betaStep
@@ -114,12 +115,11 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
                 _, depth = model.forward(hazy_images)
                             
             hazy = utils.denormalize(hazy_images)[0].detach().cpu().numpy().transpose(1,2,0)
-            # hazy = np.rint(hazy*255).astype(np.uint8)
             
             if opt.airlight_step_flag == False:
                 airlight = init_airlight
             else:
-                airlight, _ = airlight_module.LLF(np.rint(hazy*255).astype(np.uint8))
+                airlight, _ = airlight_module.LLF(hazy)
             
             depth = depth.detach().cpu().numpy().transpose(1,2,0)
             depth = utils.depth_norm(depth)
@@ -134,7 +134,7 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
             hazy_images = torch.Tensor(((prediction-0.5)/0.5).transpose(2,0,1)).unsqueeze(0)
             
             # Calculate Metrics
-            diff_metrics = metrics_module.get_diff((np.rint(prediction*255)).astype(np.uint8))
+            diff_metrics = metrics_module.get_diff(prediction)
             _psnr = psnr(init_clear,prediction)
             _ssim = ssim(init_clear,prediction).item()
             
@@ -168,7 +168,7 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
             oneshot_ssim = ssim(init_clear, one_shot_prediction).item()
             print(f'one-shot: beta = {beta}, psnr = {oneshot_psnr}, ssim={oneshot_ssim}')
             
-            clear_metrics = metrics_module.get_cur((init_clear*255).astype(np.uint8))
+            clear_metrics = metrics_module.get_cur(init_clear)
             print(f'clear_metrics  = {clear_metrics}')
         else:
             one_shot_prediction = None
@@ -203,8 +203,8 @@ if __name__ == '__main__':
     
     model.to(opt.device)
     
-    opt.dataRoot = 'C:/Users/IIPL/Desktop/data/RESIDE_beta/train'
-    # opt.dataRoot = 'data_sample/RESIDE-beta/train'
+    # opt.dataRoot = 'C:/Users/IIPL/Desktop/data/RESIDE_beta/train'
+    opt.dataRoot = 'data_sample/RESIDE-beta/train'
     dataset_test = RESIDE_Dataset.RESIDE_Beta_Dataset(opt.dataRoot,[opt.imageSize_W, opt.imageSize_H], printName=True, returnName=True)
     loader_test = DataLoader(dataset=dataset_test, batch_size=opt.batchSize_val,
                              num_workers=0, drop_last=False, shuffle=True)

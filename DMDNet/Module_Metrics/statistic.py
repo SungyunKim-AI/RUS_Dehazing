@@ -28,22 +28,19 @@ def all_df_plot(all_df_dict):
     plt.title("Mean of All Data")
     cur_val, diff_val, psnr, ssim = [], [], [], []
     
-    meanDF = pd.DataFrame()
-    for row in range(1, 300):
-        tempDF = pd.DataFrame()
+    meanDF = pd.DataFrame(columns=['cur_val', 'diff_val', 'psnr', 'ssim'])
+    for idx in range(1, 199):
+        tempDF = pd.DataFrame(columns=['cur_val', 'diff_val', 'psnr', 'ssim'])
         for dfName, df in all_df_dict.items():
-            temp = pd.DataFrame({'cur_val':[df.loc[[row]]['cur_val']],
-                                'diff_val':[df.loc[[row]]['diff_val']], 
-                                'psnr':[df.loc[[row]]['psnr']], 
-                                'ssim':[df.loc[[row]]['ssim']]})
-            tempDF = pd.concat((tempDF, temp), ignore_index=True)
+            row = df.iloc[idx]['cur_val':'ssim']
+            tempDF = tempDF.append({'cur_val':row[0], 'diff_val':row[1], 
+                                    'psnr':row[2], 'ssim':row[3]}, ignore_index=True)
 
-        meanTemp = pd.DataFrame({'cur_val':[tempDF['cur_val'].mean()],
-                                'diff_val':[tempDF['diff_val'].mean()], 
-                                'psnr':[tempDF['psnr'].mean()], 
-                                'ssim':[ tempDF['ssim'].mean()]})
-        
-        meanDF = pd.concat((meanDF, meanTemp), ignore_index=True)
+        meanRow = tempDF.mean()
+        meanDF = meanDF.append({'cur_val':meanRow[0],
+                                'diff_val':meanRow[1], 
+                                'psnr':meanRow[2], 
+                                'ssim':meanRow[3]}, ignore_index=True)
     
     data_plot('Mean of All data', meanDF, ['cur_val', 'diff_val', 'psnr', 'ssim'])
     
@@ -141,8 +138,8 @@ def getMax_val(all_df_dict, label, val):
     
 
 if __name__ == '__main__':
-    dataRoot = 'C:/Users/IIPL/Desktop/RUS_Dehazing/DMDNet/output_log'
-    # dataRoot = '/Users/sungyoon-kim/Downloads/Entropy_statistic'
+    # dataRoot = 'C:/Users/IIPL/Desktop/RUS_Dehazing/DMDNet/output_log'
+    dataRoot = '/Users/sungyoon-kim/Documents/GitHub/RUS_Dehazing/DMDNet/output_log'
     header = ['stage', 'step_beta', 'cur_val', 'diff_val', 'psnr', 'ssim']
     all_df_dict = read_csv_all(dataRoot, 'NIQUE', header)
     
@@ -151,12 +148,14 @@ if __name__ == '__main__':
     # getCorrelation(all_df_dict)
     # getMaxPSNR_SSIM(all_df_dict)
     
-    getMean_Max_PSNR_SSIM(all_df_dict)
+    # getMean_Max_PSNR_SSIM(all_df_dict)
     # getDiff_0(all_df_dict)
-    # getMax_val(all_df_dict, 'diff_val', 0.005)
-    # getMax_val(all_df_dict, 'diff_val', 0.010)
-    # getMax_val(all_df_dict, 'diff_val', 0.015)
-    # getMax_val(all_df_dict, 'diff_val', 0.020)
+    # -1 : idx_psnr=20.11253500907451(5.93679632284191)
+    getMax_val(all_df_dict, 'diff_val', -1.14)
+    getMax_val(all_df_dict, 'diff_val', -1.13)
+    getMax_val(all_df_dict, 'diff_val', -1.12)
+    getMax_val(all_df_dict, 'diff_val', -1.11)
+    
     
     
     # getMax_val(all_df_dict, 'cur_val', 7.0)
@@ -164,8 +163,3 @@ if __name__ == '__main__':
     # getMax_val(all_df_dict, 'cur_val', 7.12)
     # getMax_val(all_df_dict, 'cur_val', 7.15)
     
-    
-    
-    
-    
-        
