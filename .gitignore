@@ -120,6 +120,7 @@ dmypy.json
 *.pth
 *.pkl
 *.pt
+*.asv
 
 # Mac File Structure
 .DS_Store
@@ -130,5 +131,4 @@ dmypy.json
 *.jpg
 *.bmp
 *.h5
-.mat
 output_log/

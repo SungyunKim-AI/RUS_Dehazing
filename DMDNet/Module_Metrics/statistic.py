@@ -126,7 +126,10 @@ def getDiff_val(all_df_dict):
 def getMax_val(all_df_dict, label, val):
     idx_psnr, idx_ssim = [], []
     for dfName, df in all_df_dict.items():
-        idx = df.index[(df[label] <= val)].tolist()[0]
+        try:
+            idx = df.index[(df[label] <= val)].tolist()[0]
+        except:
+            print(dfName, df[label].min())
         idx_psnr.append(df.loc[idx]['psnr'])
         idx_ssim.append(df.loc[idx]['ssim'])
         
@@ -139,25 +142,33 @@ def getMax_val(all_df_dict, label, val):
 if __name__ == '__main__':
     dataRoot = 'output_log/NIQUE'
     header = ['stage', 'step_beta', 'cur_val', 'diff_val', 'psnr', 'ssim']
-    all_df_dict = read_csv_all(dataRoot, '0.2', header)
     
-    all_df_plot(all_df_dict)
+    for beta in ['0.04', '0.06', '0.08', '0.12', '0.16', '0.1', '0.2']:
+        all_df_dict = read_csv_all(dataRoot, beta, header)
+        all_df_plot(all_df_dict)
+    
+    
+    # all_df_dict = read_csv_all(dataRoot, '0.2', header)
+    
+    # all_df_plot(all_df_dict)
     
     # getCorrelation(all_df_dict)
     # getMaxPSNR_SSIM(all_df_dict)
     
     # getMean_Max_PSNR_SSIM(all_df_dict)
-    # getDiff_0(all_df_dict)
     # -1 : idx_psnr=20.11253500907451(5.93679632284191)
-    # getMax_val(all_df_dict, 'diff_val', -1.14)
-    # getMax_val(all_df_dict, 'diff_val', -1.13)
-    # getMax_val(all_df_dict, 'diff_val', -1.12)
     # getMax_val(all_df_dict, 'diff_val', -1.11)
+    # getMax_val(all_df_dict, 'diff_val', -1.10)
+    
+    # getMax_val(all_df_dict, 'diff_val', -1.0)
+    # getMax_val(all_df_dict, 'diff_val', -0.7)
+    # getMax_val(all_df_dict, 'diff_val', -0.0)
     
     
     
-    # getMax_val(all_df_dict, 'cur_val', 7.0)
-    # getMax_val(all_df_dict, 'cur_val', 7.1)
-    # getMax_val(all_df_dict, 'cur_val', 7.12)
-    # getMax_val(all_df_dict, 'cur_val', 7.15)
+    # getMax_val(all_df_dict, 'cur_val', 39.5)
+    # getMax_val(all_df_dict, 'cur_val', 39.60)
+    # getMax_val(all_df_dict, 'cur_val', 39.65)
+    # getMax_val(all_df_dict, 'cur_val', 39.70)
+    # getMax_val(all_df_dict, 'cur_val', 39.75)
     
