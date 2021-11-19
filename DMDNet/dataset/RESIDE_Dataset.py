@@ -123,5 +123,3 @@ class RESIDE_Beta_Dataset_With_Notation(Dataset):
             return haze_input, clear_input, airlight_post, depth_input, airlight_input, beta_input, haze
         else:
             return haze_input, clear_input, airlight_post, depth_input, airlight_input, beta_input
-    
-    

@@ -20,7 +20,7 @@ def load_item(haze, clear, img_size):
         
         return hazy_resize, clear_resize
     
-def load_item_2(haze, clear,transform):
+def load_item_2(haze, clear, transform):
     haze = io.read_image(haze)
     clear = io.read_image(clear)
     
@@ -58,4 +58,3 @@ def make_transform(img_size, mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
         ]
     )
     return transform
-    

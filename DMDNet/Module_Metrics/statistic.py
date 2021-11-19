@@ -26,10 +26,9 @@ def data_plot(dfName, df, labels):
 
 def all_df_plot(all_df_dict):
     plt.title("Mean of All Data")
-    cur_val, diff_val, psnr, ssim = [], [], [], []
-    
     meanDF = pd.DataFrame(columns=['cur_val', 'diff_val', 'psnr', 'ssim'])
-    for idx in range(1, 199):
+    len_df = len(list(all_df_dict.values())[0])
+    for idx in range(1, len_df):
         tempDF = pd.DataFrame(columns=['cur_val', 'diff_val', 'psnr', 'ssim'])
         for dfName, df in all_df_dict.items():
             row = df.iloc[idx]['cur_val':'ssim']
@@ -138,12 +137,11 @@ def getMax_val(all_df_dict, label, val):
     
 
 if __name__ == '__main__':
-    # dataRoot = 'C:/Users/IIPL/Desktop/RUS_Dehazing/DMDNet/output_log'
-    dataRoot = '/Users/sungyoon-kim/Documents/GitHub/RUS_Dehazing/DMDNet/output_log'
+    dataRoot = 'output_log/NIQUE'
     header = ['stage', 'step_beta', 'cur_val', 'diff_val', 'psnr', 'ssim']
-    all_df_dict = read_csv_all(dataRoot, 'NIQUE', header)
+    all_df_dict = read_csv_all(dataRoot, '0.2', header)
     
-    # all_df_plot(all_df_dict)
+    all_df_plot(all_df_dict)
     
     # getCorrelation(all_df_dict)
     # getMaxPSNR_SSIM(all_df_dict)
@@ -151,10 +149,10 @@ if __name__ == '__main__':
     # getMean_Max_PSNR_SSIM(all_df_dict)
     # getDiff_0(all_df_dict)
     # -1 : idx_psnr=20.11253500907451(5.93679632284191)
-    getMax_val(all_df_dict, 'diff_val', -1.14)
-    getMax_val(all_df_dict, 'diff_val', -1.13)
-    getMax_val(all_df_dict, 'diff_val', -1.12)
-    getMax_val(all_df_dict, 'diff_val', -1.11)
+    # getMax_val(all_df_dict, 'diff_val', -1.14)
+    # getMax_val(all_df_dict, 'diff_val', -1.13)
+    # getMax_val(all_df_dict, 'diff_val', -1.12)
+    # getMax_val(all_df_dict, 'diff_val', -1.11)
     
     
     
