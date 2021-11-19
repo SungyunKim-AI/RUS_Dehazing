@@ -2,6 +2,9 @@
 import warnings
 warnings.filterwarnings("ignore")
 
+import os
+os.environ['KMP_DUPLICATE_LIB_OK']='True'
+
 import argparse
 import cv2
 import numpy as np
@@ -50,8 +53,8 @@ def get_args():
     parser.add_argument('--result_show', type=bool, default=False, help='result images display flag')
     parser.add_argument('--save_log', type=bool, default=True, help='log save flag')
     parser.add_argument('--airlight_step_flag', type=bool, default=False, help='flag of multi step airlight estimation')
-    parser.add_argument('--betaStep', type=float, default=0.001, help='beta step')
-    parser.add_argument('--stepLimit', type=int, default=200, help='Multi step limit')
+    parser.add_argument('--betaStep', type=float, default=0.01, help='beta step')
+    parser.add_argument('--stepLimit', type=int, default=250, help='Multi step limit')
     parser.add_argument('--metrics_module', type=str, default='Entropy_Module',  help='No Reference metrics method name')
     parser.add_argument('--metricsThreshold', type=float, default=-1.11, help='Metrics threshold: Entropy(0.001), NIQUE(-1.11)')
     parser.add_argument('--eps', type=float, default=1e-12, help='Epsilon value for non zero calculating')
@@ -107,6 +110,7 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
         depth = init_depth.copy()
         prediction, airlight = None, None
         beta = opt.betaStep
+        opt.stepLimit = int(utils.get_GT_beta(input_name) / opt.betaStep) + 10
         for step in range(1, opt.stepLimit + 1):
             last_depth = depth.copy()
             
@@ -142,7 +146,8 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
                 csv_log.append([step, opt.betaStep, metrics_module.cur_value, diff_metrics, _psnr, _ssim])
             
             # Stop Condition
-            if (diff_metrics < opt.metricsThreshold or step == opt.stepLimit):
+            # if (diff_metrics < opt.metricsThreshold or step == opt.stepLimit):
+            if opt.stepLimit == step:
                 psnr_sum += _psnr
                 ssim_sum += _ssim
                 gt_beta = utils.get_GT_beta(input_name)
@@ -204,7 +209,7 @@ if __name__ == '__main__':
     model.to(opt.device)
     
     # opt.dataRoot = 'C:/Users/IIPL/Desktop/data/RESIDE_beta/train'
-    opt.dataRoot = 'data_sample/RESIDE-beta/train'
+    opt.dataRoot = 'D:/data/RESIDE_beta/train'
     dataset_test = RESIDE_Dataset.RESIDE_Beta_Dataset(opt.dataRoot,[opt.imageSize_W, opt.imageSize_H], printName=True, returnName=True)
     loader_test = DataLoader(dataset=dataset_test, batch_size=opt.batchSize_val,
                              num_workers=0, drop_last=False, shuffle=True)

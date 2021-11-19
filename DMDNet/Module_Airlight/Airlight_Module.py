@@ -63,7 +63,11 @@ class Airlight_Module():
     # Local Light Filter (LLF)
     def LLF(self, image, mReturn='RGB'):
         # 1. PMF of minimum channel calculation  
-        image = image.astype(np.uint8)      
+        if np.max(image) <= 1:
+            image = np.rint(image*255).astype(np.uint8)
+        else:
+            image = image.astype(np.uint8)
+                  
         c1, c2, c3 = cv2.split(image)
         min_channel = np.amin([c1, c2, c3],0)
             
