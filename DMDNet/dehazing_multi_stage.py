@@ -86,12 +86,15 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
             _, init_depth = model.forward(hazy_images)
             _, init_clear_depth = model.forward(clear_images)
         
-        # B x 3 x H x W -> B x H x W x 3 :transpose(0, 2, 3, 1)
-        # 3 x H x W -> H x W x 3 :transpose(1,2,0)
-            init_hazy = utils.denormalize(hazy_images, norm=opt.norm)[0].detach().cpu().numpy().transpose(1,2,0)
-            init_clear = utils.denormalize(clear_images, norm=opt.norm)[0].detach().cpu().numpy().transpose(1,2,0)
-
+        init_hazy = utils.denormalize(hazy_images, norm=opt.norm)[0].detach().cpu().numpy().transpose(1,2,0)
+        init_clear = utils.denormalize(clear_images, norm=opt.norm)[0].detach().cpu().numpy().transpose(1,2,0)
         
+        init_depth = init_depth.detach().cpu().numpy().transpose(1,2,0)
+        init_depth = utils.depth_norm(init_depth)
+        
+        init_clear_depth = init_clear_depth.detach().cpu().numpy().transpose(1,2,0)
+        init_clear_depth = utils.depth_norm(init_clear_depth)
+
         
         # Airlight Estimation
         if airlight_images is None:
@@ -99,12 +102,6 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
         else:
             init_airlight = utils.denormalize(airlight_images, norm=opt.norm)[0].numpy().transpose(1,2,0)
         clear_airlight, _ = airlight_module.LLF(init_clear)
-        
-        init_depth = init_depth.detach().cpu().numpy().transpose(1,2,0)
-        init_depth = utils.depth_norm(init_depth)
-        
-        init_clear_depth = init_clear_depth.detach().cpu().numpy().transpose(1,2,0)
-        init_clear_depth = utils.depth_norm(init_clear_depth)
         
         
         # Multi-Step Depth Estimation and Dehazing
@@ -136,13 +133,13 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
             
             # Dehazing
             prediction = (hazy - airlight) / (trans + opt.eps) + airlight
-            prediction = np.clip(prediction, 0,1)
-            hazy_images = torch.Tensor(((prediction-0.5)/0.5).transpose(2,0,1)).unsqueeze(0)
+            prediction = np.clip(prediction, 0, 1)
+            hazy_images = utils.normalize(prediction.transpose(2,0,1)).unsqueeze(0)
             
             # Calculate Metrics
             diff_metrics = metrics_module.get_diff(prediction)
-            _psnr = psnr(init_clear,prediction)
-            _ssim = ssim(init_clear,prediction).item()
+            _psnr = psnr(prediction, init_clear)
+            _ssim = ssim(prediction, init_clear).item()
             
             if opt.save_log:
                 csv_log.append([step, opt.betaStep, metrics_module.cur_value, diff_metrics, _psnr, _ssim])
@@ -169,11 +166,12 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
         if opt.one_shot == True:
             trans = np.exp(init_depth * beta * -1)
             one_shot_prediction = (init_hazy-init_airlight)/(trans+opt.eps) + init_airlight
-            one_shot_prediction = np.clip(one_shot_prediction,0,1)
+            one_shot_prediction = np.clip(one_shot_prediction, 0, 1)
             
-            oneshot_psnr = psnr(init_clear, one_shot_prediction)
-            oneshot_ssim = ssim(init_clear, one_shot_prediction).item()
-            print(f'one-shot: beta = {beta}, psnr = {oneshot_psnr}, ssim={oneshot_ssim}')
+            oneshot_psnr = psnr(one_shot_prediction, init_clear)
+            oneshot_ssim = ssim(one_shot_prediction, init_clear).item()
+            oneshot_metrics = metrics_module.get_cur(one_shot_prediction)
+            print(f'one-shot: beta = {beta}, psnr = {oneshot_psnr}, ssim={oneshot_ssim}, metrics={oneshot_metrics}')
             
             clear_metrics = metrics_module.get_cur(init_clear)
             print(f'clear_metrics  = {clear_metrics}')

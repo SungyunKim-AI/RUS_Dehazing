@@ -1,5 +1,20 @@
+from cv2 import transform
 import torch
+import torchvision.transforms as transforms
 import os
+
+def normalize(x, norm=False, mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
+    if norm:
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(mean=mean, std=std)
+        ])
+    else:
+        transform = transforms.Compose([
+            transforms.ToTensor()
+        ])
+        
+    return transform(x)
 
 def denormalize(x, norm=False, mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
     if norm:
