@@ -50,9 +50,9 @@ def get_args():
     parser.add_argument('--backbone', type=str, default="vitb_rn50_384", help='DPT backbone')
     
     # test_stop_when_threshold parameters
-    parser.add_argument('--one_shot', type=bool, default=False, help='flag of One shot dehazing')
-    parser.add_argument('--result_show', type=bool, default=False, help='result images display flag')
-    parser.add_argument('--save_log', type=bool, default=True, help='log save flag')
+    parser.add_argument('--one_shot', type=bool, default=True, help='flag of One shot dehazing')
+    parser.add_argument('--result_show', type=bool, default=True, help='result images display flag')
+    parser.add_argument('--save_log', type=bool, default=False, help='log save flag')
     parser.add_argument('--airlight_step_flag', type=bool, default=False, help='flag of multi step airlight estimation')
     parser.add_argument('--betaStep', type=float, default=0.001, help='beta step')
     parser.add_argument('--stepLimit', type=int, default=250, help='Multi step limit')
@@ -107,7 +107,7 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
         prediction, airlight = None, None
         beta = opt.betaStep
         opt.stepLimit = int(utils.get_GT_beta(input_name) / opt.betaStep) + 20
-        cur_hazy, last_depth = hazy_images, None
+        cur_hazy, last_depth = hazy_images.clone().detach(), None
 
         for step in range(1, opt.stepLimit + 1):
 
@@ -116,7 +116,7 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
                 _, cur_depth = model.forward(cur_hazy)
             
             cur_hazy = utils.denormalize(cur_hazy, norm=opt.norm)[0].detach().cpu().numpy().transpose(1,2,0)
-            cur_hazy = np.rint(cur_hazy * 255).astype(np.uint8)
+            # cur_hazy = np.rint(cur_hazy * 255).astype(np.uint8)
             
             cur_depth = cur_depth.detach().cpu().numpy().transpose(1,2,0)
             cur_depth = utils.depth_norm(cur_depth)
@@ -133,7 +133,7 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
             
             # Dehazing
             prediction = (cur_hazy - airlight) / (trans + opt.eps) + airlight
-            prediction = np.clip(prediction, 0, 255)
+            prediction = np.clip(prediction, 0, 1)
             
             # Calculate Metrics
             diff_metrics = metrics_module.get_diff(prediction)
@@ -144,8 +144,8 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
                 csv_log.append([step, opt.betaStep, metrics_module.cur_value, diff_metrics, _psnr, _ssim])
             
             # Stop Condition
-            # if (diff_metrics < opt.metricsThreshold or step == opt.stepLimit):
-            if opt.stepLimit == step:
+            if (diff_metrics < opt.metricsThreshold or step == opt.stepLimit):
+            # if opt.stepLimit == step:
                 psnr_sum += _psnr
                 ssim_sum += _ssim
                 gt_beta = utils.get_GT_beta(input_name)
@@ -167,10 +167,10 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
         if opt.one_shot:
             init_depth_ = init_depth.clone().detach().cpu().numpy().transpose(1,2,0)
             init_depth_ = utils.depth_norm(init_depth_)
-            init_hazy_ = np.rint(init_hazy * 255).astype(np.uint8)
+            # init_hazy_ = np.rint(init_hazy * 255).astype(np.uint8)
 
             trans = np.exp(init_depth_ * beta * -1)
-            one_shot_prediction = (init_hazy_-init_airlight)/(trans+opt.eps) + init_airlight
+            one_shot_prediction = (init_hazy-init_airlight)/(trans+opt.eps) + init_airlight
             one_shot_prediction = np.clip(one_shot_prediction, 0, 1)
             
             oneshot_psnr = psnr(one_shot_prediction, init_clear)
@@ -225,6 +225,6 @@ if __name__ == '__main__':
     loader_test = DataLoader(dataset=dataset_test, batch_size=opt.batchSize_val,
                              num_workers=0, drop_last=False, shuffle=False)
     
-    opt.metrics_module = 'NIQE_Module'
+    # opt.metrics_module = 'NIQE_Module'
     metrics_module = locals()[opt.metrics_module]()
     test_stop_when_threshold(opt, model, loader_test, metrics_module)

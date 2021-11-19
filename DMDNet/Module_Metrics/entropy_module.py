@@ -12,6 +12,11 @@ class Entropy_Module():
         self.last_value = self.cur_value
         
     def get_cur(self, img, color='BGR', channel_first=False):
+        if np.max(img) <= 1.0:
+            img = np.rint(img*255).astype(np.uint8)
+        else:
+            img = img.astype(np.uint8)
+
         if color=='BGR':
             gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         else:

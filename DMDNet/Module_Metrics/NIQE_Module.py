@@ -26,11 +26,6 @@ class NIQE_Module():
         return niqe(gray_img)[0]
     
     def get_diff(self, cur_img, color='RGB'):
-        if np.max(cur_img) <= 1.0:
-            cur_img = np.rint(cur_img*255).astype(np.uint8)
-        else:
-            cur_img = cur_img.astype(np.uint8)
-        
         self.cur_value = self.get_cur(cur_img, color)
         diff_etp = self.last_value - self.cur_value
         self.last_value = self.cur_value
