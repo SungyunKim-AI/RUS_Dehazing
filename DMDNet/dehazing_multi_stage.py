@@ -54,10 +54,10 @@ def get_args():
     parser.add_argument('--result_show', type=bool, default=False, help='result images display flag')
     parser.add_argument('--save_log', type=bool, default=True, help='log save flag')
     parser.add_argument('--airlight_step_flag', type=bool, default=False, help='flag of multi step airlight estimation')
-    parser.add_argument('--betaStep', type=float, default=0.01, help='beta step')
+    parser.add_argument('--betaStep', type=float, default=0.001, help='beta step')
     parser.add_argument('--stepLimit', type=int, default=250, help='Multi step limit')
     parser.add_argument('--metrics_module', type=str, default='Entropy_Module',  help='No Reference metrics method name')
-    parser.add_argument('--metricsThreshold', type=float, default=-1.11, help='Metrics threshold: Entropy(0.001), NIQUE(-1.11)')
+    parser.add_argument('--metricsThreshold', type=float, default=0.001, help='Metrics threshold: Entropy(0.001), NIQUE(-1.11)')
     parser.add_argument('--eps', type=float, default=1e-12, help='Epsilon value for non zero calculating')
     
     return parser.parse_args()
@@ -92,13 +92,7 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
         init_clear = clear_images.clone().detach().cpu()
         init_clear = utils.denormalize(init_clear, norm=opt.norm)[0].numpy().transpose(1,2,0)
         
-        init_depth_ = init_depth.clone().detach().cpu().numpy().transpose(1,2,0)
-        init_depth_ = utils.depth_norm(init_depth_)
-        
-        init_clear_depth_ = init_clear_depth.clone().detach().cpu().numpy().transpose(1,2,0)
-        init_clear_depth_ = utils.depth_norm(init_clear_depth_)
 
-        
         # Airlight Estimation
         if airlight_images is None:
             init_airlight, _ = airlight_module.LLF(init_hazy)
@@ -112,10 +106,11 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
         metrics_module.reset(init_hazy)
         prediction, airlight = None, None
         beta = opt.betaStep
-        opt.stepLimit = int(utils.get_GT_beta(input_name) / opt.betaStep) + 10
+        opt.stepLimit = int(utils.get_GT_beta(input_name) / opt.betaStep) + 20
         cur_hazy, last_depth = hazy_images, None
+
         for step in range(1, opt.stepLimit + 1):
-            
+
             with torch.no_grad():
                 cur_hazy = cur_hazy.to(opt.device)
                 _, cur_depth = model.forward(cur_hazy)
@@ -126,7 +121,7 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
             cur_depth = cur_depth.detach().cpu().numpy().transpose(1,2,0)
             cur_depth = utils.depth_norm(cur_depth)
             if last_depth is not None:
-                stage_depth = np.minimum(stage_depth, last_depth)
+                cur_depth = np.minimum(cur_depth, last_depth)
             
             if opt.airlight_step_flag == False:
                 airlight = init_airlight
@@ -134,7 +129,7 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
                 airlight, _ = airlight_module.LLF(cur_hazy)
             
             # Transmission Map
-            trans = np.exp(stage_depth * beta * -1)
+            trans = np.exp(cur_depth * beta * -1)
             
             # Dehazing
             prediction = (cur_hazy - airlight) / (trans + opt.eps) + airlight
@@ -162,16 +157,20 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
                 break
             
             beta += opt.betaStep
-            cur_hazy = utils.normalize(prediction.transpose(2,0,1)).unsqueeze(0)
+            cur_hazy = utils.normalize(prediction.transpose(0,1,2)).unsqueeze(0)
             last_depth = cur_depth.copy()
                 
         if opt.save_log:
             save_log.write_csv(input_name, csv_log)
         
         # One-Shot Dehazing
-        if opt.one_shot == True:
-            trans = np.exp(init_depth * beta * -1)
-            one_shot_prediction = (init_hazy-init_airlight)/(trans+opt.eps) + init_airlight
+        if opt.one_shot:
+            init_depth_ = init_depth.clone().detach().cpu().numpy().transpose(1,2,0)
+            init_depth_ = utils.depth_norm(init_depth_)
+            init_hazy_ = np.rint(init_hazy * 255).astype(np.uint8)
+
+            trans = np.exp(init_depth_ * beta * -1)
+            one_shot_prediction = (init_hazy_-init_airlight)/(trans+opt.eps) + init_airlight
             one_shot_prediction = np.clip(one_shot_prediction, 0, 1)
             
             oneshot_psnr = psnr(one_shot_prediction, init_clear)
@@ -185,8 +184,14 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
             one_shot_prediction = None
         
         if opt.result_show:
+            init_depth = init_depth.detach().cpu().numpy().transpose(1,2,0)
+            init_depth = utils.depth_norm(init_depth)
+            
+            init_clear_depth = init_clear_depth.detach().cpu().numpy().transpose(1,2,0)
+            init_clear_depth = utils.depth_norm(init_clear_depth)
+
             misc.multi_show([init_hazy,     prediction, init_clear, 
-                             init_depth,    depth,      init_clear_depth, 
+                             init_depth,    last_depth,      init_clear_depth, 
                              init_airlight, airlight,   clear_airlight, 
                              one_shot_prediction])
     
@@ -218,7 +223,7 @@ if __name__ == '__main__':
     opt.dataRoot = 'D:/data/RESIDE_beta/train'
     dataset_test = RESIDE_Dataset.RESIDE_Beta_Dataset(opt.dataRoot,[opt.imageSize_W, opt.imageSize_H], printName=True, returnName=True, norm=opt.norm)
     loader_test = DataLoader(dataset=dataset_test, batch_size=opt.batchSize_val,
-                             num_workers=0, drop_last=False, shuffle=True)
+                             num_workers=0, drop_last=False, shuffle=False)
     
     opt.metrics_module = 'NIQE_Module'
     metrics_module = locals()[opt.metrics_module]()
