@@ -86,14 +86,17 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
             _, init_depth = model.forward(hazy_images)
             _, init_clear_depth = model.forward(clear_images)
         
-        init_hazy = utils.denormalize(hazy_images, norm=opt.norm)[0].detach().cpu().numpy().transpose(1,2,0)
-        init_clear = utils.denormalize(clear_images, norm=opt.norm)[0].detach().cpu().numpy().transpose(1,2,0)
+        init_hazy = hazy_images.clone().detach().cpu()
+        init_hazy = utils.denormalize(init_hazy, norm=opt.norm)[0].numpy().transpose(1,2,0)
         
-        init_depth = init_depth.detach().cpu().numpy().transpose(1,2,0)
-        init_depth = utils.depth_norm(init_depth)
+        init_clear = clear_images.clone().detach().cpu()
+        init_clear = utils.denormalize(init_clear, norm=opt.norm)[0].numpy().transpose(1,2,0)
         
-        init_clear_depth = init_clear_depth.detach().cpu().numpy().transpose(1,2,0)
-        init_clear_depth = utils.depth_norm(init_clear_depth)
+        init_depth_ = init_depth.clone().detach().cpu().numpy().transpose(1,2,0)
+        init_depth_ = utils.depth_norm(init_depth_)
+        
+        init_clear_depth_ = init_clear_depth.clone().detach().cpu().numpy().transpose(1,2,0)
+        init_clear_depth_ = utils.depth_norm(init_clear_depth_)
 
         
         # Airlight Estimation
@@ -101,40 +104,41 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
             init_airlight, _ = airlight_module.LLF(init_hazy)
         else:
             init_airlight = utils.denormalize(airlight_images, norm=opt.norm)[0].numpy().transpose(1,2,0)
+            init_airlight = np.rint(init_airlight * 255).astype(np.uint8)
         clear_airlight, _ = airlight_module.LLF(init_clear)
         
         
         # Multi-Step Depth Estimation and Dehazing
         metrics_module.reset(init_hazy)
-        depth = init_depth.copy()
         prediction, airlight = None, None
         beta = opt.betaStep
         opt.stepLimit = int(utils.get_GT_beta(input_name) / opt.betaStep) + 10
+        cur_hazy, last_depth = hazy_images, None
         for step in range(1, opt.stepLimit + 1):
-            last_depth = depth.copy()
             
             with torch.no_grad():
-                hazy_images = hazy_images.to(opt.device)
-                _, depth = model.forward(hazy_images)
-                            
-            hazy = utils.denormalize(hazy_images, norm=opt.norm)[0].detach().cpu().numpy().transpose(1,2,0)
+                cur_hazy = cur_hazy.to(opt.device)
+                _, cur_depth = model.forward(cur_hazy)
+            
+            cur_hazy = utils.denormalize(cur_hazy, norm=opt.norm)[0].detach().cpu().numpy().transpose(1,2,0)
+            cur_hazy = np.rint(cur_hazy * 255).astype(np.uint8)
+            
+            cur_depth = cur_depth.detach().cpu().numpy().transpose(1,2,0)
+            cur_depth = utils.depth_norm(cur_depth)
+            if last_depth is not None:
+                stage_depth = np.minimum(stage_depth, last_depth)
             
             if opt.airlight_step_flag == False:
                 airlight = init_airlight
             else:
-                airlight, _ = airlight_module.LLF(hazy)
-            
-            depth = depth.detach().cpu().numpy().transpose(1,2,0)
-            depth = utils.depth_norm(depth)
-            depth = np.minimum(depth, last_depth)
+                airlight, _ = airlight_module.LLF(cur_hazy)
             
             # Transmission Map
-            trans = np.exp(depth * beta * -1)
+            trans = np.exp(stage_depth * beta * -1)
             
             # Dehazing
-            prediction = (hazy - airlight) / (trans + opt.eps) + airlight
-            prediction = np.clip(prediction, 0, 1)
-            hazy_images = utils.normalize(prediction.transpose(2,0,1)).unsqueeze(0)
+            prediction = (cur_hazy - airlight) / (trans + opt.eps) + airlight
+            prediction = np.clip(prediction, 0, 255)
             
             # Calculate Metrics
             diff_metrics = metrics_module.get_diff(prediction)
@@ -158,6 +162,8 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
                 break
             
             beta += opt.betaStep
+            cur_hazy = utils.normalize(prediction.transpose(2,0,1)).unsqueeze(0)
+            last_depth = cur_depth.copy()
                 
         if opt.save_log:
             save_log.write_csv(input_name, csv_log)

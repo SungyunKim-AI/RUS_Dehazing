@@ -4,6 +4,7 @@ import torchvision.transforms as transforms
 import os
 
 def normalize(x, norm=False, mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
+    x = x / 255.0
     if norm:
         transform = transforms.Compose([
             transforms.ToTensor(),
