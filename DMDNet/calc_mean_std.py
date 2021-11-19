@@ -50,11 +50,11 @@ class RESIDE_Beta_Dataset(Dataset):
         
             
 if __name__ == '__main__':
-    dataRoot = 'D:/data/RESIDE_beta/train'
+    dataRoot = 'C:/Users/IIPL/Desktop/data/RESIDE_beta/train'
     dataset = RESIDE_Beta_Dataset(dataRoot,[256, 256], printName=False, returnName=False) 
     dataloader = DataLoader(dataset, shuffle=False) 
-    mean_hazy, std_hazy = torch.zeros(1), torch.zeros(1)
-    mean_clear, std_clear = torch.zeros(1), torch.zeros(1)
+    mean_hazy, std_hazy = torch.zeros(3), torch.zeros(3)
+    mean_clear, std_clear = torch.zeros(3), torch.zeros(3)
     for inputs, clear_input in tqdm(dataloader): 
         for i in range(3): 
             mean_hazy[i] += inputs[:,i,:,:].mean() 
