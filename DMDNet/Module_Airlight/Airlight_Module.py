@@ -63,19 +63,18 @@ class Airlight_Module():
     # Local Light Filter (LLF)
     def LLF(self, image, mReturn='RGB'):
         # 1. PMF of minimum channel calculation  
-        if np.max(image) <= 1:
+        if np.max(image) <= 1.0:
             image = np.rint(image*255).astype(np.uint8)
         else:
             image = image.astype(np.uint8)
-                  
+            
         c1, c2, c3 = cv2.split(image)
-        min_channel = np.amin([c1, c2, c3],0)
+        min_channel = np.amin([c1, c2, c3], 0)
             
         # cv2.imshow('Minimum channel', min_channel.astype('uint8'))
         # cv2.waitKey(0)
         
         val, cnt = np.unique(min_channel, return_counts=True)
-        # val = val.astype(int)
         img_size = image.shape[0] * image.shape[1]
         prob = cnt / img_size    # PMF
         
@@ -111,13 +110,13 @@ class Airlight_Module():
                 for c in ['r','g','b']:
                     avg[c].append(RGB[c][row[j]][col[j]]) 
         
-        avgR = round(np.array(avg['r']).mean())
-        avgG = round(np.array(avg['g']).mean())
-        avgB = round(np.array(avg['b']).mean())
+        avgR = round(np.array(avg['r']).mean() )/ 255.0 
+        avgG = round(np.array(avg['g']).mean()) / 255.0
+        avgB = round(np.array(avg['b']).mean()) / 255.0
         
-        r = np.full((image.shape[0], image.shape[1]), avgR).astype('uint8')
-        g = np.full((image.shape[0], image.shape[1]), avgG).astype('uint8')
-        b = np.full((image.shape[0], image.shape[1]), avgB).astype('uint8')
+        r = np.full((image.shape[0], image.shape[1]), avgR)
+        g = np.full((image.shape[0], image.shape[1]), avgG)
+        b = np.full((image.shape[0], image.shape[1]), avgB)
         
         if mReturn == 'RGB':    
             airlight = cv2.merge((r, g, b))

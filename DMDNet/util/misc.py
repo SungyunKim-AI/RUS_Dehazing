@@ -96,13 +96,14 @@ def multi_show(image_list):
     """
     init_hazy, prediction, clear, init_depth, depth, clear_depth, init_airlight, airlight, clear_airlight, one_shot_prediction = image_list
     
-    init_hazy = cv2.cvtColor(init_hazy, cv2.COLOR_RGB2BGR)
-    prediction = cv2.cvtColor(prediction, cv2.COLOR_RGB2BGR)
-    clear = cv2.cvtColor(clear, cv2.COLOR_RGB2BGR)
-    init_airlight = cv2.cvtColor(init_airlight, cv2.COLOR_RGB2BGR)
-    airlight = cv2.cvtColor(airlight, cv2.COLOR_RGB2BGR)
-    clear_airlight = cv2.cvtColor(clear_airlight, cv2.COLOR_RGB2BGR)
-    one_shot_prediction = cv2.cvtColor(one_shot_prediction, cv2.COLOR_RGB2BGR)
+    
+    init_hazy = cv2.cvtColor(init_hazy.astype(np.float32), cv2.COLOR_RGB2BGR)
+    prediction = cv2.cvtColor(prediction.astype(np.float32), cv2.COLOR_RGB2BGR)
+    clear = cv2.cvtColor(clear.astype(np.float32), cv2.COLOR_RGB2BGR)
+    init_airlight = cv2.cvtColor(init_airlight.astype(np.float32), cv2.COLOR_RGB2BGR)
+    airlight = cv2.cvtColor(airlight.astype(np.float32), cv2.COLOR_RGB2BGR)
+    clear_airlight = cv2.cvtColor(clear_airlight.astype(np.float32), cv2.COLOR_RGB2BGR)
+    one_shot_prediction = cv2.cvtColor(one_shot_prediction.astype(np.float32), cv2.COLOR_RGB2BGR)
     
     init_depth = cv2.cvtColor(init_depth/10, cv2.COLOR_GRAY2BGR)
     depth = cv2.cvtColor(depth/10, cv2.COLOR_GRAY2BGR)

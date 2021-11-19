@@ -86,19 +86,18 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
             _, init_depth = model.forward(hazy_images)
             _, init_clear_depth = model.forward(clear_images)
         
+        init_depth_ = init_depth.clone().detach().cpu().numpy().transpose(1,2,0)
+        init_depth_ = utils.depth_norm(init_depth_)
+        
         init_hazy = hazy_images.clone().detach().cpu()
         init_hazy = utils.denormalize(init_hazy, norm=opt.norm)[0].numpy().transpose(1,2,0)
         
         init_clear = clear_images.clone().detach().cpu()
         init_clear = utils.denormalize(init_clear, norm=opt.norm)[0].numpy().transpose(1,2,0)
-        
+
 
         # Airlight Estimation
-        if airlight_images is None:
-            init_airlight, _ = airlight_module.LLF(init_hazy)
-        else:
-            init_airlight = utils.denormalize(airlight_images, norm=opt.norm)[0].numpy().transpose(1,2,0)
-            init_airlight = np.rint(init_airlight * 255).astype(np.uint8)
+        init_airlight, _ = airlight_module.LLF(init_hazy)
         clear_airlight, _ = airlight_module.LLF(init_clear)
         
         
@@ -107,22 +106,22 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
         prediction, airlight = None, None
         beta = opt.betaStep
         opt.stepLimit = int(utils.get_GT_beta(input_name) / opt.betaStep) + 20
-        cur_hazy, last_depth = hazy_images.clone().detach(), None
+        cur_hazy, last_depth = hazy_images.clone().detach(), init_depth_
 
         for step in range(1, opt.stepLimit + 1):
-
+            
+            # Depth Estimation
             with torch.no_grad():
                 cur_hazy = cur_hazy.to(opt.device)
                 _, cur_depth = model.forward(cur_hazy)
             
             cur_hazy = utils.denormalize(cur_hazy, norm=opt.norm)[0].detach().cpu().numpy().transpose(1,2,0)
-            # cur_hazy = np.rint(cur_hazy * 255).astype(np.uint8)
-            
             cur_depth = cur_depth.detach().cpu().numpy().transpose(1,2,0)
             cur_depth = utils.depth_norm(cur_depth)
             if last_depth is not None:
                 cur_depth = np.minimum(cur_depth, last_depth)
             
+            # Airlight Estimation
             if opt.airlight_step_flag == False:
                 airlight = init_airlight
             else:
@@ -144,20 +143,26 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
                 csv_log.append([step, opt.betaStep, metrics_module.cur_value, diff_metrics, _psnr, _ssim])
             
             # Stop Condition
-            if (diff_metrics < opt.metricsThreshold or step == opt.stepLimit):
+            if (diff_metrics <= opt.metricsThreshold or step == opt.stepLimit):
             # if opt.stepLimit == step:
+                print(diff_metrics)
+                print(opt.metricsThreshold)
+                print(opt.stepLimit)
                 psnr_sum += _psnr
                 ssim_sum += _ssim
                 gt_beta = utils.get_GT_beta(input_name)
+                clear_metrics = metrics_module.get_cur(init_clear)
                 print(f'last_step    = {step}')
                 print(f'last_beta    = {beta}({gt_beta})')
                 print(f'last_psnr    = {_psnr}')
                 print(f'last_ssim    = {_ssim}')
                 print(f'last_metrics = {metrics_module.last_value}')
+                print(f'clear_metrics  = {clear_metrics}')
                 break
             
+            # Set Next Step
             beta += opt.betaStep
-            cur_hazy = utils.normalize(prediction.transpose(0,1,2)).unsqueeze(0)
+            cur_hazy = torch.Tensor(prediction.transpose(0,1,2)).unsqueeze(0)
             last_depth = cur_depth.copy()
                 
         if opt.save_log:
@@ -165,11 +170,8 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
         
         # One-Shot Dehazing
         if opt.one_shot:
-            init_depth_ = init_depth.clone().detach().cpu().numpy().transpose(1,2,0)
-            init_depth_ = utils.depth_norm(init_depth_)
-            # init_hazy_ = np.rint(init_hazy * 255).astype(np.uint8)
-
-            trans = np.exp(init_depth_ * beta * -1)
+            beta_gt = utils.get_GT_beta(input_name)
+            trans = np.exp(init_depth_ * beta_gt * -1)
             one_shot_prediction = (init_hazy-init_airlight)/(trans+opt.eps) + init_airlight
             one_shot_prediction = np.clip(one_shot_prediction, 0, 1)
             
@@ -177,22 +179,16 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
             oneshot_ssim = ssim(one_shot_prediction, init_clear).item()
             oneshot_metrics = metrics_module.get_cur(one_shot_prediction)
             print(f'one-shot: beta = {beta}, psnr = {oneshot_psnr}, ssim={oneshot_ssim}, metrics={oneshot_metrics}')
-            
-            clear_metrics = metrics_module.get_cur(init_clear)
-            print(f'clear_metrics  = {clear_metrics}')
         else:
             one_shot_prediction = None
         
         if opt.result_show:
-            init_depth = init_depth.detach().cpu().numpy().transpose(1,2,0)
-            init_depth = utils.depth_norm(init_depth)
-            
             init_clear_depth = init_clear_depth.detach().cpu().numpy().transpose(1,2,0)
             init_clear_depth = utils.depth_norm(init_clear_depth)
 
-            misc.multi_show([init_hazy,     prediction, init_clear, 
-                             init_depth,    last_depth,      init_clear_depth, 
-                             init_airlight, airlight,   clear_airlight, 
+            misc.multi_show([init_hazy,     prediction,     init_clear, 
+                             init_depth_,    last_depth,     init_clear_depth, 
+                             init_airlight, airlight,       clear_airlight, 
                              one_shot_prediction])
     
     batch_num = len(test_loader)
@@ -220,7 +216,8 @@ if __name__ == '__main__':
     model.to(opt.device)
     
     # opt.dataRoot = 'C:/Users/IIPL/Desktop/data/RESIDE_beta/train'
-    opt.dataRoot = 'D:/data/RESIDE_beta/train'
+    # opt.dataRoot = 'D:/data/RESIDE_beta/train'
+    opt.dataRoot = 'data_sample/RESIDE_beta/train'
     dataset_test = RESIDE_Dataset.RESIDE_Beta_Dataset(opt.dataRoot,[opt.imageSize_W, opt.imageSize_H], printName=True, returnName=True, norm=opt.norm)
     loader_test = DataLoader(dataset=dataset_test, batch_size=opt.batchSize_val,
                              num_workers=0, drop_last=False, shuffle=False)
