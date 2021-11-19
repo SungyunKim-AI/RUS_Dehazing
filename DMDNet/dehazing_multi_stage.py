@@ -50,9 +50,9 @@ def get_args():
     parser.add_argument('--backbone', type=str, default="vitb_rn50_384", help='DPT backbone')
     
     # test_stop_when_threshold parameters
-    parser.add_argument('--one_shot', type=bool, default=True, help='flag of One shot dehazing')
-    parser.add_argument('--result_show', type=bool, default=True, help='result images display flag')
-    parser.add_argument('--save_log', type=bool, default=False, help='log save flag')
+    parser.add_argument('--one_shot', type=bool, default=False, help='flag of One shot dehazing')
+    parser.add_argument('--result_show', type=bool, default=False, help='result images display flag')
+    parser.add_argument('--save_log', type=bool, default=True, help='log save flag')
     parser.add_argument('--airlight_step_flag', type=bool, default=False, help='flag of multi step airlight estimation')
     parser.add_argument('--betaStep', type=float, default=0.001, help='beta step')
     parser.add_argument('--stepLimit', type=int, default=250, help='Multi step limit')
@@ -105,11 +105,10 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
         metrics_module.reset(init_hazy)
         prediction, airlight = None, None
         beta = opt.betaStep
-        opt.stepLimit = int(utils.get_GT_beta(input_name) / opt.betaStep) + 20
+        # opt.stepLimit = int(utils.get_GT_beta(input_name) / opt.betaStep) + 20
         cur_hazy, last_depth = hazy_images.clone().detach(), init_depth_
 
         for step in range(1, opt.stepLimit + 1):
-            
             # Depth Estimation
             with torch.no_grad():
                 cur_hazy = cur_hazy.to(opt.device)
@@ -128,7 +127,7 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
                 airlight, _ = airlight_module.LLF(cur_hazy)
             
             # Transmission Map
-            trans = np.exp(cur_depth * beta * -1)
+            trans = np.exp(cur_depth * opt.betaStep * -1)
             
             # Dehazing
             prediction = (cur_hazy - airlight) / (trans + opt.eps) + airlight
@@ -143,8 +142,8 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
                 csv_log.append([step, opt.betaStep, metrics_module.cur_value, diff_metrics, _psnr, _ssim])
             
             # Stop Condition
-            if (diff_metrics <= opt.metricsThreshold or step == opt.stepLimit):
-            # if opt.stepLimit == step:
+            # if (diff_metrics <= opt.metricsThreshold or step == opt.stepLimit):
+            if opt.stepLimit == step:
                 print(diff_metrics)
                 print(opt.metricsThreshold)
                 print(opt.stepLimit)
@@ -162,7 +161,7 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
             
             # Set Next Step
             beta += opt.betaStep
-            cur_hazy = torch.Tensor(prediction.transpose(0,1,2)).unsqueeze(0)
+            cur_hazy = torch.Tensor(prediction.transpose(2,0,1)).unsqueeze(0)
             last_depth = cur_depth.copy()
                 
         if opt.save_log:
@@ -216,12 +215,12 @@ if __name__ == '__main__':
     model.to(opt.device)
     
     # opt.dataRoot = 'C:/Users/IIPL/Desktop/data/RESIDE_beta/train'
-    # opt.dataRoot = 'D:/data/RESIDE_beta/train'
-    opt.dataRoot = 'data_sample/RESIDE_beta/train'
+    opt.dataRoot = 'D:/data/RESIDE_beta/train'
+    # opt.dataRoot = 'data_sample/RESIDE_beta/train'
     dataset_test = RESIDE_Dataset.RESIDE_Beta_Dataset(opt.dataRoot,[opt.imageSize_W, opt.imageSize_H], printName=True, returnName=True, norm=opt.norm)
     loader_test = DataLoader(dataset=dataset_test, batch_size=opt.batchSize_val,
                              num_workers=0, drop_last=False, shuffle=False)
     
-    # opt.metrics_module = 'NIQE_Module'
+    opt.metrics_module = 'NIQE_Module'
     metrics_module = locals()[opt.metrics_module]()
     test_stop_when_threshold(opt, model, loader_test, metrics_module)
