@@ -8,7 +8,7 @@ from dataset import utils
 
 
 class RESIDE_Beta_Dataset(Dataset):
-    def __init__(self, path, img_size, printName=False, returnName=False ,verbose=False):
+    def __init__(self, path, img_size, printName=False, returnName=False ,norm=False, verbose=False):
         super().__init__()
         self.img_size = img_size
         images_clear_path = path+'/clear/*.jpg'
@@ -32,7 +32,7 @@ class RESIDE_Beta_Dataset(Dataset):
         self.airlgiht_flag = False if len(self.images_airlight_list) == 0 else True
         
         self.images_count = len(self.images_hazy_lists[0])
-        self.transform = utils.make_transform(img_size)
+        self.transform = utils.make_transform(img_size, norm=norm)
         
     def __len__(self):
         return len(self.images_hazy_lists) * self.images_count

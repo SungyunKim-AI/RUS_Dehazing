@@ -30,6 +30,7 @@ def get_args():
     # dataset parameters
     parser.add_argument('--dataset', required=False, default='RESIDE-beta',  help='dataset name')
     parser.add_argument('--dataRoot', type=str, default='D:/data/Dense_Haze/train',  help='data file path')
+    parser.add_argument('--norm', type=bool, default=False,  help='Image Normalize flag')
     
     # learning parameters
     parser.add_argument('--seed', type=int, default=101, help='Random Seed')
@@ -87,15 +88,16 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
         
         # B x 3 x H x W -> B x H x W x 3 :transpose(0, 2, 3, 1)
         # 3 x H x W -> H x W x 3 :transpose(1,2,0)
-        init_hazy = utils.denormalize(hazy_images)[0].detach().cpu().numpy().transpose(1,2,0)      
-        init_clear = utils.denormalize(clear_images)[0].detach().cpu().numpy().transpose(1,2,0)
+            init_hazy = utils.denormalize(hazy_images, norm=opt.norm)[0].detach().cpu().numpy().transpose(1,2,0)
+            init_clear = utils.denormalize(clear_images, norm=opt.norm)[0].detach().cpu().numpy().transpose(1,2,0)
+
         
         
         # Airlight Estimation
         if airlight_images is None:
             init_airlight, _ = airlight_module.LLF(init_hazy)
         else:
-            init_airlight = utils.denormalize(airlight_images)[0].numpy().transpose(1,2,0)
+            init_airlight = utils.denormalize(airlight_images, norm=opt.norm)[0].numpy().transpose(1,2,0)
         clear_airlight, _ = airlight_module.LLF(init_clear)
         
         init_depth = init_depth.detach().cpu().numpy().transpose(1,2,0)
@@ -118,7 +120,7 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
                 hazy_images = hazy_images.to(opt.device)
                 _, depth = model.forward(hazy_images)
                             
-            hazy = utils.denormalize(hazy_images)[0].detach().cpu().numpy().transpose(1,2,0)
+            hazy = utils.denormalize(hazy_images, norm=opt.norm)[0].detach().cpu().numpy().transpose(1,2,0)
             
             if opt.airlight_step_flag == False:
                 airlight = init_airlight
@@ -210,7 +212,7 @@ if __name__ == '__main__':
     
     # opt.dataRoot = 'C:/Users/IIPL/Desktop/data/RESIDE_beta/train'
     opt.dataRoot = 'D:/data/RESIDE_beta/train'
-    dataset_test = RESIDE_Dataset.RESIDE_Beta_Dataset(opt.dataRoot,[opt.imageSize_W, opt.imageSize_H], printName=True, returnName=True)
+    dataset_test = RESIDE_Dataset.RESIDE_Beta_Dataset(opt.dataRoot,[opt.imageSize_W, opt.imageSize_H], printName=True, returnName=True, norm=opt.norm)
     loader_test = DataLoader(dataset=dataset_test, batch_size=opt.batchSize_val,
                              num_workers=0, drop_last=False, shuffle=True)
     
