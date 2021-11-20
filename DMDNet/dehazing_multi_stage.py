@@ -54,8 +54,8 @@ def get_args():
     parser.add_argument('--result_show', type=bool, default=False, help='result images display flag')
     parser.add_argument('--save_log', type=bool, default=True, help='log save flag')
     parser.add_argument('--airlight_step_flag', type=bool, default=False, help='flag of multi step airlight estimation')
-    parser.add_argument('--betaStep', type=float, default=0.001, help='beta step')
-    parser.add_argument('--stepLimit', type=int, default=200, help='Multi step limit')
+    parser.add_argument('--betaStep', type=float, default=0.005, help='beta step')
+    parser.add_argument('--stepLimit', type=int, default=250, help='Multi step limit')
     parser.add_argument('--metrics_module', type=str, default='Entropy_Module',  help='No Reference metrics method name')
     parser.add_argument('--metricsThreshold', type=float, default=0.001, help='Metrics threshold: Entropy(0.001), NIQUE(-1.11)')
     parser.add_argument('--eps', type=float, default=1e-12, help='Epsilon value for non zero calculating')
@@ -222,6 +222,6 @@ if __name__ == '__main__':
     loader_test = DataLoader(dataset=dataset_test, batch_size=opt.batchSize_val,
                              num_workers=4, drop_last=False, shuffle=False)
     
-    # opt.metrics_module = 'NIQE_Module'
+    opt.metrics_module = 'NIQE_Module'
     metrics_module = locals()[opt.metrics_module]()
     test_stop_when_threshold(opt, model, loader_test, metrics_module)
