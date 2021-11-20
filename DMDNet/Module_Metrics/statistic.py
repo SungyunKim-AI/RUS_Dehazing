@@ -86,9 +86,9 @@ def getMaxPSNR_SSIM(all_df_dict):
     df_diff = pd.DataFrame(psnr_diff_val)
     
     print("PSNR")
-    print(f'stage : mean={df_stage.mean()[0]}, median={df_stage.median()[0]}, std={df_stage.std()[0]}')
-    print(f'cur : mean={df_cur.mean()[0]}, median={df_cur.median()[0]}, std={df_cur.std()[0]}')
-    print(f'diff : mean={df_diff.mean()[0]}, median={df_diff.median()[0]}, std={df_diff.std()[0]}')
+    print(f'stage : mean={df_stage.mean()[0]:.3f}, median={df_stage.median()[0]:.3f}, std={df_stage.std()[0]:.3f}')
+    print(f'cur : mean={df_cur.mean()[0]:.3f}, median={df_cur.median()[0]:.3f}, std={df_cur.std()[0]:.3f}')
+    print(f'diff : mean={df_diff.mean()[0]:.3f}, median={df_diff.median()[0]:.3f}, std={df_diff.std()[0]:.3f}')
     print()
     
     df_stage = pd.DataFrame(ssim_stage)
@@ -96,9 +96,9 @@ def getMaxPSNR_SSIM(all_df_dict):
     df_diff = pd.DataFrame(ssim_diff_val)
     
     print("SSIM")
-    print(f'stage : mean={df_stage.mean()[0]}, median={df_stage.median()[0]}, std={df_stage.std()[0]}')
-    print(f'cur : mean={df_cur.mean()[0]}, median={df_cur.median()[0]}, std={df_cur.std()[0]}')
-    print(f'diff : mean={df_diff.mean()[0]}, median={df_diff.median()[0]}, std={df_diff.std()[0]}')
+    print(f'stage : mean={df_stage.mean()[0]:.3f}, median={df_stage.median()[0]:.3f}, std={df_stage.std()[0]:.3f}')
+    print(f'cur : mean={df_cur.mean()[0]:.3f}, median={df_cur.median()[0]:.3f}, std={df_cur.std()[0]:.3f}')
+    print(f'diff : mean={df_diff.mean()[0]:.3f}, median={df_diff.median()[0]:.3f}, std={df_diff.std()[0]:.3f}')
 
 def getMean_Max_PSNR_SSIM(all_df_dict):
     max_psnr, max_ssim = [], []
@@ -109,42 +109,32 @@ def getMean_Max_PSNR_SSIM(all_df_dict):
     max_psnr = pd.DataFrame(max_psnr).mean()[0]
     max_ssim = pd.DataFrame(max_ssim).mean()[0]
     
-    print(f'max_psnr={max_psnr}, max_ssim={max_ssim}')    
-    
-def getDiff_val(all_df_dict):
-    idx_psnr, idx_ssim = [], []
-    for dfName, df in all_df_dict.items():
-        idx = df.index[(df['diff_val'] < 0)].tolist()[0]
-        idx_psnr.append(df.loc[idx-1]['psnr'])
-        idx_ssim.append(df.loc[idx-1]['ssim'])
-        
-    idx_psnr = pd.DataFrame(idx_psnr).mean()[0]
-    idx_ssim = pd.DataFrame(idx_ssim).mean()[0]
-    
-    print(f'idx_psnr={idx_psnr}, idx_ssim={idx_ssim}')
+    print(f'max_psnr={max_psnr:.3f}, max_ssim={max_ssim:.3f}')    
 
 def getMax_val(all_df_dict, label, val):
-    idx_psnr, idx_ssim = [], []
+    idx_stage, idx_psnr, idx_ssim = [], [], []
     for dfName, df in all_df_dict.items():
-        try:
-            idx = df.index[(df[label] <= val)].tolist()[0]
-        except:
-            print(dfName, df[label].min())
-            continue
+        gt_beta = float(dfName.split('_')[-1])
+        
+        idx = df.index[(df[label] >= val)].tolist()[0]
+        
+        idx_stage.append([df.loc[idx]['stage']*df.loc[idx]['step_beta'] - gt_beta])
         idx_psnr.append(df.loc[idx]['psnr'])
         idx_ssim.append(df.loc[idx]['ssim'])
-        
+    
+    idx_stage = pd.DataFrame(idx_stage)
     idx_psnr = pd.DataFrame(idx_psnr)
     idx_ssim = pd.DataFrame(idx_ssim)
     
-    print(f'{val} : idx_psnr={idx_psnr.mean()[0]}({idx_psnr.std()[0]}), idx_ssim={idx_ssim.mean()[0]}({idx_ssim.std()[0]})')
+    # print(f'beta_diff : {idx_stage.mean()[0]:.3f}')
+    print(f'{val} : idx_psnr={idx_psnr.mean()[0]:.3f}({idx_psnr.std()[0]:.3f}), idx_ssim={idx_ssim.mean()[0]:.3f}({idx_ssim.std()[0]:.3f})')
     
 
 if __name__ == '__main__':
     dataRoot = 'output_log'
     header = ['stage', 'step_beta', 'cur_val', 'diff_val', 'psnr', 'ssim']
     
-    all_df_dict = read_csv_all(dataRoot, 'niqe_csv', header)
+    all_df_dict = read_csv_all(dataRoot, 'niqe2', header)
     # all_df_plot(all_df_dict)
     
     # getMaxPSNR_SSIM(all_df_dict)
@@ -158,10 +148,7 @@ if __name__ == '__main__':
     # getMax_val(all_df_dict, 'cur_val', 8.0)
     
     # Diff Value
-    # getMax_val(all_df_dict, 'diff_val', -0.30)
-    # getMax_val(all_df_dict, 'diff_val', -0.20)
-    # getMax_val(all_df_dict, 'diff_val', -0.10)
-    # getMax_val(all_df_dict, 'diff_val', -0.01)
-    # getMax_val(all_df_dict, 'diff_val', 0.0)
+    # getMax_val(all_df_dict, 'diff_val', 0.095)    # niqe
     
+    # getMax_val(all_df_dict, 'diff_val', -0.011)   # entropy
     
