@@ -215,9 +215,10 @@ if __name__ == '__main__':
     model.to(opt.device)
     
     # opt.dataRoot = 'C:/Users/IIPL/Desktop/data/RESIDE_beta/train'
-    opt.dataRoot = 'D:/data/RESIDE_beta/train'
+    opt.dataRoot = 'D:/data/RESIDE_beta_sample/train'
     # opt.dataRoot = 'data_sample/RESIDE_beta/train'
-    dataset_test = RESIDE_Dataset.RESIDE_Beta_Dataset(opt.dataRoot,[opt.imageSize_W, opt.imageSize_H], printName=True, returnName=True, norm=opt.norm)
+    # dataset_test = RESIDE_Dataset.RESIDE_Beta_Dataset(opt.dataRoot,[opt.imageSize_W, opt.imageSize_H], printName=True, returnName=True, norm=opt.norm)
+    dataset_test = RESIDE_Dataset.RESIDE_Beta_sample_Dataset(opt.dataRoot,[opt.imageSize_W, opt.imageSize_H], printName=True, returnName=True, norm=opt.norm)
     loader_test = DataLoader(dataset=dataset_test, batch_size=opt.batchSize_val,
                              num_workers=0, drop_last=False, shuffle=False)
     

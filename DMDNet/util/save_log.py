@@ -5,9 +5,7 @@ import numpy as np
 
 def write_csv(input_name, log_list):
     file_name = os.path.basename(input_name[0])[:-4]
-    path = os.path.join('D:/data/Metrics/NIQE', file_name.split('_')[-1])
-    if not os.path.isdir(path):
-        os.makedirs(path)
+    path = os.path.join('D:/data/RESIDE_beta_sample/train/niqe_csv')
     save_path = os.path.join(path, file_name+'.csv')
 
     csv_file = open(save_path,'w',newline='')
