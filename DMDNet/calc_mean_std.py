@@ -47,12 +47,13 @@ class RESIDE_Beta_Dataset(Dataset):
         
             
 if __name__ == '__main__':
-    dataRoot = 'C:/Users/IIPL/Desktop/data/RESIDE_beta/train'
+    # dataRoot = 'C:/Users/IIPL/Desktop/data/RESIDE_beta/train'
+    dataRoot = 'D:/data/RESIDE_beta/train'
     dataset = RESIDE_Beta_Dataset(dataRoot) 
     dataloader = DataLoader(dataset, shuffle=False, num_workers=2) 
     mean_hazy, std_hazy = torch.zeros(3), torch.zeros(3)
     mean_clear, std_clear = torch.zeros(3), torch.zeros(3)
-    for hazy_input, clear_input in tqdm(dataloader):         
+    for hazy_input, clear_input in tqdm(dataloader):    
         
         for i in range(3): 
             mean_hazy[i] += hazy_input[:,i,:,:].mean() 

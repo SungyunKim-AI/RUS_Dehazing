@@ -3,9 +3,12 @@ import glob
 import csv
 import numpy as np
 
-def write_csv(input_name, log_list):
+def write_csv(dataRoot, metrics_name, input_name, log_list):
     file_name = os.path.basename(input_name[0])[:-4]
-    path = os.path.join('D:/data/RESIDE_beta_sample/train/niqe_csv')
+    path = f'{dataRoot}/{metrics_name}'
+    if not os.path.exists(path):
+        os.makedirs(path)
+
     save_path = os.path.join(path, file_name+'.csv')
 
     csv_file = open(save_path,'w',newline='')
