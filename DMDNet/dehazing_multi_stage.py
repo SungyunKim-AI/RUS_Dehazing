@@ -155,16 +155,15 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
                     images_dict['ssim_best_prediction'] = prediction
                     images_dict['ssim_best_depth'] = cur_depth
                     best_ssim = ssim
-            
-            if opt.save_log:
-                csv_log.append([step, opt.betaStep, metrics_module.cur_value, diff_metrics, psnr, ssim])
-            
-            # Stop Condition
-            if diff_metrics <= opt.metricsThreshold or opt.stepLimit == step:
-            # if opt.stepLimit == step:
+                    
+            if metrics_module.best_value < metrics_module.cur_value:
                 images_dict['metrics_best_prediction'] = prediction
                 images_dict['metrics_best_depth'] = cur_depth
+                metrics_module.best_value = metrics_module.cur_value
             
+            # Stop Condition    
+            if diff_metrics <= opt.metricsThreshold or opt.stepLimit == step:
+            # if opt.stepLimit == step:            
                 if opt.verbose:
                     gt_beta = utils.get_GT_beta(input_name[0])
                     clear_metrics = metrics_module.get_cur(images_dict['clear'])
@@ -175,6 +174,9 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
                     print(f'last_metrics = {metrics_module.last_value}')
                     print(f'clear_metrics  = {clear_metrics}')
                 break
+            
+            if opt.save_log:
+                csv_log.append([step, opt.betaStep, metrics_module.cur_value, diff_metrics, psnr, ssim])
             
             # Set Next Step
             beta += opt.betaStep

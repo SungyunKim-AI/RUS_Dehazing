@@ -6,6 +6,7 @@ class Entropy_Module():
         self.eps = np.finfo(float).eps
         self.cur_value = None
         self.last_value = None
+        self.best_value = 0.0
         
     def reset(self, init_img, color='RGB'):
         self.cur_value = self.get_cur(init_img, color)
