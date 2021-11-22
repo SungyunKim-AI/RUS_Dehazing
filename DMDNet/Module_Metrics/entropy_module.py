@@ -36,7 +36,7 @@ class Entropy_Module():
     
     def get_diff(self, cur_img,  color='RGB'):
         self.cur_value = self.get_cur(cur_img, color)
-        diff_etp = self.last_value - self.cur_value
+        diff_etp = self.cur_value - self.last_value
         self.last_value = self.cur_value
         return diff_etp
     

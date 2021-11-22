@@ -6,7 +6,7 @@ import numpy as np
 def write_csv(dataRoot, metrics_name, input_name, log_list):
     file_name = os.path.basename(input_name)[:-4]
     dir_name = input_name.split('\\')[-2]
-    path = f'{dataRoot}/{metrics_name}/{dir_name}'
+    path = f'{dataRoot}/{metrics_name}2/{dir_name}'
     
     if not os.path.exists(path):
         os.makedirs(path)
