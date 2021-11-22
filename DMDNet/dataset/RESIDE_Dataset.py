@@ -8,10 +8,11 @@ from dataset import utils
 
 
 class RESIDE_Beta_Dataset(Dataset):
-    def __init__(self, path, img_size, printName=False, returnName=False ,norm=False, verbose=False):
+    def __init__(self, path, img_size, split='train', printName=False, returnName=False ,norm=False, verbose=False):
         super().__init__()
         self.img_size = img_size
-        images_clear_path = path+'/clear/*.jpg'
+        path = path + ('train' if split=='train' else 'test')
+        images_clear_path = path + '/clear/*.jpg'
         self.images_clear_list = glob(images_clear_path)
         self.printName = printName
         self.returnName = returnName
@@ -57,35 +58,6 @@ class RESIDE_Beta_Dataset(Dataset):
                 return hazy_input, clear_input, airlight_input, haze
             else:
                 return hazy_input, clear_input, airlight_input
-
-
-class RESIDE_Beta_sample_Dataset(Dataset):
-    def __init__(self,path, img_size, norm=False, printName=False,returnName=False):
-        super().__init__()
-        self.img_size = img_size
-        images_clear_path = path+'/clear/*.jpg'
-        images_hazy_path = path+'/hazy/*.jpg'
-        images_airlight_path = path+'/airlight/*.jpg'
-        self.images_clear_list=glob(images_clear_path)
-        self.images_hazy_list =glob(images_hazy_path)
-        self.images_airlight_list =glob(images_airlight_path)
-        self.printName = printName
-        self.returnName = returnName
-        self.transform = utils.make_transform(self.img_size, norm=norm)
-    
-    def __len__(self):
-        return len(self.images_clear_list)
-        
-    def __getitem__(self,index):
-        if self.printName:
-            print(self.images_hazy_list[index])
-            
-        hazy_input, clear_input, airlight_input = utils.load_item_3(self.images_hazy_list[index], self.images_clear_list[index], self.images_airlight_list[index], self.transform)
-        if self.returnName:
-            return hazy_input, clear_input, airlight_input, self.images_hazy_list[index]
-        else:
-            return hazy_input, clear_input, airlight_input
-
 
 
 class RESIDE_Beta_Dataset_With_Notation(Dataset):

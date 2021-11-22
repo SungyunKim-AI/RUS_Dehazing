@@ -1,11 +1,13 @@
 import os
-import glob
+from glob import glob
 import csv
 import numpy as np
 
 def write_csv(dataRoot, metrics_name, input_name, log_list):
-    file_name = os.path.basename(input_name[0])[:-4]
-    path = f'{dataRoot}/{metrics_name}'
+    file_name = os.path.basename(input_name)[:-4]
+    dir_name = input_name.split('\\')[-2]
+    path = f'{dataRoot}/{metrics_name}/{dir_name}'
+    
     if not os.path.exists(path):
         os.makedirs(path)
 
@@ -17,7 +19,7 @@ def write_csv(dataRoot, metrics_name, input_name, log_list):
     csv_wr.writerows(log_list)
 
 def main(path):
-    csv_list = glob.glob(f'{path}/*.csv')
+    csv_list = glob(f'{path}/*.csv')
     
     psnr_sum=0
     for csv_name in csv_list:
@@ -34,7 +36,7 @@ def main(path):
     print(psnr_sum/len(csv_list))
 
 def main2(path):
-    csv_list = glob.glob(f'{path}/*.csv')
+    csv_list = glob(f'{path}/*.csv')
     psnr_sum = 0
     for csv_name in csv_list:
         csv_file = open(csv_name, 'r', newline='')

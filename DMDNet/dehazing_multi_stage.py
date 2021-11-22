@@ -50,8 +50,7 @@ def get_args():
     parser.add_argument('--backbone', type=str, default="vitb_rn50_384", help='DPT backbone')
     
     # test_stop_when_threshold parameters
-    parser.add_argument('--result_show', type=bool, default=False, help='result images display flag')
-    parser.add_argument('--save_log', type=bool, default=True, help='log save flag')
+    parser.add_argument('--save_log', type=bool, default=False, help='log save flag')
     parser.add_argument('--saveORshow', type=str, default='save',  help='results show or save')
     parser.add_argument('--verbose', type=bool, default=True, help='print log')
     parser.add_argument('--psnr_ssim_tracking', type=bool, default=True, help='best psnr & ssim traking')
@@ -71,7 +70,9 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
     airlight_module = Airlight_Module()
     
     model.eval()
-    for batch in tqdm(test_loader):
+    
+    pbar = tqdm(test_loader)
+    for batch in pbar:
         images_dict = {}
         # Data Init
         if len(batch) == 3:
@@ -79,6 +80,7 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
             airlight_images = None
         else:
             hazy_images, clear_images, airlight_images, input_name = batch
+        pbar.set_description(os.path.basename(input_name[0]))
         csv_log = []
         
         # Depth Estimation
@@ -178,11 +180,12 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
             last_psnr, last_ssim = psnr, ssim
                 
         if opt.save_log:
-            save_log.write_csv(opt.dataRoot, opt.metrics_module, input_name, csv_log)
+            save_log.write_csv(opt.dataRoot, opt.metrics_module, input_name[0], csv_log)
         
         # One-Shot Dehazing
         if opt.one_shot_flag:
             beta_gt = utils.get_GT_beta(input_name)
+
             trans = np.exp(init_depth_ * beta_gt * -1)
             one_shot_prediction = (images_dict['init_hazy'] - images_dict['init_airlight']) / (trans+opt.eps) + images_dict['init_airlight']
             one_shot_prediction = np.clip(one_shot_prediction, 0, 1)
@@ -222,10 +225,9 @@ if __name__ == '__main__':
     model.to(opt.device)
     
     # opt.dataRoot = 'C:/Users/IIPL/Desktop/data/RESIDE_beta/train'
-    opt.dataRoot = 'D:/data/RESIDE_beta_sample/train'
-    # opt.dataRoot = 'data_sample/RESIDE_beta/train'
-    # dataset_test = RESIDE_Dataset.RESIDE_Beta_Dataset(opt.dataRoot,[opt.imageSize_W, opt.imageSize_H], printName=True, returnName=True, norm=opt.norm)
-    dataset_test = RESIDE_Dataset.RESIDE_Beta_sample_Dataset(opt.dataRoot,[opt.imageSize_W, opt.imageSize_H], printName=True, returnName=True, norm=opt.norm)
+    # opt.dataRoot = 'D:/data/RESIDE_beta_sample/train'
+    opt.dataRoot = 'D:/data/RESIDE_beta_sample_100/'
+    dataset_test = RESIDE_Dataset.RESIDE_Beta_Dataset(opt.dataRoot, [opt.imageSize_W, opt.imageSize_H], split='train', printName=False, returnName=True, norm=opt.norm)
     loader_test = DataLoader(dataset=dataset_test, batch_size=opt.batchSize_val,
                              num_workers=4, drop_last=False, shuffle=False)
     

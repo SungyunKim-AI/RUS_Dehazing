@@ -35,6 +35,6 @@ def depth_norm(depth):
 
 
 def get_GT_beta(input_name):
-    fileName = os.path.basename(input_name[0])[:-4]
+    fileName = os.path.basename(input_name)[:-4]
     beta = float(fileName.split('_')[-1])
     return beta
