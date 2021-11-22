@@ -59,7 +59,7 @@ def get_args():
     parser.add_argument('--betaStep', type=float, default=0.005, help='beta step')
     parser.add_argument('--stepLimit', type=int, default=250, help='Multi step limit')
     parser.add_argument('--metrics_module', type=str, default='Entropy_Module',  help='No Reference metrics method name')
-    parser.add_argument('--metricsThreshold', type=float, default=0.011, help='Metrics threshold: Entropy(0.001), NIQUE(-1.11)')
+    parser.add_argument('--metricsThreshold', type=float, default=0.0, help='Metrics threshold: Entropy(0.00), NIQUE(??)')
     parser.add_argument('--eps', type=float, default=1e-12, help='Epsilon value for non zero calculating')
     
     return parser.parse_args()
