@@ -44,7 +44,7 @@ def _ssim(img1, img2, window, window_size, channel, size_average=True):
         return ssim_map.mean(1).mean(1).mean(1)
 
 
-def ssim(img1, img2, window_size=11, size_average=True):
+def get_ssim(img1, img2, window_size=11, size_average=True):
     img1 = torch.Tensor(img1).unsqueeze(0)
     img2 = torch.Tensor(img2).unsqueeze(0)
     
@@ -57,7 +57,7 @@ def ssim(img1, img2, window_size=11, size_average=True):
     window = window.type_as(img1)
     return _ssim(img1, img2, window, window_size, channel, size_average)
 
-def psnr(pred, gt):
+def get_psnr(pred, gt):
     pred = torch.Tensor(pred).unsqueeze(0)
     gt = torch.Tensor(gt).unsqueeze(0)
     

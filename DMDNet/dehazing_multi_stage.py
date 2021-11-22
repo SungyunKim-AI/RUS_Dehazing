@@ -20,7 +20,7 @@ from torch.utils.data import DataLoader
 from Module_Airlight.Airlight_Module import Airlight_Module
 from Module_Metrics.Entropy_Module import Entropy_Module
 from Module_Metrics.NIQE_Module import NIQE_Module
-from Module_Metrics.metrics import ssim, psnr
+from Module_Metrics.metrics import get_ssim, get_psnr
 from util import misc, save_log, utils
 
 
@@ -50,14 +50,17 @@ def get_args():
     parser.add_argument('--backbone', type=str, default="vitb_rn50_384", help='DPT backbone')
     
     # test_stop_when_threshold parameters
-    parser.add_argument('--one_shot', type=bool, default=False, help='flag of One shot dehazing')
     parser.add_argument('--result_show', type=bool, default=False, help='result images display flag')
     parser.add_argument('--save_log', type=bool, default=True, help='log save flag')
+    parser.add_argument('--saveORshow', type=str, default='save',  help='results show or save')
+    parser.add_argument('--verbose', type=bool, default=True, help='print log')
+    parser.add_argument('--psnr_ssim_tracking', type=bool, default=True, help='best psnr & ssim traking')
+    parser.add_argument('--one_shot_flag', type=bool, default=False, help='flag of One shot dehazing')
     parser.add_argument('--airlight_step_flag', type=bool, default=False, help='flag of multi step airlight estimation')
     parser.add_argument('--betaStep', type=float, default=0.005, help='beta step')
     parser.add_argument('--stepLimit', type=int, default=250, help='Multi step limit')
     parser.add_argument('--metrics_module', type=str, default='Entropy_Module',  help='No Reference metrics method name')
-    parser.add_argument('--metricsThreshold', type=float, default=0.001, help='Metrics threshold: Entropy(0.001), NIQUE(-1.11)')
+    parser.add_argument('--metricsThreshold', type=float, default=-0.011, help='Metrics threshold: Entropy(0.001), NIQUE(-1.11)')
     parser.add_argument('--eps', type=float, default=1e-12, help='Epsilon value for non zero calculating')
     
     return parser.parse_args()
@@ -68,9 +71,8 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
     airlight_module = Airlight_Module()
     
     model.eval()
-    psnr_sum, ssim_sum = 0.0, 0.0
-    
     for batch in tqdm(test_loader):
+        images_dict = {}
         # Data Init
         if len(batch) == 3:
             hazy_images, clear_images, input_name = batch
@@ -84,21 +86,24 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
             hazy_images = hazy_images.to(opt.device)
             clear_images = clear_images.to(opt.device)
             _, init_depth = model.forward(hazy_images)
-            _, init_clear_depth = model.forward(clear_images)
+            _, clear_depth = model.forward(clear_images)
         
         init_depth_ = init_depth.clone().detach().cpu().numpy().transpose(1,2,0)
-        init_depth_ = utils.depth_norm(init_depth_)
+        images_dict['init_depth'] = utils.depth_norm(init_depth_)
         
         init_hazy = hazy_images.clone().detach().cpu()
-        init_hazy = utils.denormalize(init_hazy, norm=opt.norm)[0].numpy().transpose(1,2,0)
+        images_dict['init_hazy'] = utils.denormalize(init_hazy, norm=opt.norm)[0].numpy().transpose(1,2,0)
         
-        init_clear = clear_images.clone().detach().cpu()
-        init_clear = utils.denormalize(init_clear, norm=opt.norm)[0].numpy().transpose(1,2,0)
-
+        clear = clear_images.clone().detach().cpu()
+        images_dict['clear'] = utils.denormalize(clear, norm=opt.norm)[0].numpy().transpose(1,2,0)
+        
+        clear_depth = clear_depth.detach().cpu().numpy().transpose(1,2,0)
+        images_dict['clear_depth'] = utils.depth_norm(clear_depth)
+        
 
         # Airlight Estimation
-        init_airlight, _ = airlight_module.LLF(init_hazy)
-        clear_airlight, _ = airlight_module.LLF(init_clear)
+        images_dict['init_airlight'], _ = airlight_module.LLF(images_dict['init_hazy'])
+        images_dict['clear_airlight'], _ = airlight_module.LLF(images_dict['clear'])
         
         
         # Multi-Step Depth Estimation and Dehazing
@@ -106,8 +111,7 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
         prediction, airlight = None, None
         beta = opt.betaStep
         # opt.stepLimit = int(utils.get_GT_beta(input_name) / opt.betaStep) + 20
-        cur_hazy, last_depth = hazy_images.clone().detach(), init_depth_
-
+        cur_hazy, last_depth = init_hazy, images_dict['init_depth']
         for step in range(1, opt.stepLimit + 1):
             # Depth Estimation
             with torch.no_grad():
@@ -115,14 +119,14 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
                 _, cur_depth = model.forward(cur_hazy)
             
             cur_hazy = utils.denormalize(cur_hazy, norm=opt.norm)[0].detach().cpu().numpy().transpose(1,2,0)
+            
             cur_depth = cur_depth.detach().cpu().numpy().transpose(1,2,0)
             cur_depth = utils.depth_norm(cur_depth)
-            if last_depth is not None:
-                cur_depth = np.minimum(cur_depth, last_depth)
+            cur_depth = np.minimum(cur_depth, last_depth)
             
             # Airlight Estimation
             if opt.airlight_step_flag == False:
-                airlight = init_airlight
+                airlight = images_dict['init_airlight']
             else:
                 airlight, _ = airlight_module.LLF(cur_hazy)
             
@@ -135,63 +139,66 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
             
             # Calculate Metrics
             diff_metrics = metrics_module.get_diff(prediction)
-            _psnr = psnr(prediction, init_clear)
-            _ssim = ssim(prediction, init_clear).item()
+            psnr = get_psnr(prediction, images_dict['clear'])
+            ssim = get_ssim(prediction, images_dict['clear']).item()
+            
+            if opt.psnr_ssim_tracking:
+                if last_psnr - psnr > 0:
+                    images_dict['psnr_best_prediction'] = np.rint(prediction * 255)
+                    images_dict['psnr_best_depth'] = np.rint(cur_depth * 255)
+                
+                if last_ssim - ssim > 0:
+                    images_dict['ssim_best_prediction'] = np.rint(prediction * 255)
+                    images_dict['ssim_best_depth'] = np.rint(cur_depth * 255)
             
             if opt.save_log:
-                csv_log.append([step, opt.betaStep, metrics_module.cur_value, diff_metrics, _psnr, _ssim])
+                csv_log.append([step, opt.betaStep, metrics_module.cur_value, diff_metrics, clear_metrics, psnr, ssim])
             
             # Stop Condition
-            # if (diff_metrics <= opt.metricsThreshold or step == opt.stepLimit):
-            if opt.stepLimit == step:
-                print(diff_metrics)
-                print(opt.metricsThreshold)
-                print(opt.stepLimit)
-                psnr_sum += _psnr
-                ssim_sum += _ssim
-                gt_beta = utils.get_GT_beta(input_name)
-                clear_metrics = metrics_module.get_cur(init_clear)
-                print(f'last_step    = {step}')
-                print(f'last_beta    = {beta}({gt_beta})')
-                print(f'last_psnr    = {_psnr}')
-                print(f'last_ssim    = {_ssim}')
-                print(f'last_metrics = {metrics_module.last_value}')
-                print(f'clear_metrics  = {clear_metrics}')
+            if diff_metrics <= opt.metricsThreshold or opt.stepLimit == step:
+            # if opt.stepLimit == step:
+                images_dict['metrics_best_prediction'] = np.rint(prediction * 255)
+                images_dict['metrics_best_depth'] = np.rint(cur_depth * 255)
+            
+                if opt.verbose:
+                    gt_beta = utils.get_GT_beta(input_name)
+                    clear_metrics = metrics_module.get_cur(images_dict['clear'])
+                    print(f'last_step    = {step}')
+                    print(f'last_beta    = {beta}({gt_beta})')
+                    print(f'last_psnr    = {psnr}')
+                    print(f'last_ssim    = {ssim}')
+                    print(f'last_metrics = {metrics_module.last_value}')
+                    print(f'clear_metrics  = {clear_metrics}')
                 break
             
             # Set Next Step
             beta += opt.betaStep
             cur_hazy = torch.Tensor(prediction.transpose(2,0,1)).unsqueeze(0)
             last_depth = cur_depth.copy()
+            last_psnr, last_ssim = psnr, ssim
                 
         if opt.save_log:
             save_log.write_csv(opt.dataRoot, opt.metrics_module, input_name, csv_log)
         
         # One-Shot Dehazing
-        if opt.one_shot:
+        if opt.one_shot_flag:
             beta_gt = utils.get_GT_beta(input_name)
             trans = np.exp(init_depth_ * beta_gt * -1)
-            one_shot_prediction = (init_hazy-init_airlight)/(trans+opt.eps) + init_airlight
+            one_shot_prediction = (images_dict['init_hazy'] - images_dict['init_airlight']) / (trans+opt.eps) + images_dict['init_airlight']
             one_shot_prediction = np.clip(one_shot_prediction, 0, 1)
+            images_dict['one_shot_prediction'] = np.rint(one_shot_prediction * 255).astype(np.uint8)
             
-            oneshot_psnr = psnr(one_shot_prediction, init_clear)
-            oneshot_ssim = ssim(one_shot_prediction, init_clear).item()
+            oneshot_psnr = psnr(one_shot_prediction, images_dict['clear'])
+            oneshot_ssim = ssim(one_shot_prediction, images_dict['clear']).item()
             oneshot_metrics = metrics_module.get_cur(one_shot_prediction)
-            print(f'one-shot: beta = {beta}, psnr = {oneshot_psnr}, ssim={oneshot_ssim}, metrics={oneshot_metrics}')
-        else:
-            one_shot_prediction = None
-        
-        if opt.result_show:
-            init_clear_depth = init_clear_depth.detach().cpu().numpy().transpose(1,2,0)
-            init_clear_depth = utils.depth_norm(init_clear_depth)
-
-            misc.multi_show([init_hazy,     prediction,     init_clear, 
-                             init_depth_,    last_depth,     init_clear_depth, 
-                             init_airlight, airlight,       clear_airlight, 
-                             one_shot_prediction])
-    
-    batch_num = len(test_loader)
-    print(f'mean_psnr = {psnr_sum/batch_num}, mean_ssim = {ssim_sum/batch_num}')
+            if opt.verbose:
+                print(f'one-shot: beta = {beta}, psnr = {oneshot_psnr}, ssim={oneshot_ssim}, metrics={oneshot_metrics}')
+                
+        if opt.saveORshow != '':
+            misc.all_results_saveORshow(opt.dataRoot, input_name[0], 
+                                        opt.airlight_step_flag, opt.one_shot_flag, 
+                                        images_dict, opt.saveORshow)
+            
 
 if __name__ == '__main__':
     opt = get_args()
@@ -222,6 +229,6 @@ if __name__ == '__main__':
     loader_test = DataLoader(dataset=dataset_test, batch_size=opt.batchSize_val,
                              num_workers=4, drop_last=False, shuffle=False)
     
-    opt.metrics_module = 'NIQE_Module'
+    # opt.metrics_module = 'NIQE_Module'
     metrics_module = locals()[opt.metrics_module]()
     test_stop_when_threshold(opt, model, loader_test, metrics_module)

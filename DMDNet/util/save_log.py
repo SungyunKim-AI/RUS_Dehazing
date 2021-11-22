@@ -13,7 +13,7 @@ def write_csv(dataRoot, metrics_name, input_name, log_list):
 
     csv_file = open(save_path,'w',newline='')
     csv_wr = csv.writer(csv_file)
-    csv_wr.writerow(['stage','step_beta','cur_val','diff_val','psnr','ssim'])
+    csv_wr.writerow(['stage', 'step_beta', 'cur_val', 'diff_val', 'clear_val', 'psnr', 'ssim'])
     csv_wr.writerows(log_list)
 
 def main(path):

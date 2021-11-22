@@ -1,3 +1,4 @@
+import os
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -130,3 +131,36 @@ def multi_show(image_list):
     
     cv2.waitKey(0)
     cv2.destroyAllWindows()
+
+def all_results_saveORshow(dataRoot, input_name, airlight_step_flag, one_shot_flag, images_dict, saveORshow):
+    """
+    init_hazy       metrics_best_prediction   psnr_best_prediction  ssim_best_prediction    one_shot_prediction    clear
+    init_depth      metrics_best_depth        psnr_best_depth       ssim_best_depth         one_shot_depth         clear_depth
+    init_airlight   metrics_best_airlight     psnr_best_airlight    ssim_best_airlight      one_shot_airlight      clear_airlight
+    """
+    
+    for name, images in images_dict.items():
+        if name in 'depth':
+            images_dict[name] = cv2.cvtColor(images/10, cv2.COLOR_GRAY2BGR)
+        else:
+            images_dict[name] = cv2.cvtColor(images.astype(np.uint8), cv2.COLOR_RGB2BGR)
+
+    if one_shot_flag:
+        v1 = np.hstack((images_dict['init_hazy'],     images_dict['metrics_best_prediction'], images_dict['psnr_best_prediction'], images_dict['ssim_best_prediction'], images_dict['one_shot_prediction'], images_dict['clear']))
+        v2 = np.hstack((images_dict['init_depth'],    images_dict['metrics_best_depth'],      images_dict['psnr_best_depth'],      images_dict['ssim_best_depth'],      images_dict['one_shot_depth'],      images_dict['clear_depth']))
+    else:
+        v1 = np.hstack((images_dict['init_hazy'],     images_dict['metrics_best_prediction'], images_dict['psnr_best_prediction'], images_dict['ssim_best_prediction'], images_dict['clear']))
+        v2 = np.hstack((images_dict['init_depth'],    images_dict['metrics_best_depth'],      images_dict['psnr_best_depth'],      images_dict['ssim_best_depth'],      images_dict['clear_depth']))
+    if airlight_step_flag:
+        v3 = np.hstack((images_dict['init_airlight'], images_dict['metrics_best_airlight'],   images_dict['psnr_best_airlight'], images_dict['ssim_best_airlight'],  images_dict['one_shot_airlight'],   images_dict['clear_airlight']))
+        final_image = np.vstack((v1, v2, v3))
+    else:
+        final_image = np.vstack((v1, v2))
+    
+    if saveORshow == 'show':
+        cv2.imshow('Results Images', final_image)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+    elif saveORshow == 'save':
+        save_path = dataRoot + '/results' + os.path.basename(input_name)
+        cv2.imwrite(save_path, final_image)
