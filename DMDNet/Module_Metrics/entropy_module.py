@@ -11,6 +11,7 @@ class Entropy_Module():
     def reset(self, init_img, color='RGB'):
         self.cur_value = self.get_cur(init_img, color)
         self.last_value = self.cur_value
+        self.best_value = 0.0
         
     def get_cur(self, img, color='RGB', channel_first=False):
         if np.max(img) <= 1.0:
