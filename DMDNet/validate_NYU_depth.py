@@ -1,39 +1,15 @@
-import os
-import cv2
 import csv
 import numpy as np
 from glob import glob
 
 import torch
-from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms
+from torch.utils.data import DataLoader
 from torchvision import utils
+
+from dataset import NYU_Dataset
 from dpt.models import DPTDepthModel
 
-class NYU_Dataset(Dataset):
-    """  
-    => return (NYU_Dataset)
-        images : 480x640x3 (HxWx3) Tensor of RGB images.
-        depths : 480x640 (HxW) matrix of in-painted depth map. The values of the depth elements are in meters.
-    """
-    def __init__(self, dataRoot):
-        super().__init__()
-        self.images = glob(dataRoot + '/images/*.jpg')
-        self.depths = glob(dataRoot + '/depths/*.npy')
-        self.toTensor = transforms.ToTensor()
-        
-    def __len__(self):
-        return len(self.images)
-    
-    def __getitem__(self, index):
-        name = os.path.basename(self.images[index])[:-4]
-        image = cv2.imread(self.images[index])
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        image = self.toTensor(image)
-        
-        depth = np.load(self.depths[index])
-        
-        return image, depth, name
+
         
 def compute_errors(gt, pred):
     thresh = np.maximum((gt / pred), (pred / gt))
@@ -81,7 +57,7 @@ if __name__=='__main__':
         pred_depth = pred_depth.detach().cpu()
         
         err = compute_errors(GT_depth.numpy(), pred_depth.numpy())
-        err_list.append(err)
+        err_list.append(err) 
         
         if save_image:
             save_path = dataRoot + '/results/' + fileName + '.jpg'
