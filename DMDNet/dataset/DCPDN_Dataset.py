@@ -8,7 +8,7 @@ from dpt.transforms import Resize
 from dataset import utils
 from util import io
 
-class NYU_Dataset_With_Notation(Dataset):
+class DCPDN_Dataset_With_Notation(Dataset):
     def __init__(self, path, img_size, printName=False, returnName=False):
         super().__init__()
         self.img_size = img_size
@@ -50,7 +50,7 @@ class NYU_Dataset_With_Notation(Dataset):
         else :
             return haze_input, clear_input, airlight_input
 
-class NYU_Dataset(Dataset):
+class DCPDN_Dataset(Dataset):
     def __init__(self, path, img_size, printName=False, returnName=False):
         super().__init__()
         self.img_size = img_size
