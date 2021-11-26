@@ -142,7 +142,7 @@ def all_results_saveORshow(dataRoot, input_name, airlight_step_flag, one_shot_fl
     for name, images in images_dict.items():
         if 'depth' in name:
             # images * 255 / 10 = images * 25.5
-            images_dict[name] = cv2.cvtColor(np.rint(images_dict[name]*25.5).astype(np.uint8), cv2.COLOR_GRAY2BGR)
+            images_dict[name] = cv2.cvtColor(np.rint(images_dict[name]*255).astype(np.uint8), cv2.COLOR_GRAY2BGR)
         else:
             if np.max(images) <= 1.0:
                 images_dict[name] = np.rint(images*255).astype(np.uint8)

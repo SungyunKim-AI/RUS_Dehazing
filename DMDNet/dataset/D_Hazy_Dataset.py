@@ -59,7 +59,7 @@ class D_Hazy_NYU_Dataset(Dataset):
             return hazy_input, clear_input, airlight_input
         
 class D_Hazy_NYU_Dataset_With_Notation(Dataset):
-    def __init__(self,path,img_size,printName=False,returnName=False):
+    def __init__(self,path,img_size,printName=False,returnName=False, norm=False):
         super().__init__()
         self.img_size = img_size
         images_clear_path = path+'/clear/*.bmp'
@@ -74,7 +74,7 @@ class D_Hazy_NYU_Dataset_With_Notation(Dataset):
         
         self.printName = printName
         self.returnName = returnName
-        self.transform = utils.make_transform(self.img_size)
+        self.transform = utils.make_transform(self.img_size, norm=norm)
         self.depth_resize = Resize(
             img_size[0],
             img_size[1],
@@ -94,7 +94,7 @@ class D_Hazy_NYU_Dataset_With_Notation(Dataset):
             
         hazy_input, clear_input, airlight_input = utils.load_item_3(self.images_hazy_list[index], self.images_clear_list[index], self.images_airlight_list[index], self.transform)
         depth_input = io.read_image(self.images_depth_lsit[index])
-        depth_input = self.transform({"image": depth_input})["image"]
+        depth_input = self.transform({"image": depth_input})["image"][0]
         if self.returnName:
             return hazy_input, clear_input, airlight_input, depth_input, self.images_hazy_list[index]
         else:

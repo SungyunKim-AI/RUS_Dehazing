@@ -3,6 +3,7 @@ Reference Paper
 Image Haze Removal Using Airlight White Correction, Local Light Filter, and Aerial Perspective Prior
 Yan-Tsung Peng et al.
 """
+from math import nan
 import cv2
 import numpy as np
 # from utils import *
@@ -110,9 +111,20 @@ class Airlight_Module():
                 for c in ['r','g','b']:
                     avg[c].append(RGB[c][row[j]][col[j]]) 
         
-        avgR = round(np.array(avg['r']).mean() )/ 255.0 
-        avgG = round(np.array(avg['g']).mean()) / 255.0
-        avgB = round(np.array(avg['b']).mean()) / 255.0
+        mean_r = np.mean(np.array(avg['r']))
+        mean_g = np.mean(np.array(avg['g']))
+        mean_b = np.mean(np.array(avg['b']))
+
+        if np.isnan(mean_r):
+            mean_r = 0
+        if np.isnan(mean_g):
+            mean_g = 0
+        if np.isnan(mean_b):
+            mean_b = 0
+
+        avgR = round(mean_r)/ 255.0 
+        avgG = round(mean_g) / 255.0
+        avgB = round(mean_b) / 255.0
         
         r = np.full((image.shape[0], image.shape[1]), avgR)
         g = np.full((image.shape[0], image.shape[1]), avgG)

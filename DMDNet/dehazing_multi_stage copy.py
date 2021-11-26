@@ -16,7 +16,7 @@ from tqdm import tqdm
 import torch
 from dpt.models import DPTDepthModel
 
-from dataset import NTIRE_Dataset, RESIDE_Dataset
+from dataset import NTIRE_Dataset, RESIDE_Dataset, D_Hazy_Dataset
 from torch.utils.data import DataLoader
 
 from Module_Airlight.Airlight_Module import Airlight_Module
@@ -52,13 +52,13 @@ def get_args():
     parser.add_argument('--backbone', type=str, default="vitb_rn50_384", help='DPT backbone')
     
     # test_stop_when_threshold parameters
-    parser.add_argument('--save_log', type=bool, default=True, help='log save flag')
+    parser.add_argument('--save_log', type=bool, default=False, help='log save flag')
     parser.add_argument('--saveORshow', type=str, default='show',  help='results show or save')
     parser.add_argument('--verbose', type=bool, default=True, help='print log')
     parser.add_argument('--psnr_ssim_tracking', type=bool, default=True, help='best psnr & ssim traking')
     parser.add_argument('--one_shot_flag', type=bool, default=True, help='flag of One shot dehazing')
     parser.add_argument('--airlight_step_flag', type=bool, default=False, help='flag of multi step airlight estimation')
-    parser.add_argument('--betaStep', type=float, default=0.001, help='beta step')
+    parser.add_argument('--betaStep', type=float, default=0.05, help='beta step')
     parser.add_argument('--stepLimit', type=int, default=1200, help='Multi step limit')
     parser.add_argument('--metrics_module', type=str, default='Entropy_Module',  help='No Reference metrics method name')
     parser.add_argument('--metricsThreshold', type=float, default=0, help='Metrics threshold: Entropy(0.00), NIQUE(??)')
@@ -81,7 +81,7 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
             hazy_images, clear_images, input_name = batch
             airlight_images = None
         else:
-            hazy_images, clear_images, airlight_images, input_name = batch
+            hazy_images, clear_images, airlight_images, depth_images,input_name = batch
         pbar.set_description(os.path.basename(input_name[0]))
         csv_log = []
         
@@ -89,20 +89,24 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
         with torch.no_grad():
             hazy_images = hazy_images.to(opt.device)
             clear_images = clear_images.to(opt.device)
+            depth_images = depth_images.to(opt.device)
             _, init_depth = model.forward(hazy_images)
             _, clear_depth = model.forward(clear_images)
         
+
+        gt_depth = depth_images.clone().detach().cpu().numpy().transpose(1,2,0)
+
         init_depth = init_depth.clone().detach().cpu().numpy().transpose(1,2,0)
-        images_dict['init_depth'] = utils.depth_norm(init_depth)
+        images_dict['init_depth'] = gt_depth
         
         init_hazy = hazy_images.clone().detach().cpu()
-        images_dict['init_hazy'] = utils.denormalize(init_hazy, norm=opt.norm)[0].numpy().transpose(1,2,0)
+        images_dict['init_hazy'] = np.clip(utils.denormalize(init_hazy, norm=opt.norm)[0].numpy().transpose(1,2,0),0,1)
         
         clear = clear_images.clone().detach().cpu()
-        images_dict['clear'] = utils.denormalize(clear, norm=opt.norm)[0].numpy().transpose(1,2,0)
+        images_dict['clear'] = np.clip(utils.denormalize(clear, norm=opt.norm)[0].numpy().transpose(1,2,0),0,1)
         
         clear_depth = clear_depth.detach().cpu().numpy().transpose(1,2,0)
-        images_dict['clear_depth'] = utils.depth_norm(clear_depth)
+        images_dict['clear_depth'] = gt_depth
         
 
         # Airlight Estimation
@@ -126,9 +130,9 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
             cur_hazy = utils.denormalize(cur_hazy, norm=opt.norm)[0].detach().cpu().numpy().transpose(1,2,0)
             
             cur_depth = cur_depth.detach().cpu().numpy().transpose(1,2,0)
-            cur_depth = utils.depth_norm(cur_depth)
             cur_depth = np.minimum(cur_depth, last_depth)
-
+            cur_depth = gt_depth
+            
             # Airlight Estimation
             if opt.airlight_step_flag == False:
                 airlight = images_dict['init_airlight']
@@ -167,10 +171,9 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
             if diff_metrics <= opt.metricsThreshold or opt.stepLimit == step:
             # if opt.stepLimit == step:            
                 if opt.verbose:
-                    gt_beta = utils.get_GT_beta(input_name[0])
                     clear_metrics = metrics_module.get_cur(images_dict['clear'])
                     print(f'last_step    = {step}')
-                    print(f'last_beta    = {beta}({gt_beta})')
+                    print(f'last_beta    = {beta}')
                     print(f'last_psnr    = {psnr}')
                     print(f'last_ssim    = {ssim}')
                     print(f'last_metrics = {metrics_module.last_value}')
@@ -190,7 +193,6 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
         
         # One-Shot Dehazing
         if opt.one_shot_flag:
-            beta_gt = utils.get_GT_beta(input_name[0])
 
             trans = np.exp(images_dict['init_depth'] * beta * -1)
             one_shot_prediction = (images_dict['init_hazy'] - images_dict['init_airlight']) / (trans+opt.eps) + images_dict['init_airlight']
@@ -201,7 +203,7 @@ def test_stop_when_threshold(opt, model, test_loader, metrics_module):
             oneshot_metrics = metrics_module.get_cur(images_dict['one_shot_prediction'])
             if opt.verbose:
                 print(f'one-shot: beta = {beta}, psnr = {oneshot_psnr}, ssim={oneshot_ssim}, metrics={oneshot_metrics}')
-                
+                        
         if opt.saveORshow != '':
             misc.all_results_saveORshow(opt.dataRoot, input_name[0], 
                                         opt.airlight_step_flag, opt.one_shot_flag, 
@@ -231,8 +233,9 @@ if __name__ == '__main__':
     
     # opt.dataRoot = 'C:/Users/IIPL/Desktop/data/RESIDE_beta/train'
     # opt.dataRoot = 'D:/data/RESIDE_beta_sample/train'
-    opt.dataRoot = 'D:/data/RESIDE_beta_sample_100/'
-    dataset_test = RESIDE_Dataset.RESIDE_Beta_Dataset(opt.dataRoot, [opt.imageSize_W, opt.imageSize_H], split='train', printName=False, returnName=True, norm=opt.norm)
+    #opt.dataRoot = 'D:/data/RESIDE_beta_sample_100/'
+    opt.dataRoot = 'D:/data/D_Hazy_NYU/train'
+    dataset_test = D_Hazy_Dataset.D_Hazy_NYU_Dataset_With_Notation(opt.dataRoot, [opt.imageSize_W, opt.imageSize_H], printName=False, returnName=True, norm=opt.norm)
     loader_test = DataLoader(dataset=dataset_test, batch_size=opt.batchSize_val,
                              num_workers=1, drop_last=False, shuffle=False)
     

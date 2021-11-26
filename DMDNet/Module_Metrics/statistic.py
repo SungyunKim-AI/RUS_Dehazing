@@ -147,8 +147,8 @@ if __name__ == '__main__':
     #     getMean_Max_PSNR_SSIM(all_df_dict)
     
     
-    # beta = [0.04, 0.06, 0.08, 0.1, 0.12, 0.16, 0.2]
-    beta = [0.1]
+    beta = [0.04, 0.06, 0.08, 0.1, 0.12, 0.16, 0.2]
+    #beta = [0.1]
     all_df_dict = read_csv_all(dataRoot, 'Entropy_Module', beta)
     for dfName, df in all_df_dict.items():
         data_plot(dfName, df, labels=['cur_val', 'psnr'])
