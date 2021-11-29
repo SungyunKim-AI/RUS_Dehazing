@@ -10,25 +10,6 @@ from dataset import NYU_Dataset
 from dpt.models import DPTDepthModel
 
 
-        
-def compute_errors(gt, pred):
-    thresh = np.maximum((gt / pred), (pred / gt))
-    a1 = (thresh < 1.25   ).mean()
-    a2 = (thresh < 1.25 ** 2).mean()
-    a3 = (thresh < 1.25 ** 3).mean()
-
-    rmse = (gt - pred) ** 2
-    rmse = np.sqrt(rmse.mean())
-
-    rmse_log = (np.log(gt) - np.log(pred)) ** 2
-    rmse_log = np.sqrt(rmse_log.mean())
-
-    abs_rel = np.mean(np.abs(gt - pred) / gt)
-
-    sq_rel = np.mean(((gt - pred)**2) / gt)
-
-    return [abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3]
-
 if __name__=='__main__':
     # Init
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -40,7 +21,7 @@ if __name__=='__main__':
     dataloader = DataLoader(dataset=dataset, batch_size=1,
                              num_workers=0, drop_last=False, shuffle=False)
 
-    # # Init Depth Estimation Model - DPT
+    # Init Depth Estimation Model - DPT
     model = DPTDepthModel(path = 'weights/dpt_hybrid-midas-501f0c75.pt',
                           scale=0.00030, shift=0.1378, invert=True,
                           backbone='vitb_rn50_384',
@@ -48,6 +29,7 @@ if __name__=='__main__':
                           enable_attention_hooks=False).to(memory_format=torch.channels_last)
     model.to(device).eval()
     
+    # GT depth ↔ (clear depth, hazy-init depth,  hazy-final depth)
     err_list = []
     for data in dataloader:
         image, GT_depth, fileName = data[0].to(device), data[1], data[2][0]

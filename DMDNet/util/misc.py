@@ -170,3 +170,34 @@ def all_results_saveORshow(dataRoot, input_name, airlight_step_flag, one_shot_fl
             os.makedirs(dir_name)
         save_path = os.path.join(dir_name, os.path.basename(input_name))
         cv2.imwrite(save_path, final_image)
+        
+def depth_results_saveORshow(dataRoot, input_name, imgSize, images_dict, saveORshow):
+    """
+    clear        init_hazy   psnr_best_prediction   none
+    clear_depth  init_depth  psnr_best_depth        GT_depth
+    """
+    images_dict['none'] = np.zeros(imgSize)
+    for name, images in images_dict.items():
+        if 'depth' in name:
+            # images * 255 / 10 = images * 25.5
+            images_dict[name] = cv2.cvtColor(np.rint(images_dict[name]*255).astype(np.uint8), cv2.COLOR_GRAY2BGR)
+        else:
+            if np.max(images) <= 1.0:
+                images_dict[name] = np.rint(images*255).astype(np.uint8)
+            images_dict[name] = cv2.cvtColor(images_dict[name].astype(np.uint8), cv2.COLOR_RGB2BGR)
+    
+    v1 = np.hstack((images_dict['clear'],       images_dict['init_hazy'],  images_dict['psnr_best_prediction'], images_dict['none']))
+    v2 = np.hstack((images_dict['clear_depth'], images_dict['init_depth'], images_dict['psnr_best_depth'],      images_dict['GT_depth']))
+    final_image = np.vstack((v1, v2))
+    
+    if saveORshow == 'show':
+        cv2.imshow('Results Images', final_image)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+        
+    elif saveORshow == 'save':
+        dir_name = dataRoot + 'results/' + input_name.split('\\')[-2]
+        if not os.path.exists(dir_name):
+            os.makedirs(dir_name)
+        save_path = os.path.join(dir_name, os.path.basename(input_name))
+        cv2.imwrite(save_path, final_image)
