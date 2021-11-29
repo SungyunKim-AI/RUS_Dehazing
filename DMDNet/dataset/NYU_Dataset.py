@@ -59,7 +59,7 @@ class NYU_Dataset(Dataset):
     def __getitem__(self,index):
         haze = self.hazy_lists[index//self.images_count][index%self.images_count]
         clear = self.images_clear_list[index%self.images_count]
-        depth = np.load(self.depths_list[index%self.images_count])
+        depth = np.load(self.depths_list[index%self.images_count]).T
         
         airligth = float(os.path.basename(haze).split('_')[-2])
         airligth = np.full(self.img_size, airligth)

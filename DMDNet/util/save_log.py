@@ -21,7 +21,7 @@ def write_csv(dataRoot, metrics_name, input_name, log_list):
 def write_csv_depth_err(dataRoot, input_name, log_list):
     file_name = os.path.basename(input_name)[:-4]
     dir_name = input_name.split('\\')[-2]
-    path = f'{dataRoot}/{dir_name}'
+    path = f'{dataRoot}/statistic/{dir_name}'
     if not os.path.exists(path):
         os.makedirs(path)
 
