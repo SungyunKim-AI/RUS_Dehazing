@@ -88,8 +88,7 @@ def test_stop_when_threshold(opt, model, test_loader):
         
         # Multi-Step Depth Estimation and Dehazing
         beta = opt.betaStep
-        beta_step = opt.betaStep
-        cur_hazy, last_depth = hazy_image, images_dict['init_depth']
+        cur_hazy = hazy_image
         best_psnr, best_ssim = 0.0, 0.0
         for step in range(1, opt.stepLimit + 1):
             # Depth Estimation
@@ -97,15 +96,13 @@ def test_stop_when_threshold(opt, model, test_loader):
                 cur_hazy = cur_hazy.to(opt.device)
                 _, cur_depth = model.forward(cur_hazy)
             
-            cur_hazy = tensor2numpy(cur_hazy)[0]
             cur_depth = tensor2numpy(cur_depth)[0]
-            cur_depth = np.minimum(cur_depth, last_depth)
             
             # Transmission Map
-            trans = np.exp(cur_depth * beta_step * -1)
+            trans = np.exp(cur_depth * beta * -1)
             
             # Dehazing
-            prediction = (cur_hazy - images_dict['airlight']) / (trans + opt.eps) + images_dict['airlight']
+            prediction = (images_dict['init_hazy'] - images_dict['airlight']) / (trans + opt.eps) + images_dict['airlight']
             prediction = np.clip(prediction, 0, 1)
             
             # Calculate Metrics
@@ -114,37 +111,41 @@ def test_stop_when_threshold(opt, model, test_loader):
             
             
             if best_psnr < psnr:
-                images_dict['psnr_best_prediction'] = prediction
-                images_dict['psnr_best_depth'] = cur_depth
                 best_psnr = psnr
                 
                 if best_ssim < ssim:
-                    images_dict['ssim_best_prediction'] = prediction
-                    images_dict['ssim_best_depth'] = cur_depth
                     best_ssim = ssim
+                
+                if opt.save_log:
+                    abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3 \
+                        = utils.compute_errors(images_dict['GT_depth'], cur_depth)
+                    csv_log.append([step, beta, best_psnr, best_ssim, abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3])
             else:
+                # Final Depth Estimation
+                with torch.no_grad():
+                    dehazed = cur_hazy.to(opt.device)
+                    _, final_depth = model.forward(dehazed)
+
+                images_dict['final_depth'] = tensor2numpy(final_depth)[0]
+                images_dict['psnr_best_prediction'] = tensor2numpy(cur_hazy)[0]
+
+                if opt.save_log:
+                    abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3 \
+                        = utils.compute_errors(images_dict['GT_depth'], images_dict['final_depth'])
+                    csv_log.append([step, beta, best_psnr, best_ssim, abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3])
+
                 if opt.verbose:
                     gt_beta = utils.get_GT_beta(input_name)
-                    print(f'last_step    = {step}')
-                    print(f'last_beta    = {beta}({gt_beta})')
-                    print(f'last_psnr    = {best_psnr}')
-                    print(f'last_ssim    = {best_ssim}')
+                    print(f'last_step  = {step}')
+                    print(f'last_beta  = {beta}({gt_beta})')
+                    print(f'last_psnr  = {best_psnr}')
+                    print(f'last_ssim  = {best_ssim}')
                 break
             
             # Set Next Step
-            beta += beta_step
+            beta += opt.betaStep
             cur_hazy = torch.Tensor(prediction).unsqueeze(0)
-            last_depth = cur_depth.copy()
-            
-            # print(images_dict['GT_depth'])
-            # print("\n\n\n\n\n")
-            # print(cur_depth)
-            # exit()
 
-            if opt.save_log:
-                abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3 \
-                    = utils.compute_errors(images_dict['GT_depth'], cur_depth)
-                csv_log.append([step, beta_step, best_psnr, best_ssim, abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3])
                 
         if opt.save_log:
             save_log.write_csv_depth_err(opt.dataRoot, input_name, csv_log)

@@ -175,31 +175,28 @@ def all_results_saveORshow(dataRoot, input_name, airlight_step_flag, one_shot_fl
 def depth_results_saveORshow(dataRoot, input_name, imgSize, images_dict, saveORshow):
     """
     clear        init_hazy   psnr_best_prediction   none
-    clear_depth  init_depth  psnr_best_depth        GT_depth
+    clear_depth  init_depth  final_depth            GT_depth
     """
+
     for name, images in images_dict.items():
-        images_dict[name] = (images_dict[name] * 0.5) + 0.5
         if 'depth' in name:
-            # images * 255 / 10 = images * 25.5
             images_dict[name] = np.squeeze(images_dict[name])
-            images_dict[name] = np.rint(images_dict[name]*25.5).astype(np.uint8)
+            images_dict[name] = np.rint(images_dict[name]*20).astype(np.uint8)
             images_dict[name] = cv2.cvtColor(images_dict[name], cv2.COLOR_GRAY2BGR)
         else:
             images_dict[name] = images_dict[name].transpose(1, 2, 0)
-            if np.max(images) <= 1.0:
-                images_dict[name] = np.rint(images_dict[name]*255).astype(np.uint8)
-            images_dict[name] = cv2.cvtColor(images_dict[name].astype(np.uint8), cv2.COLOR_RGB2BGR)
+            images_dict[name] = (images_dict[name] * 0.5) + 0.5
+            images_dict[name] = np.rint(images_dict[name]*255).astype(np.uint8)
+            images_dict[name] = cv2.cvtColor(images_dict[name], cv2.COLOR_RGB2BGR)
         
         images_dict[name] = cv2.resize(images_dict[name], (0, 0), fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
     
-    images_dict['none'] = np.zeros((imgSize[1], imgSize[0], 3)).astype(np.uint8)
+    images_dict['none'] = np.full((imgSize[1], imgSize[0], 3), 255).astype(np.uint8)
     images_dict['none'] = cv2.resize(images_dict['none'], (0, 0), fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
 
-    # for name, images in images_dict.items():
-    #     print(f"{name} : {images.shape}")
 
     v1 = np.hstack((images_dict['clear'],       images_dict['init_hazy'],  images_dict['psnr_best_prediction'], images_dict['none']))
-    v2 = np.hstack((images_dict['clear_depth'], images_dict['init_depth'], images_dict['psnr_best_depth'],      images_dict['GT_depth']))
+    v2 = np.hstack((images_dict['clear_depth'], images_dict['init_depth'], images_dict['final_depth'],          images_dict['GT_depth']))
     final_image = np.vstack((v1, v2))
     
     if saveORshow == 'show':
