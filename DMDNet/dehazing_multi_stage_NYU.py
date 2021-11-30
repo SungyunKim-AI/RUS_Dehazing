@@ -44,7 +44,7 @@ def get_args():
     
     # test_stop_when_threshold parameters
     parser.add_argument('--save_log', type=bool, default=True, help='log save flag')
-    parser.add_argument('--saveORshow', type=str, default='',  help='results show or save')
+    parser.add_argument('--saveORshow', type=str, default='save',  help='results show or save')
     parser.add_argument('--verbose', type=bool, default=True, help='print log')
     parser.add_argument('--betaStep', type=float, default=0.005, help='beta step')
     parser.add_argument('--stepLimit', type=int, default=250, help='Multi step limit')
@@ -103,7 +103,7 @@ def test_stop_when_threshold(opt, model, test_loader):
             
             # Dehazing
             prediction = (images_dict['init_hazy'] - images_dict['airlight']) / (trans + opt.eps) + images_dict['airlight']
-            prediction = np.clip(prediction, 0, 1)
+            prediction = np.clip(prediction, -1, 1)
             
             # Calculate Metrics
             psnr = get_psnr(prediction, images_dict['clear'])
