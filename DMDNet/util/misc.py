@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from dpt.vit import get_mean_attention_map
+import torch, torchvision
 from util import utils
 
 def visualize_attention(input, model, prediction, model_type):
@@ -210,3 +211,12 @@ def depth_results_saveORshow(dataRoot, input_name, imgSize, images_dict, saveORs
             os.makedirs(dir_name)
         save_path = os.path.join(dir_name, os.path.basename(input_name))
         cv2.imwrite(save_path, final_image)
+        
+def results_save_tensor(dataRoot, input_name, category, images):
+    dir_name = dataRoot + f'results/{category}' + input_name[-1].split('\\')[-2]
+    if not os.path.exists(dir_name):
+        os.makedirs(dir_name)
+        
+    fileName = f'{os.path.basename(input_name[0])}-{os.path.basename(input_name[-1])}.jpg'
+    save_path = os.path.join(dir_name, fileName)
+    torchvision.utils.save_image(utils.denormalize(images), save_path)

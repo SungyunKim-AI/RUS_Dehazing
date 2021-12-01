@@ -79,7 +79,7 @@ def get_ssim_batch(img1, img2, window_size=11, size_average=True):
     C2 = 0.03 ** 2
     ssim_map = ((2 * mu1_mu2 + C1) * (2 * sigma12 + C2)) / ((mu1_sq + mu2_sq + C1) * (sigma1_sq + sigma2_sq + C2))
 
-    return torch.mean(ssim_map, dim=(1,2,3)).unsqueeze(1)
+    return torch.mean(ssim_map, dim=(1,2,3))
 
 
 def get_psnr(pred, gt):
@@ -100,7 +100,7 @@ def get_psnr_batch(pred, gt):
     imdff = pred - gt
     rmse = torch.sqrt(torch.mean(torch.square(imdff), dim=(1,2,3)))
     psnr = 20 * torch.log10( 1.0 / rmse)
-    return psnr.unsqueeze(1)
+    return psnr
 
 if __name__ == "__main__":
     pass

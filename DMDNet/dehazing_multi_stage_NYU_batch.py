@@ -30,7 +30,7 @@ def get_args():
     
     # learning parameters
     parser.add_argument('--seed', type=int, default=101, help='Random Seed')
-    parser.add_argument('--batchSize_val', type=int, default=4, help='test dataloader input batch size')
+    parser.add_argument('--batchSize', type=int, default=4, help='test dataloader input batch size')
     parser.add_argument('--imageSize_W', type=int, default=640, help='the width of the resized input image to network')
     parser.add_argument('--imageSize_H', type=int, default=480, help='the height of the resized input image to network')
     parser.add_argument('--device', default=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
@@ -50,7 +50,7 @@ def get_args():
     return parser.parse_args()
     
 def tensor2numpy(x):
-    return x.clone().detach().cpu().numpy()
+    return x.detach().cpu().numpy()
 
 def test_stop_when_threshold(opt, model, test_loader):
     
@@ -58,35 +58,32 @@ def test_stop_when_threshold(opt, model, test_loader):
     
     pbar = tqdm(test_loader)
     for batch in pbar:
-        images_dict = {}        # results images dictionary
-        csv_log = []            # result log save to csv
+        last_pred = torch.Tensor(opt.batchSize, 3, opt.imageSize_H, opt.imageSize_W)
+        csv_log = [[] for _ in range(opt.batchSize)]            # result log save to csv
         
         # Data Init
         hazy_image, clear_image, airlight, GT_depth, input_name = batch
         
-        hazy_image = hazy_image.to(opt.device)
         clear_image = clear_image.to(opt.device)
         airlight = airlight.to(opt.device)
-        GT_depth = GT_depth.to(opt.device)
         
         pbar.set_description(f"{os.path.basename(input_name[0])}~{os.path.basename(input_name[-1])}")
-        
-        # Depth Estimation
-        with torch.no_grad():
-            _, init_depth = model.forward(hazy_image)
-            _, clear_depth = model.forward(clear_image)
             
         
         # Multi-Step Depth Estimation and Dehazing
         beta = opt.betaStep
-        cur_hazy = hazy_image
-        best_psnr, best_ssim = 0.0, 0.0
+        best_psnr = torch.zeros((opt.batchSize), dtype=torch.float32)
+        best_ssim = torch.zeros((opt.batchSize), dtype=torch.float32)
+        idxs = list(range(opt.batchSize))
+        cur_hazy = hazy_image.clone().to(opt.device)
         for step in range(1, opt.stepLimit + 1):
             # Depth Estimation
             with torch.no_grad():
                 cur_hazy = cur_hazy.to(opt.device)
                 _, cur_depth = model.forward(cur_hazy)
             cur_depth = cur_depth.unsqueeze(1)
+            if step == 1:
+                init_depth = cur_depth.clone().detach().cpu()
             
             
             # Transmission Map
@@ -94,60 +91,70 @@ def test_stop_when_threshold(opt, model, test_loader):
             trans = torch.add(trans, opt.eps)
             
             # Dehazing
-            prediction = (hazy_image - airlight) / trans + airlight
+            prediction = (cur_hazy - airlight) / trans + airlight
             prediction = torch.clamp(prediction, -1, 1)
-            # torchvision.utils.save_image(utils.denormalize(prediction), 'test.jpg')
             
             # Calculate Metrics            
             psnr = get_psnr_batch(prediction, clear_image)
             ssim = get_ssim_batch(prediction, clear_image)
-            
-            
-            if best_psnr < psnr:
-                best_psnr = psnr
+            # TODO: denormalize 반영 안되어 있는지 확인
+            for i in idxs:
+                if best_psnr[i] < psnr[i]:
+                    best_psnr[i] = psnr[i]
                 
-                if best_ssim < ssim:
-                    best_ssim = ssim
+                    if best_ssim[i] < ssim[i]:
+                        best_ssim[i] = ssim[i]
+                    
+                    last_pred[i] = prediction[i].clone().detach().cpu()
                 
-                if opt.save_log:
-                    abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3 \
-                        = utils.compute_errors(images_dict['GT_depth'], cur_depth)
-                    csv_log.append([step, beta, best_psnr, best_ssim, abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3])
+                    if opt.save_log:
+                        abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3 \
+                            = utils.compute_errors(GT_depth[i], prediction[i])
+                        csv_log[i].append([step, beta, best_psnr, best_ssim, abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3])
+                
+                else:
+                    idxs.remove(i)
+            
+            if len(idxs) == 0:
+                break   # Stop Multi Step
             else:
-                # Final Depth Estimation
-                with torch.no_grad():
-                    dehazed = cur_hazy.to(opt.device)
-                    _, final_depth = model.forward(dehazed)
-
-                images_dict['final_depth'] = tensor2numpy(final_depth)[0]
-                images_dict['psnr_best_prediction'] = tensor2numpy(cur_hazy)[0]
-
-                if opt.save_log:
-                    abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3 \
-                        = utils.compute_errors(images_dict['GT_depth'], images_dict['final_depth'])
-                    csv_log.append([step, beta, best_psnr, best_ssim, abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3])
-
-                if opt.verbose:
-                    gt_beta = utils.get_GT_beta(input_name)
-                    print(f'last_step  = {step}')
-                    print(f'last_beta  = {beta}({gt_beta})')
-                    print(f'last_psnr  = {best_psnr}')
-                    print(f'last_ssim  = {best_ssim}')
-                break
+                # cur_hazy 에서 더이상 PSNR 이 증가하지 않는 batch index는 빼고 새롭게 cur_hazy 생성
+                # cur_hazy = cur_hazy.detach().cpu()
+                cur_hazy = torch.cat([cur_hazy[i].unsqueeze(0) for i in idxs])    
+                beta += opt.betaStep    # Set Next Step
+                     
             
-            # Set Next Step
-            beta += opt.betaStep
-            cur_hazy = torch.Tensor(prediction).unsqueeze(0)
-
-                
-        if opt.save_log:
-            save_log.write_csv_depth_err(opt.dataRoot, input_name, csv_log)
+        # Final Depth Estimation
+        with torch.no_grad():
+            dehazed = last_pred.to(opt.device)
+            _, final_depth = model.forward(dehazed)
         
+        final_depth = final_depth.detach().cpu()
+        
+        for i in range(opt.batchSize):
+            if opt.save_log:
+                abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3 \
+                    = utils.compute_errors(GT_depth[i], final_depth[i].numpy())
+                csv_log[i].append([step, beta, best_psnr, best_ssim, abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3])
+                save_log.write_csv_depth_err(opt.dataRoot, input_name[i], csv_log[i])
+
+            if opt.verbose:
+                gt_beta = utils.get_GT_beta(input_name[i])
+                print(f'last_step  = {step}')
+                print(f'last_beta  = {beta}({gt_beta})')
+                print(f'last_psnr  = {best_psnr}')
+                print(f'last_ssim  = {best_ssim}')
                 
-        if opt.saveORshow != '':
-            misc.depth_results_saveORshow(opt.dataRoot, input_name, 
-                                          [opt.imageSize_W, opt.imageSize_H],
-                                          images_dict, opt.saveORshow)
+            if opt.saveORshow == 'save':
+                """
+                clear     init_hazy   psnr_best_prediction
+                GT_depth  init_depth  final_depth            
+                """
+                image_grid = torchvision.utils.make_grid(clear_image[i], hazy_image[i], last_pred[i])
+                depth_grid = torchvision.utils.make_grid(GT_depth[i], init_depth[i], final_depth[i])
+                misc.results_save_tensor(opt.dataRoot, input_name[i], 'image', image_grid)
+                misc.results_save_tensor(opt.dataRoot, input_name[i], 'depth', depth_grid)
+                
             
 
 if __name__ == '__main__':
@@ -175,7 +182,7 @@ if __name__ == '__main__':
     # opt.dataRoot = 'D:/data/RESIDE_beta_sample/train'
     # opt.dataRoot = 'D:/data/NYU/'
     dataset_test = NYU_Dataset.NYU_Dataset(opt.dataRoot, [opt.imageSize_W, opt.imageSize_H], printName=False, returnName=True, norm=opt.norm)
-    loader_test = DataLoader(dataset=dataset_test, batch_size=opt.batchSize_val,
+    loader_test = DataLoader(dataset=dataset_test, batch_size=opt.batchSize,
                              num_workers=1, drop_last=False, shuffle=False)
     
     test_stop_when_threshold(opt, model, loader_test)
