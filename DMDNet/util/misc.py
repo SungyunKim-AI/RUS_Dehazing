@@ -212,11 +212,26 @@ def depth_results_saveORshow(dataRoot, input_name, imgSize, images_dict, saveORs
         save_path = os.path.join(dir_name, os.path.basename(input_name))
         cv2.imwrite(save_path, final_image)
         
-def results_save_tensor(dataRoot, input_name, category, images):
-    dir_name = dataRoot + f'results/{category}' + input_name[-1].split('\\')[-2]
+def results_save_tensor(dataRoot, input_name, clear_image, hazy_image, last_pred, GT_depth, init_depth, final_depth):
+    """
+    clear     init_hazy   psnr_best_prediction
+    GT_depth  init_depth  final_depth            
+    """
+    image_grid = torch.cat((clear_image, hazy_image, last_pred), 2)
+    image_grid = torch.round(((image_grid * 0.5) + 0.5) * 255).type(torch.uint8)
+    
+    GT_depth = GT_depth.repeat(3,1,1)
+    init_depth = init_depth.repeat(3,1,1)
+    final_depth = final_depth.repeat(3,1,1)
+    depth_grid = torch.cat((GT_depth, init_depth, final_depth), 2)
+    depth_grid = torch.round(depth_grid * 20).type(torch.uint8)
+    
+    images = torch.cat((image_grid, depth_grid), 1)
+    images = images.permute(1,2,0).numpy().astype(np.uint8)
+    
+    dir_name = dataRoot + f'results/' + input_name.split('\\')[-2]
     if not os.path.exists(dir_name):
         os.makedirs(dir_name)
-        
-    fileName = f'{os.path.basename(input_name[0])}-{os.path.basename(input_name[-1])}.jpg'
-    save_path = os.path.join(dir_name, fileName)
-    torchvision.utils.save_image(utils.denormalize(images), save_path)
+    
+    save_path = os.path.join(dir_name, os.path.basename(input_name))
+    cv2.imwrite(save_path, images)

@@ -83,11 +83,6 @@ def test_stop_when_threshold(opt, model, test_loader):
         images_dict['airlight'] = airlight.transpose(0, 2, 1)       # 1x480x640
         images_dict['GT_depth'] = GT_depth.transpose(0, 2, 1)
         
-        print(np.min(images_dict['clear']), np.max(images_dict['clear']), np.mean(images_dict['clear']))
-        temp = tensor2numpy(utils.denormalize(clear_image, norm=True))[0]
-        print(np.min(temp), np.max(temp), np.mean(temp))
-        exit()
-        
         # Multi-Step Depth Estimation and Dehazing
         beta = opt.betaStep
         cur_hazy = hazy_image
