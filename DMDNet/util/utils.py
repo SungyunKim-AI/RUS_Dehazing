@@ -18,7 +18,7 @@ def normalize(x, norm=False, mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
         
     return transform(x)
 
-def denormalize(x, norm=False, mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
+def denormalize(x, norm=True, mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
     if norm:
         # 3, H, W, B
         ten = x.clone().permute(1, 2, 3, 0)

@@ -14,6 +14,7 @@ import torch
 import torch.nn.functional as F
 from torch.autograd import Variable
 from  torchvision.transforms import ToPILImage
+from util import utils
 
 def gaussian(window_size, sigma):
     gauss = torch.Tensor([exp(-(x - window_size // 2) ** 2 / float(2 * sigma ** 2)) for x in range(window_size)])
@@ -57,6 +58,18 @@ def get_ssim(img1, img2, window_size=11, size_average=True):
     window = window.type_as(img1)
     return _ssim(img1, img2, window, window_size, channel, size_average)
 
+def get_ssim_batch(img1, img2, window_size=11, size_average=True):
+    img1 = utils.denormalize(img1)
+    img2 = utils.denormalize(img2)
+    
+    (_, channel, _, _) = img1.size()
+    window = create_window(window_size, channel)
+    if img1.is_cuda:
+        window = window.cuda(img1.get_device())
+    window = window.type_as(img1)
+    return _ssim(img1, img2, window, window_size, channel, size_average)
+
+
 def get_psnr(pred, gt):
     pred = torch.Tensor(pred).unsqueeze(0)
     gt = torch.Tensor(gt).unsqueeze(0)
@@ -68,6 +81,15 @@ def get_psnr(pred, gt):
     if rmse == 0:
         return 100
     return 20 * math.log10( 1.0 / rmse)
+
+def get_psnr_batch(pred, gt):
+    pred = utils.denormalize(pred)
+    gt = utils.denormalize(gt)
+    imdff = pred - gt
+    rmse = torch.sqrt(torch.mean(torch.square(imdff)))
+    if rmse == 0:
+        return 100
+    return 20 * torch.log10( 1.0 / rmse)
 
 if __name__ == "__main__":
     pass
