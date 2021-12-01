@@ -35,6 +35,7 @@ class NYU_Dataset_clear(Dataset):
 class NYU_Dataset(Dataset):
     def __init__(self, path, img_size, printName=False, returnName=False ,norm=False, verbose=False):
         super().__init__()
+        self.norm = norm
         # clear images
         self.images_clear_list = glob(path + '/clear/*.jpg')
         self.depths_list = glob(path + '/depth/*.npy')
@@ -51,7 +52,7 @@ class NYU_Dataset(Dataset):
         self.returnName = returnName
         
         self.images_count = len(self.hazy_lists[0])
-        self.transform = utils.make_transform(img_size, norm=norm)
+        self.transform = utils.make_transform(img_size, norm=self.norm)
         
     def __len__(self):
         return len(self.hazy_lists) * self.images_count
@@ -59,18 +60,20 @@ class NYU_Dataset(Dataset):
     def __getitem__(self,index):
         haze = self.hazy_lists[index//self.images_count][index%self.images_count]
         clear = self.images_clear_list[index%self.images_count]
-        depth = np.load(self.depths_list[index%self.images_count]).T
+        GT_depth = np.load(self.depths_list[index%self.images_count])
+        GT_depth = np.expand_dims(GT_depth, axis=0)
         
         airlight = float(os.path.basename(haze).split('_')[-2])
-        airlight = np.full(self.img_size, (airlight-0.5)/0.5)
+        if self.norm:
+            airlight = (airlight - 0.5) / 0.5
+        airlight_input = np.full((3, self.img_size[1], self.img_size[0]), airlight).astype(np.float32)
         
         if self.printName:
             print(haze)
         
         hazy_input, clear_input = utils.load_item_2(haze, clear, self.transform)
-        gt_airlight = (airlight-0.5)/0.5
         if self.returnName:
-            return hazy_input, clear_input, depth, gt_airlight, haze
+            return hazy_input, clear_input, airlight_input, GT_depth, haze
         else:
-            return hazy_input, clear_input, depth, gt_airlight 
+            return hazy_input, clear_input, airlight_input, GT_depth  
         

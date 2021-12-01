@@ -1,7 +1,5 @@
 # User warnings ignore
 import warnings
-
-from DMDNet.Module_Metrics.metrics import get_psnr_batch, get_ssim_batch
 warnings.filterwarnings("ignore")
 
 import os
@@ -12,7 +10,7 @@ import numpy as np
 import random
 from tqdm import tqdm
 
-import torch
+import torch, torchvision
 from dpt.models import DPTDepthModel
 
 from dataset import NYU_Dataset
@@ -32,7 +30,7 @@ def get_args():
     
     # learning parameters
     parser.add_argument('--seed', type=int, default=101, help='Random Seed')
-    parser.add_argument('--batchSize_val', type=int, default=1, help='test dataloader input batch size')
+    parser.add_argument('--batchSize_val', type=int, default=4, help='test dataloader input batch size')
     parser.add_argument('--imageSize_W', type=int, default=640, help='the width of the resized input image to network')
     parser.add_argument('--imageSize_H', type=int, default=480, help='the height of the resized input image to network')
     parser.add_argument('--device', default=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
@@ -45,7 +43,7 @@ def get_args():
     parser.add_argument('--save_log', type=bool, default=True, help='log save flag')
     parser.add_argument('--saveORshow', type=str, default='save',  help='results show or save')
     parser.add_argument('--verbose', type=bool, default=True, help='print log')
-    parser.add_argument('--betaStep', type=float, default=0.005, help='beta step')
+    parser.add_argument('--betaStep', type=float, default=0.3, help='beta step')
     parser.add_argument('--stepLimit', type=int, default=250, help='Multi step limit')
     parser.add_argument('--eps', type=float, default=1e-12, help='Epsilon value for non zero calculating')
     
@@ -64,26 +62,20 @@ def test_stop_when_threshold(opt, model, test_loader):
         csv_log = []            # result log save to csv
         
         # Data Init
-        hazy_image, clear_image, airlight, GT_depth, input_name \
-            = batch[0], batch[1], batch[3].numpy(), batch[2].numpy(), batch[4]
+        hazy_image, clear_image, airlight, GT_depth, input_name = batch
+        
+        hazy_image = hazy_image.to(opt.device)
+        clear_image = clear_image.to(opt.device)
+        airlight = airlight.to(opt.device)
+        GT_depth = GT_depth.to(opt.device)
+        
         pbar.set_description(f"{os.path.basename(input_name[0])}~{os.path.basename(input_name[-1])}")
-
         
         # Depth Estimation
         with torch.no_grad():
-            hazy_image = hazy_image.to(opt.device)
-            clear_image = clear_image.to(opt.device)
             _, init_depth = model.forward(hazy_image)
             _, clear_depth = model.forward(clear_image)
-        
-
-        images_dict['init_hazy'] = tensor2numpy(hazy_image)[0]      # 3x480x640
-        images_dict['clear'] = tensor2numpy(clear_image)[0]         # 3x480x640
-        images_dict['init_depth'] = tensor2numpy(init_depth)        # 1x480x640
-        images_dict['clear_depth'] = tensor2numpy(clear_depth)      # 1x480x640
-        images_dict['airlight'] = airlight.transpose(0, 2, 1)       # 1x480x640
-        images_dict['GT_depth'] = GT_depth.transpose(0, 2, 1)
-        
+            
         
         # Multi-Step Depth Estimation and Dehazing
         beta = opt.betaStep
@@ -94,21 +86,21 @@ def test_stop_when_threshold(opt, model, test_loader):
             with torch.no_grad():
                 cur_hazy = cur_hazy.to(opt.device)
                 _, cur_depth = model.forward(cur_hazy)
+            cur_depth = cur_depth.unsqueeze(1)
             
-            cur_depth = tensor2numpy(cur_depth)[0]
             
             # Transmission Map
             trans = torch.exp(cur_depth * -beta)
+            trans = torch.add(trans, opt.eps)
             
             # Dehazing
-            prediction = (hazy_image - airlight) / (trans + opt.eps) + airlight
+            prediction = (hazy_image - airlight) / trans + airlight
             prediction = torch.clamp(prediction, -1, 1)
-            # prediction = (images_dict['init_hazy'] - images_dict['airlight']) / (trans + opt.eps) + images_dict['airlight']
-            # prediction = np.clip(prediction, -1, 1)
+            # torchvision.utils.save_image(utils.denormalize(prediction), 'test.jpg')
             
-            # Calculate Metrics
-            psnr = get_psnr_batch(prediction, images_dict['clear'])
-            ssim = get_ssim_batch(prediction, images_dict['clear']).item()
+            # Calculate Metrics            
+            psnr = get_psnr_batch(prediction, clear_image)
+            ssim = get_ssim_batch(prediction, clear_image)
             
             
             if best_psnr < psnr:
@@ -179,9 +171,9 @@ if __name__ == '__main__':
     
     model.to(opt.device)
     
-    # opt.dataRoot = 'C:/Users/IIPL/Desktop/data/RESIDE_beta/train'
+    opt.dataRoot = 'C:/Users/IIPL/Desktop/data/NYU/'
     # opt.dataRoot = 'D:/data/RESIDE_beta_sample/train'
-    opt.dataRoot = 'D:/data/NYU/'
+    # opt.dataRoot = 'D:/data/NYU/'
     dataset_test = NYU_Dataset.NYU_Dataset(opt.dataRoot, [opt.imageSize_W, opt.imageSize_H], printName=False, returnName=True, norm=opt.norm)
     loader_test = DataLoader(dataset=dataset_test, batch_size=opt.batchSize_val,
                              num_workers=1, drop_last=False, shuffle=False)

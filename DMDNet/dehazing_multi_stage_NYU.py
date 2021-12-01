@@ -1,7 +1,5 @@
 # User warnings ignore
 import warnings
-
-from numpy.lib.function_base import diff
 warnings.filterwarnings("ignore")
 
 import os
@@ -39,7 +37,7 @@ def get_args():
     parser.add_argument('--device', default=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
     
     # model parameters
-    parser.add_argument('--preTrainedModel', type=str, default='weights/dpt_hybrid-midas-501f0c75.pt', help='pretrained DPT path')
+    parser.add_argument('--preTrainedModel', type=str, default='weights/dpt_hybrid_nyu-2ce69ec7.pt', help='pretrained DPT path')
     parser.add_argument('--backbone', type=str, default="vitb_rn50_384", help='DPT backbone')
     
     # test_stop_when_threshold parameters
@@ -85,6 +83,10 @@ def test_stop_when_threshold(opt, model, test_loader):
         images_dict['airlight'] = airlight.transpose(0, 2, 1)       # 1x480x640
         images_dict['GT_depth'] = GT_depth.transpose(0, 2, 1)
         
+        print(np.min(images_dict['clear']), np.max(images_dict['clear']), np.mean(images_dict['clear']))
+        temp = tensor2numpy(utils.denormalize(clear_image, norm=True))[0]
+        print(np.min(temp), np.max(temp), np.mean(temp))
+        exit()
         
         # Multi-Step Depth Estimation and Dehazing
         beta = opt.betaStep
@@ -178,11 +180,11 @@ if __name__ == '__main__':
     
     model.to(opt.device)
     
-    # opt.dataRoot = 'C:/Users/IIPL/Desktop/data/RESIDE_beta/train'
+    opt.dataRoot = 'C:/Users/IIPL/Desktop/data/NYU/'
     # opt.dataRoot = 'D:/data/RESIDE_beta_sample/train'
-    opt.dataRoot = 'D:/data/NYU/'
+    # opt.dataRoot = 'D:/data/NYU/'
     dataset_test = NYU_Dataset.NYU_Dataset(opt.dataRoot, [opt.imageSize_W, opt.imageSize_H], printName=False, returnName=True, norm=opt.norm)
     loader_test = DataLoader(dataset=dataset_test, batch_size=opt.batchSize_val,
-                             num_workers=1, drop_last=False, shuffle=False)
+                             num_workers=2, drop_last=False, shuffle=False)
     
     test_stop_when_threshold(opt, model, loader_test)
