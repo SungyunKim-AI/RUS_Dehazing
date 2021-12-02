@@ -234,4 +234,5 @@ def results_save_tensor(dataRoot, input_name, clear_image, hazy_image, last_pred
         os.makedirs(dir_name)
     
     save_path = os.path.join(dir_name, os.path.basename(input_name))
+    images = cv2.cvtColor(images, cv2.COLOR_RGB2BGR)
     cv2.imwrite(save_path, images)
