@@ -95,7 +95,7 @@ def test_stop_when_threshold(opt, model, test_loader):
                 init_depth = cur_depth.clone()
             
             # Dehazing
-            prediction = (cur_hazy - airlight) / trans + airlight
+            prediction = (cur_hazy - airlight) / trans + airlight 
             prediction = torch.clamp(prediction, -1, 1)
             
             # Calculate Metrics            
@@ -175,12 +175,9 @@ if __name__ == '__main__':
     model = model.to(memory_format=torch.channels_last)
     
     model.to(opt.device)
-    
-    opt.dataRoot = 'C:/Users/IIPL/Desktop/data/NYU/'
-    # opt.dataRoot = 'D:/data/RESIDE_beta_sample/train'
-    # opt.dataRoot = 'D:/data/NYU/'
+     
     dataset_test = NYU_Dataset.NYU_Dataset(opt.dataRoot, [opt.imageSize_W, opt.imageSize_H], printName=False, returnName=True, norm=opt.norm)
     loader_test = DataLoader(dataset=dataset_test, batch_size=opt.batchSize,
-                             num_workers=1, drop_last=False, shuffle=False)
+                             num_workers=2, drop_last=False, shuffle=False)
     
     test_stop_when_threshold(opt, model, loader_test)

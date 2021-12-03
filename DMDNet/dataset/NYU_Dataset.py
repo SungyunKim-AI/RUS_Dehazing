@@ -14,8 +14,8 @@ class NYU_Dataset_clear(Dataset):
     """
     def __init__(self, dataRoot):
         super().__init__()
-        self.images = glob(dataRoot + '/images/*.jpg')
-        self.depths = glob(dataRoot + '/depths/*.npy')
+        self.images = glob(dataRoot + '/clear/*.jpg')
+        self.depths = glob(dataRoot + '/depth/*.npy')
         self.toTensor = transforms.ToTensor()
         
     def __len__(self):
