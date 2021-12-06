@@ -15,8 +15,8 @@ def clear2hazy(clear, airlight, depth, beta):
     
     return hazy
 
-def save_hazy(dataRoot, hazy, airlight, beta, fileName, show=False):
-    save_path = f"{dataRoot}/hazy/NYU_{airlight}_{beta}"
+def save_hazy(path, hazy, airlight, beta, fileName, show=False):
+    save_path = f"{path}/hazy/NYU_{airlight}_{beta}"
     if not os.path.exists(save_path):
         os.makedirs(save_path)
     save_path += f'/{fileName}_{airlight}_{beta}.jpg'
@@ -31,18 +31,21 @@ def save_hazy(dataRoot, hazy, airlight, beta, fileName, show=False):
 
 if __name__ == '__main__':
     dataRoot = 'C:/Users/IIPL/Desktop/data/NYU'
-    dataset = NYU_Dataset_clear(dataRoot)
-    dataloader = DataLoader(dataset=dataset, batch_size=1, num_workers=2, drop_last=False, shuffle=False)
     
-    for data in tqdm(dataloader):
-        clear = data[0].squeeze().numpy()
-        GT_depth = data[1].squeeze().numpy()
-        fileName = data[2][0]
+    for split in ['/train', '/val']:
+        path = dataRoot + split
+        dataset = NYU_Dataset_clear(path)
+        dataloader = DataLoader(dataset=dataset, batch_size=1, num_workers=2, drop_last=False, shuffle=False)
         
-        airlight_list = [0.3, 0.6, 0.9]
-        beta_list = [0.1, 0.2, 0.3, 0.5, 0.8]
-        for airlight in airlight_list:
-            for beta in beta_list:
-                hazy = clear2hazy(clear, airlight, GT_depth, beta)
-                save_hazy(dataRoot, hazy, airlight, beta, fileName)
+        for data in tqdm(dataloader):
+            clear = data[0].squeeze().numpy()
+            GT_depth = data[1].squeeze().numpy()
+            fileName = data[2][0]
+            
+            airlight_list = [0.3, 0.6, 0.9]
+            beta_list = [0.1, 0.2, 0.3, 0.5, 0.8]
+            for airlight in airlight_list:
+                for beta in beta_list:
+                    hazy = clear2hazy(clear, airlight, GT_depth, beta)
+                    save_hazy(path, hazy, airlight, beta, fileName)
                 
