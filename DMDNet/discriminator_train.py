@@ -19,8 +19,10 @@ from dpt.discriminator import Discriminator
 from dataset import NYU_Dataset
 from torch.utils.data import DataLoader
 
+from Module_Airlight.Airlight_Module import get_Airlight
 from Module_Metrics.metrics import get_ssim_batch, get_psnr_batch
 from util import misc, save_log, utils
+from discriminator_val import validation
 
 
 
@@ -33,7 +35,7 @@ def get_args():
     
     # learning parameters
     parser.add_argument('--seed', type=int, default=101, help='Random Seed')
-    parser.add_argument('--batchSize', type=int, default=8, help='test dataloader input batch size')
+    parser.add_argument('--batchSize', type=int, default=4, help='test dataloader input batch size')
     parser.add_argument('--imageSize_W', type=int, default=640, help='the width of the resized input image to network')
     parser.add_argument('--imageSize_H', type=int, default=480, help='the height of the resized input image to network')
     parser.add_argument('--device', default=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
@@ -42,11 +44,14 @@ def get_args():
     parser.add_argument('--preTrainedModel', type=str, default='weights/dpt_hybrid_nyu-2ce69ec7.pt', help='pretrained DPT path')
     parser.add_argument('--backbone', type=str, default="vitb_rn50_384", help='DPT backbone')
     
-    # test_stop_when_threshold parameters
+    # train_one_epoch parameters
     parser.add_argument('--verbose', type=bool, default=True, help='print log')
     parser.add_argument('--betaStep', type=float, default=0.005, help='beta step')
     parser.add_argument('--stepLimit', type=int, default=250, help='Multi step limit')
     parser.add_argument('--eps', type=float, default=1e-12, help='Epsilon value for non zero calculating')
+    parser.add_argument('--epochs', type=int, default=10, help='train epochs')
+    parser.add_argument('--val_step', type=int, default=1, help='validation step')
+    parser.add_argument('--save_path', type=str, default="weights", help='Discriminator model save path')
     
     # Discrminator hyperparam
     parser.add_argument('--lr', type=float, default=0.0002, help='Learning rate for optimizers')
@@ -55,45 +60,41 @@ def get_args():
     return parser.parse_args()
 
 
-def test_stop_when_threshold(opt, model, netD, test_loader):
+def train_oen_epoch(opt, model, netD, dataloader):
     # Initialize BCELoss function
     criterion = nn.BCELoss()
 
     # Establish convention for real and fake labels during training
     real_label = 1.
     fake_label = 0.
-
-    optimizerD = optim.Adam(netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999)).to(opt.device)
     
-    model.eval()
     netD.train()
-    pbar = tqdm(test_loader)
-    for batch in pbar:
+    errD = []
+    for batch in tqdm(dataloader, desc="Train"):
         netD.zero_grad()
-        csv_log = [[] for _ in range(opt.batchSize)]            # result log save to csv
         
         # Data Init
-        hazy_image, clear_image, airlight, GT_depth, input_name = batch
+        hazy_image, clear_image, GT_airlight, GT_depth, input_name = batch
         
         clear_image = clear_image.to(opt.device)
-        airlight = airlight.to(opt.device)
+        airlight = get_Airlight(hazy_image).to(opt.device)
         
-        # Set tqdm bar
-        start_name = os.path.basename(input_name[0])[:-4]
-        end_name = os.path.basename(input_name[-1])[:-4]
-        pbar.set_description(f"{start_name} ~ {end_name}")
-            
+        # for i in range(opt.batchSize):
+        #     print()
+        #     print('pred : ', torch.mean(airlight[i]))
+        #     print('GT   : ', torch.mean(GT_airlight[i]))
+        
+        # exit()
         
         # Multi-Step Depth Estimation and Dehazing
         beta = opt.betaStep
-        beta_list = [0 for _ in range(opt.batchSize)]
-        step_list = [0 for _ in range(opt.batchSize)]
         best_psnr = torch.zeros((opt.batchSize), dtype=torch.float32)
         best_ssim = torch.zeros((opt.batchSize), dtype=torch.float32)
-        psnr_preds, ssim_preds = torch.Tensor(), torch.Tensor()
+        psnr_preds = torch.Tensor(opt.batchSize, 3, opt.imageSize_H, opt.imageSize_W).to(opt.device)
+        ssim_preds = torch.Tensor(opt.batchSize, 3, opt.imageSize_H, opt.imageSize_W).to(opt.device)
         cur_hazy = hazy_image.clone().to(opt.device)
-        stop_flag = []
         errD_fake_list, errD_real_list = [], []
+        
         for step in range(1, opt.stepLimit + 1):
             # Depth Estimation
             with torch.no_grad():
@@ -105,75 +106,73 @@ def test_stop_when_threshold(opt, model, netD, test_loader):
             trans = torch.exp(cur_depth * -beta)
             trans = torch.add(trans, opt.eps)
             
-            cur_depth = cur_depth.detach().cpu()
-            if step == 1:
-                init_depth = cur_depth.clone()
-            
             # Dehazing
-            prediction = (cur_hazy - airlight) / trans + airlight 
-            prediction = torch.clamp(prediction, -1, 1)      
+            prediction = (cur_hazy - airlight) / trans + airlight
+            prediction = torch.clamp(prediction, -1, 1)
             
             # Calculate Metrics            
             psnr = get_psnr_batch(prediction, clear_image).detach().cpu()
             ssim = get_ssim_batch(prediction, clear_image).detach().cpu()
-            for i in range(opt.batchSize):
-                if i in stop_flag:
-                    continue
+            last_preds = torch.Tensor().to(opt.device)
+            temp_hazy = torch.Tensor().to(opt.device)
+            temp_air = torch.Tensor().to(opt.device)
+            temp_clear = torch.Tensor().to(opt.device)
+            
+            for i in range(prediction.shape[0]):
                 
                 if best_psnr[i] < psnr[i]:
                     best_psnr[i] = psnr[i]
+                    last_preds = torch.cat((last_preds, prediction[i].clone().unsqueeze(0)))
+                    temp_hazy = torch.cat((temp_hazy, cur_hazy[i].clone().unsqueeze(0)))
+                    temp_air = torch.cat((temp_air, airlight[i].clone().unsqueeze(0)))
+                    temp_clear = torch.cat((temp_clear, clear_image[i].clone().unsqueeze(0)))
                 else:
-                    psnr_preds = torch.cat((psnr_preds, prediction[i].clone().unsqueeze(0)))
-                    stop_flag.append(i)
+                    psnr_preds[i] = prediction[i].clone()
+                    
                 
                 if best_ssim[i] < ssim[i]:
                     best_ssim[i] = ssim[i]
                 else:
-                    ssim_preds = torch.cat((ssim_preds, prediction[i].clone().unsqueeze(0)))
-                
-                if best_psnr[i] < psnr[i] and best_ssim[i] < ssim[i]:
-                    last_preds = torch.cat((last_preds, prediction[i].clone().unsqueeze(0)))
-                
-                if best_psnr[i] < psnr[i] or best_ssim[i] < ssim[i]:    
-                    if opt.save_log:
-                        abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3 \
-                            = utils.compute_errors(GT_depth[i].numpy(), cur_depth[i].numpy())
-                        csv_log[i].append([step, beta, best_psnr, best_ssim, abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3])
-                else:   
-                    beta_list[i] = round(beta, 4)
-                    step_list[i] = step
+                    ssim_preds[i] = prediction[i].clone()
             
             
-            if len(stop_flag) == opt.batchSize:
+            if temp_hazy.shape[0] == 0:
                 for real_image in [clear_image, psnr_preds, ssim_preds]:
                     label = torch.full((real_image.shape[0],), real_label, dtype=torch.float, device=opt.device)
                     output = netD(real_image).view(-1)
                     errD_real = criterion(output, label)
                     errD_real.backward()
                     errD_real_list.append(errD_real.item())
-                
                 optimizerD.step()
+                
                 break   # Stop Multi Step
             else:
-                label = torch.full((opt.batchSize,), fake_label, dtype=torch.float, device=opt.device)
-                output = netD(last_preds.detach()).view(-1)
-                errD_fake = criterion(output, label)
-                errD_fake.backward()
-                errD_fake_list.append(errD_fake.item())
-                optimizerD.step()
+                if step % 2 == 0:
+                    label = torch.full((last_preds.shape[0],), fake_label, dtype=torch.float, device=opt.device)
+                    output = netD(last_preds).view(-1)
+                    errD_fake = criterion(output, label)
+                    errD_fake.backward()
+                    errD_fake_list.append(errD_fake.item())
+                    optimizerD.step()
                 
+                clear_image = temp_clear
+                cur_hazy = temp_hazy
+                airlight = temp_air
                 beta += opt.betaStep    # Set Next Step
         
         
-        if opt.verbose:
-            errD_fake = np.mean(np.array(errD_fake_list))
-            errD_real = np.mean(np.array(errD_real_list))
-            errD = errD_fake + errD_real
-            
-            print(f'last_psnr = {best_psnr.mean()}')
-            print(f'last_ssim = {best_ssim.mean()}')
-            print(f"errD      = {errD}")
+        errD_fake = np.mean(np.array(errD_fake_list))
+        errD_real = np.mean(np.array(errD_real_list))
+        errD.append(errD_fake + errD_real)
+        
+        if opt.verbose:    
+            print(f'\nlast_psnr = {best_psnr}')
+            print(f'last_ssim = {best_ssim}')
+            print(f"errD      = {errD[-1]}")
     
+    return np.mean(np.array(errD))
+
+
 
 def weights_init(m):
     classname = m.__class__.__name__
@@ -192,6 +191,7 @@ if __name__ == '__main__':
     torch.manual_seed(opt.seed)
     torch.cuda.manual_seed_all(opt.seed)
     print("=========| Option |=========\n", opt)
+    print()
     
     model = DPTDepthModel(
         path = opt.preTrainedModel,
@@ -200,18 +200,32 @@ if __name__ == '__main__':
         non_negative=True,
         enable_attention_hooks=False,
     )
+    model = model.to(memory_format=torch.channels_last)
+    model.to(opt.device)
+    model.eval()
     
-    netD = Discriminator()
+    netD = Discriminator().to(opt.device)
     # Apply the weights_init function to randomly initialize all weights
     #  to mean=0, stdev=0.2.
     netD.apply(weights_init)
-    
-    model = model.to(memory_format=torch.channels_last)
-    
-    model.to(opt.device)
+    optimizerD = optim.Adam(netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))    
      
-    dataset_test = NYU_Dataset.NYU_Dataset(opt.dataRoot, [opt.imageSize_W, opt.imageSize_H], printName=False, returnName=True, norm=opt.norm)
-    loader_test = DataLoader(dataset=dataset_test, batch_size=opt.batchSize,
-                             num_workers=2, drop_last=False, shuffle=False)
+    opt.dataRoot = 'C:/Users/IIPL/Desktop/data/NYU'
+    train_set = NYU_Dataset.NYU_Dataset(opt.dataRoot + '/train', [opt.imageSize_W, opt.imageSize_H], printName=False, returnName=True, norm=opt.norm)
+    train_loader = DataLoader(dataset=train_set, batch_size=opt.batchSize,
+                             num_workers=2, drop_last=False, shuffle=True)
     
-    test_stop_when_threshold(opt, model, netD, loader_test)
+    val_set = NYU_Dataset.NYU_Dataset(opt.dataRoot + '/val', [opt.imageSize_W, opt.imageSize_H], printName=False, returnName=True, norm=opt.norm)
+    val_loader = DataLoader(dataset=val_set, batch_size=opt.batchSize,
+                             num_workers=2, drop_last=False, shuffle=True)
+    
+    for epoch in range(1, opt.epochs+1):
+        loss = train_oen_epoch(opt, model, netD, train_loader)
+        
+        if epoch % opt.val_step == 0:
+            validation(opt, model, netD, val_loader)
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': netD.state_dict(),
+                'optimizer_state_dict': optimizerD.state_dict(),
+                'loss': loss}, f"{opt.save_path}/Discriminator_epoch_{epoch:02d}.pt")

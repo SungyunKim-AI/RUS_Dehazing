@@ -6,8 +6,71 @@ Yan-Tsung Peng et al.
 from math import nan
 import cv2
 import numpy as np
-# from utils import *
+import torch
+
+def get_Airlight(images, norm=True):
+    # image input must be Bx3xWxH
+    if norm:
+        images = torch.round(((images * 0.5) + 0.5) * 255).type(torch.uint8)
+    else:
+        images = torch.round(images * 255).type(torch.uint8)
+    images = torch.clamp(images, 0, 255)
     
+    airlight = []
+    for batch_idx, image in enumerate(images):
+        min_channel = torch.amin(image, 0)
+        
+        val, cnt = torch.unique(min_channel, return_counts=True)
+        img_size = image.shape[0] * image.shape[1]
+        prob = cnt / img_size
+        
+        l = np.zeros((256))
+        for i, v in enumerate(val):
+            l[v] = prob[i]
+        l = torch.Tensor(l)
+        
+        # 2. 1D minimum filter
+        P_m = []
+        for i in range(256):
+            if i <= 5:
+                P_m.append(torch.min(l[:i+6]))
+            elif 5 < i <= 249:
+                P_m.append(torch.min(l[i-5:i+6]))
+            else:
+                P_m.append(torch.min(l[i-5:]))
+        
+        # 3. Airlight color estimation to RGB to RGB
+        threshold, idx = 0.0, []
+        for i in range(255, -1, -1):
+            if P_m[i] > 0.0:
+                threshold += P_m[i]
+                idx.append(i)
+                if threshold >= 0.01:
+                    break
+        
+        avg = {'r': [], 'g': [], 'b': []}
+        for i in idx:
+            row, col = torch.where(min_channel == i)
+            for j in range(row.shape[0]):
+                avg['r'].append(image[0][row[j]][col[j]])
+                avg['g'].append(image[1][row[j]][col[j]])
+                avg['b'].append(image[2][row[j]][col[j]])
+        
+        RGB = []
+        for i, c in enumerate(['r', 'g', 'b']):
+            mean = torch.round(torch.mean(torch.Tensor(avg[c]))).div_(255.0)
+            RGB.append(np.full((image.shape[1], image.shape[2]), mean))
+        
+        airlight.append(RGB)
+    
+    airlight = torch.Tensor(airlight)
+    if norm:
+        return airlight.sub_(0.5).div_(0.5)
+    else:
+        return airlight
+    
+    
+
 class Airlight_Module():
     def __init__(self, color_cast_threshold=5):
         self.color_cast_threshold = color_cast_threshold
