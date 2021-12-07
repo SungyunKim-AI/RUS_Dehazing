@@ -236,3 +236,21 @@ def results_save_tensor(dataRoot, input_name, clear_image, hazy_image, last_pred
     save_path = os.path.join(dir_name, os.path.basename(input_name))
     images = cv2.cvtColor(images, cv2.COLOR_RGB2BGR)
     cv2.imwrite(save_path, images)
+
+def results_save_tensor_2(dataRoot, input_name, clear_image, hazy_image, preds):
+    """
+    clear     init_hazy   discriminator_prediction       
+    """
+    image_grid = torch.cat((clear_image, hazy_image, preds), 2)
+    image_grid = torch.round(((image_grid * 0.5) + 0.5) * 255).type(torch.uint8)
+    
+    # images = torch.cat((image_grid, depth_grid), 1)
+    # images = images.permute(1,2,0).numpy().astype(np.uint8)
+    
+    dir_name = dataRoot + f'results/' + input_name.split('\\')[-2]
+    if not os.path.exists(dir_name):
+        os.makedirs(dir_name)
+    
+    save_path = os.path.join(dir_name, os.path.basename(input_name))
+    images = cv2.cvtColor(image_grid, cv2.COLOR_RGB2BGR)
+    cv2.imwrite(save_path, images)

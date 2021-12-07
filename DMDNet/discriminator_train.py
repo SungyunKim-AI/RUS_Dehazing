@@ -35,7 +35,7 @@ def get_args():
     
     # learning parameters
     parser.add_argument('--seed', type=int, default=101, help='Random Seed')
-    parser.add_argument('--batchSize', type=int, default=4, help='test dataloader input batch size')
+    parser.add_argument('--batchSize', type=int, default=16, help='test dataloader input batch size')
     parser.add_argument('--imageSize_W', type=int, default=640, help='the width of the resized input image to network')
     parser.add_argument('--imageSize_H', type=int, default=480, help='the height of the resized input image to network')
     parser.add_argument('--device', default=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
@@ -210,7 +210,8 @@ if __name__ == '__main__':
     netD.apply(weights_init)
     optimizerD = optim.Adam(netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))    
      
-    opt.dataRoot = 'C:/Users/IIPL/Desktop/data/NYU'
+    # opt.dataRoot = 'C:/Users/IIPL/Desktop/data/NYU'
+    opt.dataRoot = 'D:/data/NYU'
     train_set = NYU_Dataset.NYU_Dataset(opt.dataRoot + '/train', [opt.imageSize_W, opt.imageSize_H], printName=False, returnName=True, norm=opt.norm)
     train_loader = DataLoader(dataset=train_set, batch_size=opt.batchSize,
                              num_workers=2, drop_last=False, shuffle=True)
@@ -223,7 +224,7 @@ if __name__ == '__main__':
         loss = train_oen_epoch(opt, model, netD, train_loader)
         
         if epoch % opt.val_step == 0:
-            validation(opt, model, netD, val_loader)
+            # validation(opt, model, netD, val_loader)
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': netD.state_dict(),
