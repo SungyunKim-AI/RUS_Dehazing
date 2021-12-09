@@ -45,7 +45,7 @@ def make_transform(img_size, norm=False, mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.
     resize = Resize(img_size[0],
                     img_size[1],
                     resize_target=None,
-                    keep_aspect_ratio=True,
+                    keep_aspect_ratio=False,
                     ensure_multiple_of=32,
                     resize_method="minimal",
                     image_interpolation_method=cv2.INTER_CUBIC)

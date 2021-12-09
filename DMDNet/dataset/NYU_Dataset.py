@@ -66,15 +66,15 @@ class NYU_Dataset(Dataset):
         airlight = float(os.path.basename(haze).split('_')[-2])
         if self.norm:
             airlight = (airlight - 0.5) / 0.5
-        airlight_input = np.full((3, self.img_size[1], self.img_size[0]), airlight).astype(np.float32)
+        airlight = np.full((3, self.img_size[1], self.img_size[0]), airlight).astype(np.float32)
         
         if self.printName:
             print(haze)
         
         hazy_input, clear_input = utils.load_item_2(haze, clear, self.transform)
         if self.returnName:
-            return hazy_input, clear_input, airlight_input, GT_depth, haze
+            return hazy_input, clear_input, airlight, GT_depth, haze
         else:
-            return hazy_input, clear_input, airlight_input, GT_depth  
+            return hazy_input, clear_input, airlight, GT_depth  
         
     

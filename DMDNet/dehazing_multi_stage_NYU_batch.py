@@ -16,6 +16,7 @@ from dpt.models import DPTDepthModel
 from dataset import NYU_Dataset
 from torch.utils.data import DataLoader
 
+from Module_Airlight.Airlight_Module import get_Airlight
 from Module_Metrics.metrics import get_ssim_batch, get_psnr_batch
 from util import misc, save_log, utils
 
@@ -30,7 +31,7 @@ def get_args():
     
     # learning parameters
     parser.add_argument('--seed', type=int, default=101, help='Random Seed')
-    parser.add_argument('--batchSize', type=int, default=8, help='test dataloader input batch size')
+    parser.add_argument('--batchSize', type=int, default=4, help='test dataloader input batch size')
     parser.add_argument('--imageSize_W', type=int, default=640, help='the width of the resized input image to network')
     parser.add_argument('--imageSize_H', type=int, default=480, help='the height of the resized input image to network')
     parser.add_argument('--device', default=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
@@ -51,26 +52,19 @@ def get_args():
 
 
 def test_stop_when_threshold(opt, model, test_loader):
-    
     model.eval()
     
-    pbar = tqdm(test_loader)
-    for batch in pbar:
+    for batch in tqdm(test_loader):
         last_pred = torch.Tensor(opt.batchSize, 3, opt.imageSize_H, opt.imageSize_W)
         csv_log = [[] for _ in range(opt.batchSize)]            # result log save to csv
         
         # Data Init
-        hazy_image, clear_image, airlight, GT_depth, input_name = batch
+        hazy_image, clear_image, GT_airlight, GT_depth, input_name = batch
         
         clear_image_ = clear_image.clone() if opt.saveORshow == 'save' else None
         clear_image = clear_image.to(opt.device)
-        airlight = airlight.to(opt.device)
-        
-        # Set tqdm bar
-        start_name = os.path.basename(input_name[0])[:-4]
-        end_name = os.path.basename(input_name[-1])[:-4]
-        pbar.set_description(f"{start_name} ~ {end_name}")
-            
+        # airlight = airlight.to(opt.device)
+        airlight = get_Airlight(hazy_image).to(opt.device)
         
         # Multi-Step Depth Estimation and Dehazing
         beta = opt.betaStep
@@ -178,6 +172,6 @@ if __name__ == '__main__':
      
     dataset_test = NYU_Dataset.NYU_Dataset(opt.dataRoot, [opt.imageSize_W, opt.imageSize_H], printName=False, returnName=True, norm=opt.norm)
     loader_test = DataLoader(dataset=dataset_test, batch_size=opt.batchSize,
-                             num_workers=2, drop_last=False, shuffle=False)
+                             num_workers=0, drop_last=False, shuffle=False)
     
     test_stop_when_threshold(opt, model, loader_test)

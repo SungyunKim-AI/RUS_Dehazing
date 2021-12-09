@@ -2,12 +2,17 @@ import os
 from PIL import Image
 import numpy as np
 from tqdm import tqdm
-from NYU_Dataset import NYU_Dataset_clear
+from dataset.NYU_Dataset import NYU_Dataset_clear
 from torch.utils.data import DataLoader
 
 def clear2hazy(clear, airlight, depth, beta):
     trans = np.exp(-beta * depth)
-    airlight_image = np.full((clear.shape), airlight)
+    
+    airlight_image = []
+    for i in range(3):
+        temp_air = np.full((clear.shape[1], clear.shape[2]), airlight[i])
+        airlight_image.append(temp_air)
+    airlight_image = np.array(airlight_image)/255.0
 
     hazy = (clear * trans) + (airlight_image * (1 - trans))
     hazy = np.rint(hazy*255).astype(np.uint8)
@@ -42,10 +47,12 @@ if __name__ == '__main__':
             GT_depth = data[1].squeeze().numpy()
             fileName = data[2][0]
             
-            airlight_list = [0.3, 0.6, 0.9]
+            # (212, 191, 107), (204, 184, 87), (191, 199, 150), (181, 189, 143)
+            airlight_list = [[212, 191, 107], [204, 184, 87], [191, 199, 150], [181, 189, 143]]
+            # airlight_list = [0.3, 0.6, 0.9]
             beta_list = [0.1, 0.2, 0.3, 0.5, 0.8]
-            for airlight in airlight_list:
+            for i, airlight in enumerate(airlight_list):
                 for beta in beta_list:
                     hazy = clear2hazy(clear, airlight, GT_depth, beta)
-                    save_hazy(path, hazy, airlight, beta, fileName)
+                    save_hazy(path, hazy, i, beta, fileName)
                 
