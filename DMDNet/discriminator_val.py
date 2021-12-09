@@ -53,8 +53,7 @@ def get_args():
     return parser.parse_args()
 
 
-def validation(opt, model, netD, dataloader):
-    model.eval()
+def validation(opt, model, air_model, netD, dataloader):
     netD.eval()
     
     for batch in tqdm(dataloader, desc="Validate"):
@@ -64,8 +63,10 @@ def validation(opt, model, netD, dataloader):
         
         clear_image_ = clear_image.clone() if opt.saveORshow == 'save' else None
         clear_image = clear_image.to(opt.device)
-        airlight = get_Airlight(hazy_image).to(opt.device)
         cur_hazy = hazy_image.clone().to(opt.device)
+        
+        with torch.no_grad():
+            airlight = air_model(hazy_image)
         
         # Multi-Step Depth Estimation and Dehazing
         beta = opt.betaStep
