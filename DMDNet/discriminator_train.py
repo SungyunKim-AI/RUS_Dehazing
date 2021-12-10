@@ -43,7 +43,7 @@ def get_args():
     
     # learning parameters
     parser.add_argument('--seed', type=int, default=101, help='Random Seed')
-    parser.add_argument('--batchSize', type=int, default=32, help='test dataloader input batch size')
+    parser.add_argument('--batchSize', type=int, default=2, help='test dataloader input batch size')
     parser.add_argument('--imageSize_W', type=int, default=256, help='the width of the resized input image to network')
     parser.add_argument('--imageSize_H', type=int, default=256, help='the height of the resized input image to network')
     parser.add_argument('--device', default=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
@@ -61,23 +61,25 @@ def get_args():
     parser.add_argument('--epochs', type=int, default=50, help='train epochs')
     parser.add_argument('--val_step', type=int, default=1, help='validation step')
     parser.add_argument('--save_path', type=str, default="weights", help='Discriminator model save path')
-    parser.add_argument('--wandb_log', action='store_true', default=True, help='WandB logging flag')
+    parser.add_argument('--wandb_log', action='store_true', default=False, help='WandB logging flag')
     
     # Discrminator hyperparam
+    parser.add_argument('--save_log', type=bool, default=True, help='log save flag')
+    parser.add_argument('--saveORshow', type=str, default='save',  help='results show or save')
     parser.add_argument('--lr', type=float, default=0.0002, help='Learning rate for optimizers')
     parser.add_argument('--beta1', type=float, default=0.5, help='Beta1 hyperparam for Adam optimizers')
 
     return parser.parse_args()
 
 
-def train_oen_epoch(opt, epoch, model, air_model, netD, optimizerD, criterion, dataloader):
+def train_oen_epoch(opt, epoch, depth_model, air_model, netD, optimizerD, criterion, dataloader):
     # Establish convention for real and fake labels during training
     real_label = 1.
     fake_label = 0.
     
     netD.train()
     errD_epoch = []
-    for batch in tqdm(dataloader, desc="Train"):
+    for batch_idx, batch in enumerate(tqdm(dataloader, desc="Train")):
         optimizerD.zero_grad()
         
         # Data Init
@@ -89,10 +91,11 @@ def train_oen_epoch(opt, epoch, model, air_model, netD, optimizerD, criterion, d
         clear_image = clear_image.to(opt.device)
         # airlight = get_Airlight(hazy_image).to(opt.device)
         # airlight = GT_airlight.to(opt.device)
-        hazy_image = hazy_image.to(opt.device)
+        init_hazy = hazy_image.clone().to(opt.device)
+        cur_hazy = hazy_image.clone().to(opt.device)
         
         with torch.no_grad():
-            airlight = air_model(hazy_image)
+            airlight = air_model(init_hazy)
         
         # Multi-Step Depth Estimation and Dehazing
         beta = opt.betaStep
@@ -100,7 +103,7 @@ def train_oen_epoch(opt, epoch, model, air_model, netD, optimizerD, criterion, d
         best_psnr, best_ssim = np.zeros(opt.batchSize), np.zeros(opt.batchSize)
         psnr_preds = torch.Tensor(opt.batchSize, 3, opt.imageSize_H, opt.imageSize_W).to(opt.device)
         ssim_preds = torch.Tensor(opt.batchSize, 3, opt.imageSize_H, opt.imageSize_W).to(opt.device)
-        last_pred = []
+        last_pred = torch.Tensor()
         
         errD_fake_list, errD_real_list = [], []
         stop_flag_psnr, stop_flag_ssim = [], []
@@ -108,7 +111,8 @@ def train_oen_epoch(opt, epoch, model, air_model, netD, optimizerD, criterion, d
         for step in range(1, opt.stepLimit + 1):
             # Depth Estimation
             with torch.no_grad():
-                _, cur_depth = model.forward(hazy_image)
+                cur_hazy = cur_hazy.to(opt.device)
+                _, cur_depth = depth_model.forward(cur_hazy)
             cur_depth = cur_depth.unsqueeze(1)
             
             # Transmission Map
@@ -116,7 +120,7 @@ def train_oen_epoch(opt, epoch, model, air_model, netD, optimizerD, criterion, d
             trans = torch.add(trans, opt.eps)
             
             # Dehazing
-            prediction = (hazy_image - airlight) / trans + airlight
+            prediction = (init_hazy - airlight) / trans + airlight
             prediction = torch.clamp(prediction, -1, 1)
             
             # Calculate Metrics            
@@ -141,7 +145,7 @@ def train_oen_epoch(opt, epoch, model, air_model, netD, optimizerD, criterion, d
                 
                 if (i not in stop_flag_psnr) and (i not in stop_flag_ssim):
                     pred = prediction[i].clone().unsqueeze(0)
-                    last_pred.append(pred)
+                    last_pred = torch.cat((last_pred, pred), 0)
                     
             if (len(stop_flag_psnr) == opt.batchSize) and (len(stop_flag_ssim) == opt.batchSize):
                 # hazy_grid = make_grid(utils.denormalize(hazy_image.detach().cpu()))
@@ -155,22 +159,22 @@ def train_oen_epoch(opt, epoch, model, air_model, netD, optimizerD, criterion, d
                 label = torch.full((real_image.shape[0],), real_label, dtype=torch.float, device=opt.device)
                 output = netD(real_image.to(opt.device)).view(-1)
                 errD_real = criterion(output, label)
+                errD_real = errD_real * (last_pred.shape[0] / (real_image.shape[0] * 2))
                 errD_real.backward()
                 errD_real_list.append(errD_real.item())
                 
-                fake_image = torch.Tensor()
-                pick_num = real_image.shape[0]
-                # pick_num = 3*10*opt.batchSize
-                if pick_num <= len(last_pred):
-                    for idx in random.sample(range(0, len(last_pred)), pick_num):
-                        fake_image = torch.cat((fake_image, last_pred[idx]))
-                else:
-                    pick_num /= 2
-                    for idx in random.sample(range(0, len(last_pred)), pick_num):
-                        fake_image = torch.cat((fake_image, last_pred[idx]))
+                # fake_image = torch.Tensor()
+                # pick_num = real_image.shape[0]
+                # if pick_num <= len(last_pred):
+                #     for idx in random.sample(range(0, len(last_pred)), pick_num):
+                #         fake_image = torch.cat((fake_image, last_pred[idx]))
+                # else:
+                #     pick_num /= 2
+                #     for idx in random.sample(range(0, len(last_pred)), pick_num):
+                #         fake_image = torch.cat((fake_image, last_pred[idx]))
 
-                label = torch.full((pick_num, ), fake_label, dtype=torch.float, device=opt.device)
-                output = netD(fake_image.to(opt.device))
+                label = torch.full((last_pred.shape[0], ), fake_label, dtype=torch.float, device=opt.device)
+                output = netD(last_pred.to(opt.device)).view(-1)
                 errD_fake = criterion(output, label)
                 errD_fake.backward()
                 errD_fake_list.append(errD_fake.item())
@@ -187,6 +191,7 @@ def train_oen_epoch(opt, epoch, model, air_model, netD, optimizerD, criterion, d
                 
                 break   # Stop Multi Step
             else:
+                cur_hazy = prediction.clone()
                 beta += opt.betaStep    # Set Next Step
         
         
@@ -203,7 +208,16 @@ def train_oen_epoch(opt, epoch, model, air_model, netD, optimizerD, criterion, d
         if opt.verbose:    
             print(f'\nlast_psnr = {best_psnr}')
             print(f'last_ssim = {best_ssim}')
+            print(f'errD_fake = {errD_fake}')
+            print(f'errD_real = {errD_real}')
             print(f"errD      = {errD_epoch[-1]}")
+        
+        if (batch_idx != 0) and (batch_idx % 100 == 0):
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': netD.state_dict(),
+                'optimizer_state_dict': optimizerD.state_dict()
+                }, f"{opt.save_path}/Discriminator_epoch_{epoch:02d}_{batch_idx}.pt")
     
     return np.mean(np.array(errD_epoch))
 
@@ -239,16 +253,16 @@ if __name__ == '__main__':
     print("=========| Option |=========\n", opt)
     print()
     
-    model = DPTDepthModel(
+    depth_model = DPTDepthModel(
         path = opt.preTrainedModel,
         scale=0.00030, shift=0.1378, invert=True,
         backbone=opt.backbone,
         non_negative=True,
         enable_attention_hooks=False,
     )
-    model = model.to(memory_format=torch.channels_last)
-    model.to(opt.device)
-    model.eval()
+    depth_model = depth_model.to(memory_format=torch.channels_last)
+    depth_model.to(opt.device)
+    depth_model.eval()
     
     air_model = Air_UNet(input_nc=3, output_nc=3, nf=8).to(opt.device)
     air_model.load_state_dict(torch.load(opt.preTrainedAtpModel)['model_state_dict'])
@@ -261,26 +275,26 @@ if __name__ == '__main__':
     optimizerD = optim.Adam(netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))    
     criterion = nn.BCELoss()
     
-    # opt.dataRoot = 'C:/Users/IIPL/Desktop/data/NYU'
-    opt.dataRoot = 'D:/data/NYU'
+    opt.dataRoot = 'C:/Users/IIPL/Desktop/data/NYU'
+    # opt.dataRoot = 'D:/data/NYU'
     # opt.dataRoot = 'C:/Users/IIPL/Desktop/data/RESIDE_beta/'
     train_set = NYU_Dataset.NYU_Dataset(opt.dataRoot + '/train', [opt.imageSize_W, opt.imageSize_H], printName=False, returnName=True, norm=opt.norm)
     # train_set = RESIDE_Dataset.RESIDE_Beta_Dataset(opt.dataRoot,  [opt.imageSize_W, opt.imageSize_H], split='train', printName=False, returnName=True, norm=opt.norm )
     train_loader = DataLoader(dataset=train_set, batch_size=opt.batchSize,
-                             num_workers=2, drop_last=False, shuffle=True)
+                             num_workers=2, drop_last=True, shuffle=True)
     
     val_set = NYU_Dataset.NYU_Dataset(opt.dataRoot + '/val', [opt.imageSize_W, opt.imageSize_H], printName=False, returnName=True, norm=opt.norm)
     val_loader = DataLoader(dataset=val_set, batch_size=opt.batchSize,
-                             num_workers=2, drop_last=False, shuffle=True)
+                             num_workers=2, drop_last=True, shuffle=True)
     
     if opt.wandb_log:
         wandb.init(project="Discriminator", entity="rus", name='DWT_GAN', config=opt)
     
     for epoch in range(1, opt.epochs+1):
-        loss = train_oen_epoch(opt, epoch, model, air_model, netD, optimizerD, criterion, train_loader)
+        loss = train_oen_epoch(opt, epoch, depth_model, air_model, netD, optimizerD, criterion, train_loader)
         
         if epoch % opt.val_step == 0:
-            # validation(opt, model, air_model, netD, val_loader)
+            validation(opt, epoch, depth_model, air_model, netD, val_loader)
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': netD.state_dict(),

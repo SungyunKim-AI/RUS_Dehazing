@@ -25,7 +25,7 @@ def get_args():
     
     # learning parameters
     parser.add_argument('--seed', type=int, default=101, help='Random Seed')
-    parser.add_argument('--batchSize', type=int, default=256, help='test dataloader input batch size')
+    parser.add_argument('--batchSize', type=int, default=128, help='test dataloader input batch size')
     parser.add_argument('--imageSize_W', type=int, default=256, help='the width of the resized input image to network')
     parser.add_argument('--imageSize_H', type=int, default=256, help='the height of the resized input image to network')
     parser.add_argument('--device', default=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
@@ -35,7 +35,7 @@ def get_args():
     parser.add_argument('--epochs', type=int, default=100, help='train epochs')
     parser.add_argument('--val_step', type=int, default=1, help='validation step')
     parser.add_argument('--save_path', type=str, default="weights", help='Airlight Estimation model save path')
-    parser.add_argument('--wandb_log', action='store_false', default=False, help='WandB logging flag')
+    parser.add_argument('--wandb_log', action='store_true', default=True, help='WandB logging flag')
     
     # hyperparam
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate for optimizers')
@@ -56,15 +56,20 @@ def train_one_epoch(opt, epoch, net, criterion, optimizer, grad_scaler, dataload
                 hazy_images, clear_images, GT_airlights, input_names = batch
             
             hazy_images  = hazy_images.to(opt.device)
-            GT_airlights = GT_airlights.to(opt.device)
-            with torch.cuda.amp.autocast(enabled=opt.amp):
-                air_pred = net(hazy_images)
-                loss = criterion(air_pred, GT_airlights)
+            GT_airlights = GT_airlights.float().to(opt.device)
+            air_pred = net(hazy_images)
+            loss = criterion(air_pred, GT_airlights)
+            
+            loss.backward()
+            
+            # with torch.cuda.amp.autocast(enabled=opt.amp):
+            #     air_pred = net(hazy_images)
+            #     loss = criterion(air_pred, GT_airlights)
 
-            optimizer.zero_grad(set_to_none=True)
-            grad_scaler.scale(loss).backward()
-            grad_scaler.step(optimizer)
-            grad_scaler.update()
+            # optimizer.zero_grad(set_to_none=True)
+            # grad_scaler.scale(loss).backward()
+            # grad_scaler.step(optimizer)
+            # grad_scaler.update()
 
             epoch_loss += loss.item()
             if opt.wandb_log:
@@ -87,30 +92,35 @@ def validation(opt, epoch, net, criterion, dataloader):
         
         hazy_images = hazy_images.to(opt.device) 
         GT_airlights = GT_airlights.to(opt.device)
+        # GT_airlights = GT_airlights.float().to(opt.device)
 
         with torch.no_grad():
             air_preds = net(hazy_images)
             loss = criterion(GT_airlights, air_preds)
+            
+            # air_val = torch.Tensor().to(opt.device)
+            # for i in range(opt.batchSize):
+            #     air_val = torch.cat((air_val, torch.min(air_preds[i]).unsqueeze(0)), 0)
+                
+            # print('\n', air_val.shape, GT_airlights.shape)
+            # loss = criterion(GT_airlights, air_val)
         
         val_score.append(loss.item())
         
     val_score = np.mean(np.array(val_score))
     print(f'Validation score: {val_score}')
-        
-    if opt.wandb_log:
-        log_GT_air = GT_airlights[0].cpu().clone()
-        log_GT_air = torch.round(((log_GT_air * 0.5) + 0.5) * 255)
     
-        log_air = air_preds[0].cpu().clone()
-        log_air = torch.round(((log_air * 0.5) + 0.5) * 255)
+    if opt.wandb_log:
+        # log_air = air_preds[0].cpu().clone()
+        # log_air = torch.round(((log_air * 0.5) + 0.5) * 255)
         
         wandb.log({
-            'validation score': val_score[-1],
-            'hazy_images': wandb.Image(hazy_images[0].cpu()),
-            'airlight': {
-                'true': wandb.Image(log_GT_air),
-                'pred': wandb.Image(log_air)
-            },
+            'validation score': val_score,
+            # 'hazy_images': wandb.Image(hazy_images[0].cpu()),
+            # 'airlight': {
+            #     'true': wandb.Image(log_GT_air),
+            #     'pred': wandb.Image(log_air)
+            # },
             'epoch': epoch
         })
     
@@ -179,9 +189,11 @@ if __name__ == '__main__':
     
     val_set = NYU_Dataset.NYU_Dataset(opt.dataRoot + '/val', [opt.imageSize_W, opt.imageSize_H], printName=False, returnName=True, norm=opt.norm)
     val_loader = DataLoader(dataset=val_set, batch_size=opt.batchSize,
-                             num_workers=2, drop_last=False, shuffle=True)
+                             num_workers=2, drop_last=True, shuffle=True)
+    
+    opt.wandb_log = False
     if opt.wandb_log:
-        wandb.init(project="Airlight", entity="rus", name='Airlight_Module', config=opt)
+        wandb.init(project="Airlight", entity="rus", name='Air_UNet_pooling', config=opt)
     
     # validation_air_module(opt, criterion, val_loader)
     
@@ -195,7 +207,7 @@ if __name__ == '__main__':
     #             'epoch': epoch,
     #             'model_state_dict': net.state_dict(),
     #             'optimizer_state_dict': optimizer.state_dict()}, 
-    #                    f"{opt.save_path}/Air_UNet_epoch_{epoch:02d}.pt")
+    #                    f"{opt.save_path}/Air_UNet_pool_epoch_{epoch:02d}.pt")
     
     epoch = 19
     checkpoint = torch.load(f'weights/Air_UNet_epoch_{epoch}.pt')

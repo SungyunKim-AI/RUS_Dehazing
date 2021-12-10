@@ -30,6 +30,21 @@ def write_csv_depth_err(dataRoot, input_name, log_list):
         csv_wr = csv.writer(csv_file)
         csv_wr.writerow(['stage', 'step_beta', 'psnr', 'ssim', 'abs_rel', 'sq_rel', 'rmse', 'rmse_log', 'a1', 'a2', 'a3'])
         csv_wr.writerows(log_list)
+        
+def write_csv_netD_err(dataRoot, epoch, input_name, log_list):
+    file_name = os.path.basename(input_name)[:-4]
+    dir_name = input_name.split('\\')[-2]
+    path = f'{dataRoot}/statistic/epoch_{epoch}/{dir_name}'
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+    save_path = os.path.join(path, file_name+'.csv')
+    with open(save_path, 'w', newline='') as csv_file:
+        csv_wr = csv.writer(csv_file)
+        csv_wr.writerow(['step', 'beta', 'psnr', 'ssim'])
+        csv_wr.writerows(log_list)
+
+
 
 def main(path):
     csv_list = glob(f'{path}/*.csv')

@@ -67,6 +67,7 @@ class Air_UNet(nn.Module):
             nn.ConvTranspose2d(d_inc, output_nc, 4, 2, 1, bias=False),
             nn.LeakyReLU(0.2, inplace=True)
         )
+        self.pooling = nn.AdaptiveAvgPool2d((1,1))
     
     def forward(self, x):
         out1 = self.layer1(x)
@@ -93,5 +94,7 @@ class Air_UNet(nn.Module):
         dout2 = self.dlayer2(dout3_out2)
         dout2_out1 = torch.cat([dout2, out1], 1)
         dout1 = self.dlayer1(dout2_out1)
+        
+        # out = self.pooling(dout1)
         
         return dout1

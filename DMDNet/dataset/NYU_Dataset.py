@@ -55,7 +55,8 @@ class NYU_Dataset(Dataset):
         self.transform = utils.make_transform(img_size, norm=self.norm)
         
     def __len__(self):
-        return len(self.hazy_lists) * self.images_count
+        # return len(self.hazy_lists) * self.images_count
+        return 5
         
     def __getitem__(self,index):
         haze = self.hazy_lists[index//self.images_count][index%self.images_count]
