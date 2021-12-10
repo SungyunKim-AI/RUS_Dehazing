@@ -43,7 +43,7 @@ def get_args():
     
     # learning parameters
     parser.add_argument('--seed', type=int, default=101, help='Random Seed')
-    parser.add_argument('--batchSize', type=int, default=1, help='test dataloader input batch size')
+    parser.add_argument('--batchSize', type=int, default=32, help='test dataloader input batch size')
     parser.add_argument('--imageSize_W', type=int, default=256, help='the width of the resized input image to network')
     parser.add_argument('--imageSize_H', type=int, default=256, help='the height of the resized input image to network')
     parser.add_argument('--device', default=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
@@ -58,10 +58,10 @@ def get_args():
     parser.add_argument('--betaStep', type=float, default=0.005, help='beta step')
     parser.add_argument('--stepLimit', type=int, default=250, help='Multi step limit')
     parser.add_argument('--eps', type=float, default=1e-12, help='Epsilon value for non zero calculating')
-    parser.add_argument('--epochs', type=int, default=10, help='train epochs')
+    parser.add_argument('--epochs', type=int, default=50, help='train epochs')
     parser.add_argument('--val_step', type=int, default=1, help='validation step')
     parser.add_argument('--save_path', type=str, default="weights", help='Discriminator model save path')
-    parser.add_argument('--wandb_log', action='store_false', default=False, help='WandB logging flag')
+    parser.add_argument('--wandb_log', action='store_true', default=True, help='WandB logging flag')
     
     # Discrminator hyperparam
     parser.add_argument('--lr', type=float, default=0.0002, help='Learning rate for optimizers')
@@ -70,15 +70,15 @@ def get_args():
     return parser.parse_args()
 
 
-def train_oen_epoch(opt, model, air_model, netD, optimizerD, criterion, dataloader):
+def train_oen_epoch(opt, epoch, model, air_model, netD, optimizerD, criterion, dataloader):
     # Establish convention for real and fake labels during training
     real_label = 1.
     fake_label = 0.
     
     netD.train()
-    errD = []
+    errD_epoch = []
     for batch in tqdm(dataloader, desc="Train"):
-        netD.zero_grad()
+        optimizerD.zero_grad()
         
         # Data Init
         if opt.dataset == 'NYU':
@@ -152,7 +152,6 @@ def train_oen_epoch(opt, model, air_model, netD, optimizerD, criterion, dataload
                 # show(images)
                 
                 real_image = torch.cat((clear_image, psnr_preds, ssim_preds))
-                print("real_image : ", real_image.shape)
                 label = torch.full((real_image.shape[0],), real_label, dtype=torch.float, device=opt.device)
                 output = netD(real_image.to(opt.device)).view(-1)
                 errD_real = criterion(output, label)
@@ -160,20 +159,31 @@ def train_oen_epoch(opt, model, air_model, netD, optimizerD, criterion, dataload
                 errD_real_list.append(errD_real.item())
                 
                 fake_image = torch.Tensor()
-                if 3*10*opt.batchSize <= len(last_pred):
-                    for idx in random.sample(range(0, len(last_pred)), 3*10*opt.batchSize):
+                pick_num = real_image.shape[0]
+                # pick_num = 3*10*opt.batchSize
+                if pick_num <= len(last_pred):
+                    for idx in random.sample(range(0, len(last_pred)), pick_num):
                         fake_image = torch.cat((fake_image, last_pred[idx]))
                 else:
-                    for idx in random.sample(range(0, len(last_pred)), 10*opt.batchSize):
+                    pick_num /= 2
+                    for idx in random.sample(range(0, len(last_pred)), pick_num):
                         fake_image = torch.cat((fake_image, last_pred[idx]))
-                print("fake_image : ", fake_image.shape)
-                label = torch.full((len(last_pred),), fake_label, dtype=torch.float, device=opt.device)
+
+                label = torch.full((pick_num, ), fake_label, dtype=torch.float, device=opt.device)
                 output = netD(fake_image.to(opt.device))
                 errD_fake = criterion(output, label)
                 errD_fake.backward()
                 errD_fake_list.append(errD_fake.item())
                 
                 optimizerD.step()
+
+                if opt.wandb_log:
+                    wandb.log({
+                        'errD_fake' : errD_fake_list[-1],
+                        'errD_real' : errD_real_list[-1],
+                        'errD' : errD_fake_list[-1] + errD_real_list[-1],
+                        'epoch' : epoch,
+                    })
                 
                 break   # Stop Multi Step
             else:
@@ -182,14 +192,20 @@ def train_oen_epoch(opt, model, air_model, netD, optimizerD, criterion, dataload
         
         errD_fake = np.mean(np.array(errD_fake_list))
         errD_real = np.mean(np.array(errD_real_list))
-        errD.append(errD_fake + errD_real)
+        errD_epoch.append(errD_fake + errD_real)
+
+        if opt.wandb_log:
+            wandb.log({
+                'errD' : errD_epoch[-1],
+                'epoch' : epoch,
+            })
         
         if opt.verbose:    
             print(f'\nlast_psnr = {best_psnr}')
             print(f'last_ssim = {best_ssim}')
-            print(f"errD      = {errD[-1]}")
+            print(f"errD      = {errD_epoch[-1]}")
     
-    return np.mean(np.array(errD))
+    return np.mean(np.array(errD_epoch))
 
 
 def weights_init(m):
@@ -243,10 +259,10 @@ if __name__ == '__main__':
     #  to mean=0, stdev=0.2.
     # netD.apply(weights_init)
     optimizerD = optim.Adam(netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))    
-    criterion = nn.BCELoss(weight=torch.Tensor([0.1, 0.9]))     # 0: fake, 1: real
+    criterion = nn.BCELoss()
     
-    opt.dataRoot = 'C:/Users/IIPL/Desktop/data/NYU'
-    # opt.dataRoot = 'D:/data/NYU'
+    # opt.dataRoot = 'C:/Users/IIPL/Desktop/data/NYU'
+    opt.dataRoot = 'D:/data/NYU'
     # opt.dataRoot = 'C:/Users/IIPL/Desktop/data/RESIDE_beta/'
     train_set = NYU_Dataset.NYU_Dataset(opt.dataRoot + '/train', [opt.imageSize_W, opt.imageSize_H], printName=False, returnName=True, norm=opt.norm)
     # train_set = RESIDE_Dataset.RESIDE_Beta_Dataset(opt.dataRoot,  [opt.imageSize_W, opt.imageSize_H], split='train', printName=False, returnName=True, norm=opt.norm )
@@ -261,7 +277,7 @@ if __name__ == '__main__':
         wandb.init(project="Discriminator", entity="rus", name='DWT_GAN', config=opt)
     
     for epoch in range(1, opt.epochs+1):
-        loss = train_oen_epoch(opt, model, air_model, netD, optimizerD, criterion, train_loader)
+        loss = train_oen_epoch(opt, epoch, model, air_model, netD, optimizerD, criterion, train_loader)
         
         if epoch % opt.val_step == 0:
             # validation(opt, model, air_model, netD, val_loader)
