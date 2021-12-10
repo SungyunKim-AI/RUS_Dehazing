@@ -16,6 +16,7 @@ import wandb
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torch.backends.cudnn as cudnn
 from dpt.models import DPTDepthModel
 from dpt.discriminator import Discriminator
 from dpt.Air_UNet import Air_UNet
@@ -23,7 +24,6 @@ from dpt.Air_UNet import Air_UNet
 from dataset import NYU_Dataset, RESIDE_Dataset
 from torch.utils.data import DataLoader
 
-from Module_Airlight.Airlight_Module import get_Airlight
 from Module_Metrics.metrics import get_ssim_batch, get_psnr_batch
 from util import misc, save_log, utils
 from discriminator_val import validation
@@ -43,13 +43,13 @@ def get_args():
     
     # learning parameters
     parser.add_argument('--seed', type=int, default=101, help='Random Seed')
-    parser.add_argument('--batchSize', type=int, default=2, help='test dataloader input batch size')
+    parser.add_argument('--batchSize', type=int, default=20, help='test dataloader input batch size')
     parser.add_argument('--imageSize_W', type=int, default=256, help='the width of the resized input image to network')
     parser.add_argument('--imageSize_H', type=int, default=256, help='the height of the resized input image to network')
     parser.add_argument('--device', default=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
     
     # model parameters
-    parser.add_argument('--preTrainedModel', type=str, default='weights/dpt_hybrid_nyu-2ce69ec7.pt', help='pretrained DPT path')
+    parser.add_argument('--preTrainedModel', type=str, default='weights/dpt_hybrid_nyu-2ce69ec7_002.pt', help='pretrained DPT path')
     parser.add_argument('--backbone', type=str, default="vitb_rn50_384", help='DPT backbone')
     parser.add_argument('--preTrainedAtpModel', type=str, default="weights/Air_UNet_epoch_19.pt", help='pretrained Airlight Model')
     
@@ -61,11 +61,11 @@ def get_args():
     parser.add_argument('--epochs', type=int, default=50, help='train epochs')
     parser.add_argument('--val_step', type=int, default=1, help='validation step')
     parser.add_argument('--save_path', type=str, default="weights", help='Discriminator model save path')
-    parser.add_argument('--wandb_log', action='store_true', default=False, help='WandB logging flag')
-    
-    # Discrminator hyperparam
+    parser.add_argument('--wandb_log', action='store_true', default=True, help='WandB logging flag')
     parser.add_argument('--save_log', type=bool, default=True, help='log save flag')
     parser.add_argument('--saveORshow', type=str, default='save',  help='results show or save')
+
+    # Discrminator hyperparam
     parser.add_argument('--lr', type=float, default=0.0002, help='Learning rate for optimizers')
     parser.add_argument('--beta1', type=float, default=0.5, help='Beta1 hyperparam for Adam optimizers')
 
@@ -103,7 +103,7 @@ def train_oen_epoch(opt, epoch, depth_model, air_model, netD, optimizerD, criter
         best_psnr, best_ssim = np.zeros(opt.batchSize), np.zeros(opt.batchSize)
         psnr_preds = torch.Tensor(opt.batchSize, 3, opt.imageSize_H, opt.imageSize_W).to(opt.device)
         ssim_preds = torch.Tensor(opt.batchSize, 3, opt.imageSize_H, opt.imageSize_W).to(opt.device)
-        last_pred = torch.Tensor()
+        last_pred = torch.Tensor().to(opt.device)
         
         errD_fake_list, errD_real_list = [], []
         stop_flag_psnr, stop_flag_ssim = [], []
@@ -126,7 +126,6 @@ def train_oen_epoch(opt, epoch, depth_model, air_model, netD, optimizerD, criter
             # Calculate Metrics            
             psnr = get_psnr_batch(prediction, clear_image).detach().cpu().numpy()
             ssim = get_ssim_batch(prediction, clear_image).detach().cpu().numpy()
-            prediction = prediction.detach().cpu()
             
             for i in range(opt.batchSize):
                 if i not in stop_flag_psnr:
@@ -148,34 +147,37 @@ def train_oen_epoch(opt, epoch, depth_model, air_model, netD, optimizerD, criter
                     last_pred = torch.cat((last_pred, pred), 0)
                     
             if (len(stop_flag_psnr) == opt.batchSize) and (len(stop_flag_ssim) == opt.batchSize):
-                # hazy_grid = make_grid(utils.denormalize(hazy_image.detach().cpu()))
+                # hazy_grid = make_grid(utils.denormalize(init_hazy.detach().cpu()))
                 # clear_gird = make_grid(utils.denormalize(clear_image.detach().cpu()))
                 # psnr_gird = make_grid(utils.denormalize(psnr_preds.detach().cpu()))
                 # ssim_gird = make_grid(utils.denormalize(ssim_preds.detach().cpu()))
                 # images = torch.cat((hazy_grid, clear_gird, psnr_gird, ssim_gird), 1)
                 # show(images)
                 
+                # Discriminator train
                 real_image = torch.cat((clear_image, psnr_preds, ssim_preds))
-                label = torch.full((real_image.shape[0],), real_label, dtype=torch.float, device=opt.device)
+                rlabel = torch.full((real_image.shape[0],), real_label, dtype=torch.float, device=opt.device)
+                
+                fake_image = torch.Tensor().to(opt.device)
+                pick_num = real_image.shape[0] * 1
+                if pick_num <= last_pred.shape[0]:
+                    for idx in random.sample(range(0, last_pred.shape[0]), pick_num):
+                        fake_image = torch.cat((fake_image, last_pred[idx].clone().unsqueeze(0)), 0)
+                else:
+                    fake_image = last_pred
+                
+                # print("real_image shape: ", real_image.shape)
+                # print("fake_image shape : ", fake_image.shape)
+
                 output = netD(real_image.to(opt.device)).view(-1)
-                errD_real = criterion(output, label)
-                errD_real = errD_real * (last_pred.shape[0] / (real_image.shape[0] * 2))
+                errD_real = criterion(output, rlabel)
+                errD_real = errD_real * (fake_image.shape[0] / (real_image.shape[0]))
                 errD_real.backward()
                 errD_real_list.append(errD_real.item())
-                
-                # fake_image = torch.Tensor()
-                # pick_num = real_image.shape[0]
-                # if pick_num <= len(last_pred):
-                #     for idx in random.sample(range(0, len(last_pred)), pick_num):
-                #         fake_image = torch.cat((fake_image, last_pred[idx]))
-                # else:
-                #     pick_num /= 2
-                #     for idx in random.sample(range(0, len(last_pred)), pick_num):
-                #         fake_image = torch.cat((fake_image, last_pred[idx]))
 
-                label = torch.full((last_pred.shape[0], ), fake_label, dtype=torch.float, device=opt.device)
-                output = netD(last_pred.to(opt.device)).view(-1)
-                errD_fake = criterion(output, label)
+                flabel = torch.full((fake_image.shape[0], ), fake_label, dtype=torch.float, device=opt.device)
+                output = netD(fake_image.to(opt.device)).view(-1)
+                errD_fake = criterion(output, flabel)
                 errD_fake.backward()
                 errD_fake_list.append(errD_fake.item())
                 
@@ -244,6 +246,8 @@ def show(imgs):
     
 
 if __name__ == '__main__':
+    cudnn.benchmark = True
+    cudnn.fastest = True
     opt = get_args()
     
     # opt.seed = random.randint(1, 10000)
@@ -275,8 +279,8 @@ if __name__ == '__main__':
     optimizerD = optim.Adam(netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))    
     criterion = nn.BCELoss()
     
-    opt.dataRoot = 'C:/Users/IIPL/Desktop/data/NYU'
-    # opt.dataRoot = 'D:/data/NYU'
+    # opt.dataRoot = 'C:/Users/IIPL/Desktop/data/NYU'
+    opt.dataRoot = 'D:/data/NYU'
     # opt.dataRoot = 'C:/Users/IIPL/Desktop/data/RESIDE_beta/'
     train_set = NYU_Dataset.NYU_Dataset(opt.dataRoot + '/train', [opt.imageSize_W, opt.imageSize_H], printName=False, returnName=True, norm=opt.norm)
     # train_set = RESIDE_Dataset.RESIDE_Beta_Dataset(opt.dataRoot,  [opt.imageSize_W, opt.imageSize_H], split='train', printName=False, returnName=True, norm=opt.norm )
@@ -288,7 +292,7 @@ if __name__ == '__main__':
                              num_workers=2, drop_last=True, shuffle=True)
     
     if opt.wandb_log:
-        wandb.init(project="Discriminator", entity="rus", name='DWT_GAN', config=opt)
+        wandb.init(project="Discriminator", entity="rus", name='netD', config=opt)
     
     for epoch in range(1, opt.epochs+1):
         loss = train_oen_epoch(opt, epoch, depth_model, air_model, netD, optimizerD, criterion, train_loader)
