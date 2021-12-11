@@ -5,6 +5,7 @@ warnings.filterwarnings("ignore")
 import argparse
 import numpy as np
 from tqdm import tqdm
+import wandb
 import random
 import torch
 from dpt.models import DPTDepthModel
@@ -16,9 +17,6 @@ from util import misc, save_log, utils
 
 from dataset import NYU_Dataset
 from torch.utils.data import DataLoader
-
-import matplotlib.pyplot as plt
-import torchvision.transforms.functional as F
 from torchvision.utils import make_grid
 
 
@@ -32,18 +30,21 @@ def get_args():
     # learning parameters
     parser.add_argument('--seed', type=int, default=101, help='Random Seed')
     parser.add_argument('--batchSize', type=int, default=8, help='test dataloader input batch size')
+    parser.add_argument('--batchSize_val', type=int, default=48, help='test dataloader input batch size')
     parser.add_argument('--imageSize_W', type=int, default=256, help='the width of the resized input image to network')
     parser.add_argument('--imageSize_H', type=int, default=256, help='the height of the resized input image to network')
     parser.add_argument('--device', default=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
     
     # model parameters
-    parser.add_argument('--preTrainedModel', type=str, default='weights/dpt_hybrid_nyu-2ce69ec7.pt', help='pretrained DPT path')
+    parser.add_argument('--preTrainedModel', type=str, default='weights/dpt_hybrid_nyu-2ce69ec7_002.pt', help='pretrained DPT path')
     parser.add_argument('--backbone', type=str, default="vitb_rn50_384", help='DPT backbone')
     
-    # validate parameters
-    parser.add_argument('--save_log', type=bool, default=True, help='log save flag')
-    parser.add_argument('--saveORshow', type=str, default='save',  help='results show or save')
+    parser.add_argument('--save_log', type=bool, default=False, help='log save flag')
+    parser.add_argument('--saveORshow', type=str, default='',  help='results show or save')
     parser.add_argument('--verbose', type=bool, default=True, help='print log')
+    parser.add_argument('--wandb_log', action='store_true', default=True, help='wandb log')
+
+    # validate parameters
     parser.add_argument('--betaStep', type=float, default=0.005, help='beta step')
     parser.add_argument('--stepLimit', type=int, default=250, help='Multi step limit')
     parser.add_argument('--eps', type=float, default=1e-12, help='Epsilon value for non zero calculating')
@@ -51,7 +52,7 @@ def get_args():
     return parser.parse_args()
 
 
-def validation(opt, epoch, depth_model, air_model, netD, dataloader):
+def validation(opt, epoch, depth_model, air_model, netD, dataloader, logging):
     netD.eval()
     
     for batch in tqdm(dataloader, desc="Validate"):
@@ -120,12 +121,6 @@ def validation(opt, epoch, depth_model, air_model, netD, dataloader):
                 netD_psnr = get_psnr_batch(preds, clear_image).detach().cpu()
                 netD_ssim = get_ssim_batch(preds, clear_image).detach().cpu()
                 
-                # hazy_grid = make_grid(utils.denormalize(hazy_image.detach().cpu()))
-                # clear_gird = make_grid(utils.denormalize(clear_image.detach().cpu()))
-                # pred_gird = make_grid(utils.denormalize(preds.detach().cpu()))
-                # images = torch.cat((hazy_grid, clear_gird, pred_gird), 1)
-                # show(images)
-                
                 break   # Stop Multi Step
             else:
                 cur_hazy = prediction.clone()
@@ -139,21 +134,28 @@ def validation(opt, epoch, depth_model, air_model, netD, dataloader):
             if opt.saveORshow == 'save':
                 misc.results_save_tensor_2(opt.dataRoot, epoch, input_name[i],
                                             clear_image_[i], hazy_image[i], preds[i])
+            elif opt.saveORshow == 'show':
+                hazy_grid = make_grid(utils.denormalize(hazy_image.detach().cpu()))
+                clear_gird = make_grid(utils.denormalize(clear_image.detach().cpu()))
+                pred_gird = make_grid(utils.denormalize(preds.detach().cpu()))
+                images = torch.cat((hazy_grid, clear_gird, pred_gird), 1)
+                misc.tensor_show(images)
+
+            if opt.wandb_log:
+                file_name = int(input_name[i].split('\\')[-1].split('_')[0])
+                dir_name = input_name[i].split('\\')[-2]
+                logging.log({
+                    "Image_Name" : file_name,
+                    dir_name : {
+                        "psnr" : netD_psnr[i].item(),
+                        "ssim" : netD_ssim[i].item()
+                    }
+                })  
         
         if opt.verbose:
             print(f'\n netD_psnr = {netD_psnr}')
             print(f' netD_ssim = {netD_ssim}')
-
-def show(imgs):
-    if not isinstance(imgs, list):
-        imgs = [imgs]
-    fix, axs = plt.subplots(ncols=len(imgs), squeeze=False)
-    for i, img in enumerate(imgs):
-        img = img.detach()
-        img = F.to_pil_image(img)
-        axs[0, i].imshow(np.asarray(img))
-        axs[0, i].set(xticklabels=[], yticklabels=[], xticks=[], yticks=[])
-    plt.show()
+        
 
        
 if __name__=='__main__':
@@ -166,10 +168,10 @@ if __name__=='__main__':
     print("=========| Option |=========\n", opt)
     print()
     
-    # opt.dataRoot = 'D:/data/NYU'
-    opt.dataRoot = 'C:/Users/IIPL/Desktop/data/NYU'
+    opt.dataRoot = 'D:/data/NYU'
+    # opt.dataRoot = 'C:/Users/IIPL/Desktop/data/NYU'
     val_set = NYU_Dataset.NYU_Dataset(opt.dataRoot + '/val', [opt.imageSize_W, opt.imageSize_H], printName=False, returnName=True, norm=opt.norm)
-    val_loader = DataLoader(dataset=val_set, batch_size=opt.batchSize,
+    val_loader = DataLoader(dataset=val_set, batch_size=opt.batchSize_val,
                              num_workers=2, drop_last=True, shuffle=True)
     
     depth_model = DPTDepthModel(
@@ -190,10 +192,14 @@ if __name__=='__main__':
 
     # Load saved model
     netD = Discriminator().to(opt.device)
-    checkpoint = torch.load('weights/Discriminator_epoch_01_100.pt')
+    checkpoint = torch.load('weights/Discriminator_epoch_01.pt')
     netD.load_state_dict(checkpoint['model_state_dict'])
     # netD.to(opt.device)
     
     epoch = 1
-    validation(opt, epoch, depth_model, air_model, netD, val_loader)
+
+    if opt.wandb_log:
+        logging = wandb.init(project="Discriminator", entity="rus", name='netD_val', config=opt)
+
+    validation(opt, epoch, depth_model, air_model, netD, val_loader, logging)
     

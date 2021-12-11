@@ -43,7 +43,8 @@ def get_args():
     
     # learning parameters
     parser.add_argument('--seed', type=int, default=101, help='Random Seed')
-    parser.add_argument('--batchSize', type=int, default=20, help='test dataloader input batch size')
+    parser.add_argument('--batchSize', type=int, default=16, help='test dataloader input batch size')
+    parser.add_argument('--batchSize_val', type=int, default=48, help='test dataloader input batch size')
     parser.add_argument('--imageSize_W', type=int, default=256, help='the width of the resized input image to network')
     parser.add_argument('--imageSize_H', type=int, default=256, help='the height of the resized input image to network')
     parser.add_argument('--device', default=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
@@ -72,7 +73,7 @@ def get_args():
     return parser.parse_args()
 
 
-def train_oen_epoch(opt, epoch, depth_model, air_model, netD, optimizerD, criterion, dataloader):
+def train_oen_epoch(opt, epoch, depth_model, air_model, netD, optimizerD, criterion, dataloader, logging):
     # Establish convention for real and fake labels during training
     real_label = 1.
     fake_label = 0.
@@ -159,7 +160,7 @@ def train_oen_epoch(opt, epoch, depth_model, air_model, netD, optimizerD, criter
                 rlabel = torch.full((real_image.shape[0],), real_label, dtype=torch.float, device=opt.device)
                 
                 fake_image = torch.Tensor().to(opt.device)
-                pick_num = real_image.shape[0] * 1
+                pick_num = real_image.shape[0] * 2
                 if pick_num <= last_pred.shape[0]:
                     for idx in random.sample(range(0, last_pred.shape[0]), pick_num):
                         fake_image = torch.cat((fake_image, last_pred[idx].clone().unsqueeze(0)), 0)
@@ -184,7 +185,7 @@ def train_oen_epoch(opt, epoch, depth_model, air_model, netD, optimizerD, criter
                 optimizerD.step()
 
                 if opt.wandb_log:
-                    wandb.log({
+                    logging.log({
                         'errD_fake' : errD_fake_list[-1],
                         'errD_real' : errD_real_list[-1],
                         'errD' : errD_fake_list[-1] + errD_real_list[-1],
@@ -202,8 +203,8 @@ def train_oen_epoch(opt, epoch, depth_model, air_model, netD, optimizerD, criter
         errD_epoch.append(errD_fake + errD_real)
 
         if opt.wandb_log:
-            wandb.log({
-                'errD' : errD_epoch[-1],
+            logging.log({
+                'errD_epoch' : errD_epoch[-1],
                 'epoch' : epoch,
             })
         
@@ -292,13 +293,13 @@ if __name__ == '__main__':
                              num_workers=2, drop_last=True, shuffle=True)
     
     if opt.wandb_log:
-        wandb.init(project="Discriminator", entity="rus", name='netD', config=opt)
+        logging = wandb.init(project="Discriminator", entity="rus", name='netD', config=opt)
     
     for epoch in range(1, opt.epochs+1):
-        loss = train_oen_epoch(opt, epoch, depth_model, air_model, netD, optimizerD, criterion, train_loader)
+        loss = train_oen_epoch(opt, epoch, depth_model, air_model, netD, optimizerD, criterion, train_loader, logging)
         
         if epoch % opt.val_step == 0:
-            validation(opt, epoch, depth_model, air_model, netD, val_loader)
+            validation(opt, epoch, depth_model, air_model, netD, val_loader, logging)
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': netD.state_dict(),

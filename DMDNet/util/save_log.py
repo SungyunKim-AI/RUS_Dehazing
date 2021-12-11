@@ -43,6 +43,7 @@ def write_csv_netD_err(dataRoot, epoch, input_name, log_list):
         csv_wr = csv.writer(csv_file)
         csv_wr.writerow(['step', 'beta', 'psnr', 'ssim'])
         csv_wr.writerows(log_list)
+    
 
 
 

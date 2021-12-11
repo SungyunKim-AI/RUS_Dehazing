@@ -3,8 +3,10 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from dpt.vit import get_mean_attention_map
-import torch, torchvision
+import torch
 from util import utils
+import matplotlib.pyplot as plt
+import torchvision.transforms.functional as F
 
 def visualize_attention(input, model, prediction, model_type):
     input = (input + 1.0)/2.0
@@ -257,3 +259,14 @@ def results_save_tensor_2(dataRoot, epoch, input_name, clear_image, hazy_image, 
     save_path = os.path.join(dir_name, os.path.basename(input_name))
     images = cv2.cvtColor(images, cv2.COLOR_RGB2BGR)
     cv2.imwrite(save_path, images)
+
+def tensor_show(imgs):
+    if not isinstance(imgs, list):
+        imgs = [imgs]
+    fix, axs = plt.subplots(ncols=len(imgs), squeeze=False)
+    for i, img in enumerate(imgs):
+        img = img.detach()
+        img = F.to_pil_image(img)
+        axs[0, i].imshow(np.asarray(img))
+        axs[0, i].set(xticklabels=[], yticklabels=[], xticks=[], yticks=[])
+    plt.show()
