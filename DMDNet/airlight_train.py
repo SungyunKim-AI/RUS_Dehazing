@@ -10,7 +10,7 @@ import wandb
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from dpt.Air_UNet import Air_UNet
+from models import Air_UNet, UNet
 from Module_Airlight.Airlight_Module import get_Airlight
 
 from dataset import NYU_Dataset, RESIDE_Dataset
