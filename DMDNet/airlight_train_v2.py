@@ -3,6 +3,7 @@ import random
 import wandb
 import numpy as np
 from tqdm import tqdm
+from PIL import Image
 
 import torch
 import torch.nn as nn
@@ -23,7 +24,7 @@ def get_args():
     
     # learning parameters
     parser.add_argument('--seed', type=int, default=101, help='Random Seed')
-    parser.add_argument('--batchSize', type=int, default=32, help='test dataloader input batch size')
+    parser.add_argument('--batchSize', type=int, default=16, help='test dataloader input batch size')
     parser.add_argument('--imageSize_W', type=int, default=256, help='the width of the resized input image to network')
     parser.add_argument('--imageSize_H', type=int, default=256, help='the height of the resized input image to network')
     parser.add_argument('--device', default=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
@@ -33,12 +34,11 @@ def get_args():
     parser.add_argument('--epochs', type=int, default=100, help='train epochs')
     parser.add_argument('--val_step', type=int, default=1, help='validation step')
     parser.add_argument('--save_path', type=str, default="weights", help='Airlight Estimation model save path')
-    parser.add_argument('--wandb_log', action='store_true', default=False, help='WandB logging flag')
+    parser.add_argument('--wandb_log', action='store_true', default=True, help='WandB logging flag')
     
     # hyperparam
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate for optimizers')
     parser.add_argument('--beta1', type=float, default=0.5, help='Beta1 hyperparam for Adam optimizers')
-    parser.add_argument('--amp', action='store_true', default=False, help='Use mixed precision')
 
     return parser.parse_args()
 
@@ -69,11 +69,13 @@ def train_one_epoch(opt, dataloader, net, optimizer, grad_scaler, criterion, epo
             grad_scaler.update()
             
             epoch_loss.append(loss.item())
-            wandb.log({
-                'train loss': loss.item(),
-                'iters': iters,
-                'epoch': epoch
-            })
+            
+            if opt.wandb_log:
+                wandb.log({
+                    'train loss': loss.item(),
+                    'iters': iters,
+                    'epoch': epoch
+                })
             pbar.set_postfix(**{'loss (batch)': loss.item()})
     
     epoch_loss = np.array(epoch_loss).mean()
@@ -99,20 +101,33 @@ def validation(opt, dataloader, net, criterion, epoch):
             loss = criterion(GT_airlights, air_preds)
 
         val_score.append(loss.item())
-        val_score = np.mean(np.array(val_score))
-        print(f'Validation score: {val_score}')
         
-        if opt.wandb_log:
-            wandb.log({
-                'validation score': val_score,
-                'hazy_images': wandb.Image(hazy_images[0].cpu()),
-                'airlight': {
-                    'true': wandb.Image(log_GT_air),
-                    'pred': wandb.Image(log_air)
-                },
-                'image_name' : input_names[0],
-                'epoch' : epoch, 
-            })
+    val_score = np.array(val_score).mean()
+    print(f'Validation score: {val_score}')
+    
+    if opt.wandb_log:
+        temp_hazy = hazy_images[0].detach().cpu().numpy().transpose(1,2,0)
+        temp_hazy = np.rint((temp_hazy * 0.5 - 0.5) * 255.0).astype(np.uint8)
+        temp_hazy = Image.fromarray(temp_hazy)
+        
+        temp_air = GT_airlights[0].detach().cpu().numpy().transpose(1,2,0)
+        temp_air = np.repeat(np.rint((temp_air * 0.5 - 0.5) * 255.0).astype(np.uint8), 3, axis=2)
+        temp_air = Image.fromarray(temp_air)
+        
+        temp_pred = air_preds[0].detach().cpu().numpy().transpose(1,2,0)
+        temp_pred = np.repeat(np.rint((temp_pred * 0.5 - 0.5) * 255.0).astype(np.uint8), 3, axis=2)
+        temp_pred = Image.fromarray(temp_pred)
+        
+        wandb.log({
+            'validation score': val_score,
+            'hazy_images': wandb.Image(temp_hazy),
+            'airlight': {
+                'true': wandb.Image(temp_air),
+                'pred': wandb.Image(temp_pred)
+            },
+            'image_name' : input_names[0],
+            'epoch' : epoch, 
+        })
     
     return val_score
 
@@ -132,8 +147,8 @@ if __name__ == '__main__':
     net.to(device=opt.device)
     
     
-    opt.dataRoot = f'C:/Users/IIPL/Desktop/data/{opt.dataset}'
-    # opt.dataRoot = f'D:/data/NYU/{opt.dataset}'
+    opt.dataRoot = 'C:/Users/IIPL/Desktop/data/NYU'
+    # opt.dataRoot = 'D:/data/NYU'
     dataset_args = dict(img_size=[opt.imageSize_W, opt.imageSize_H], printName=False, returnName=True, norm=opt.norm)
     if opt.dataset == 'NYU':
         train_set = NYU_Dataset(opt.dataRoot + '/train', **dataset_args)
@@ -146,7 +161,6 @@ if __name__ == '__main__':
     train_loader = DataLoader(dataset=train_set, **loader_args)
     val_loader = DataLoader(dataset=val_set, **loader_args)
     
-    opt.wandb_log = False
     if opt.wandb_log:
         wandb.init(project="Airlight", entity="rus", name='original_UNet', config=opt)
     

@@ -56,7 +56,7 @@ class NYU_Dataset(Dataset):
         
     def __len__(self):
         return len(self.hazy_lists) * self.images_count
-        # return 40
+        # return 20
         
     def __getitem__(self,index):
         haze = self.hazy_lists[index//self.images_count][index%self.images_count]
@@ -67,7 +67,7 @@ class NYU_Dataset(Dataset):
         airlight = float(os.path.basename(haze).split('_')[-2])
         if self.norm:
             airlight = (airlight - 0.5) / 0.5
-        airlight = np.full((3, self.img_size[1], self.img_size[0]), airlight).astype(np.float32)
+        airlight = np.full((1, self.img_size[1], self.img_size[0]), airlight).astype(np.float32)
         
         if self.printName:
             print(haze)
