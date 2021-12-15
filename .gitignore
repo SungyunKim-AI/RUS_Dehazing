@@ -133,3 +133,4 @@ dmypy.json
 *.h5
 output_log/
 wandb/
+*.npy
