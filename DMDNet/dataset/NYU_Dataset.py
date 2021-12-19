@@ -52,7 +52,7 @@ class NYU_Dataset(Dataset):
         self.returnName = returnName
         
         self.images_count = len(self.hazy_lists[0])
-        self.transform = utils.make_transform(img_size, norm=self.norm)
+        self.transform = utils.make_transform(img_size, norm=self.norm, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         
     def __len__(self):
         return len(self.hazy_lists) * self.images_count

@@ -27,7 +27,7 @@ class RESIDE_Beta_Dataset(Dataset):
             self.images_hazy_lists.append(glob(images_hazy_folder+'*.jpg'))
         
         self.images_count = len(self.images_hazy_lists[0])
-        self.transform = utils.make_transform(img_size, norm=norm)
+        self.transform = utils.make_transform(img_size, norm=norm, mean=[0.64, 0.6, 0.58],std=[0.14,0.15, 0.152])
         
     def __len__(self):
         return len(self.images_hazy_lists) * self.images_count
