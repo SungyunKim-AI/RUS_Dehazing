@@ -38,7 +38,7 @@ class RESIDE_Beta_Dataset(Dataset):
         
         airlight = float(os.path.basename(haze).split('_')[-2])
         if self.norm:
-            airlight = (airlight - 0.5) / 0.5
+            airlight = (airlight - 0.607) / 0.147
         airlight = np.full((1, self.img_size[1], self.img_size[0]), airlight).astype(np.float32)
         
 

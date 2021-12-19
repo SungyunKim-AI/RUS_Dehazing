@@ -66,7 +66,7 @@ class NYU_Dataset(Dataset):
         
         airlight = float(os.path.basename(haze).split('_')[-2])
         if self.norm:
-            airlight = (airlight - 0.5) / 0.5
+            airlight = (airlight - 0.449) / 0.226
         airlight = np.full((1, self.img_size[1], self.img_size[0]), airlight).astype(np.float32)
         
         if self.printName:
