@@ -2,35 +2,29 @@ from glob import glob
 import numpy as np
 import cv2
 import mat73
+import os
 from torch.utils.data import Dataset
 from dpt.transforms import Resize
 from dataset import utils
 
 
 class RESIDE_Beta_Dataset(Dataset):
-    def __init__(self, path, img_size, split='train', printName=False, returnName=False ,norm=False, verbose=False):
+    def __init__(self, path, img_size, printName=False, returnName=False ,norm=True, verbose=False):
         super().__init__()
         self.img_size = img_size
-        path = path + ('train' if split=='train' else 'test')
-        images_clear_path = path + '/clear/*.jpg'
-        self.images_clear_list = glob(images_clear_path)
         self.printName = printName
         self.returnName = returnName
-        
+        self.norm = norm
+
+        images_clear_path = path + '/clear/*.jpg'
+        self.images_clear_list = glob(images_clear_path)
+
         images_hazy_folders_path = path+'/hazy/*/'
         self.images_hazy_lists = []
         for images_hazy_folder in glob(images_hazy_folders_path):
             if verbose:
                 print(images_hazy_folder + ' dataset ready!')
             self.images_hazy_lists.append(glob(images_hazy_folder+'*.jpg'))
-        
-        images_airlight_folders_path = path+'/airlight/*/'
-        self.images_airlight_list = []
-        for images_airlight_folder in glob(images_airlight_folders_path):
-            if verbose:
-                print(images_airlight_folder + ' dataset ready!')
-            self.images_airlight_list.append(glob(images_airlight_folder+'*.jpg'))
-        self.airlgiht_flag = False if len(self.images_airlight_list) == 0 else True
         
         self.images_count = len(self.images_hazy_lists[0])
         self.transform = utils.make_transform(img_size, norm=norm)
@@ -41,23 +35,21 @@ class RESIDE_Beta_Dataset(Dataset):
     def __getitem__(self,index):
         haze = self.images_hazy_lists[index//self.images_count][index%self.images_count]
         clear = self.images_clear_list[index%self.images_count]
-        airlight = self.images_airlight_list[index//self.images_count][index%self.images_count] if self.airlgiht_flag else None
         
+        airlight = float(os.path.basename(haze).split('_')[-2])
+        if self.norm:
+            airlight = (airlight - 0.5) / 0.5
+        airlight = np.full((1, self.img_size[1], self.img_size[0]), airlight).astype(np.float32)
+        
+
         if self.printName:
-            print(self.images_hazy_lists[index//self.images_count][index%self.images_count])
-        
-        if airlight is None:
-            hazy_input, clear_input = utils.load_item_2(haze, clear, self.transform)
-            if self.returnName:
-                return hazy_input, clear_input, haze
-            else:
-                return hazy_input, clear_input 
+            print(haze)
+
+        hazy_input, clear_input = utils.load_item_2(haze, clear, self.transform)
+        if self.returnName:
+            return hazy_input, clear_input, airlight, haze
         else:
-            hazy_input, clear_input, airlight_input = utils.load_item_3(haze,clear,airlight,self.transform)
-            if self.returnName:
-                return hazy_input, clear_input, airlight_input, haze
-            else:
-                return hazy_input, clear_input, airlight_input
+            return hazy_input, clear_input, airlight
 
 
 class RESIDE_Beta_Dataset_With_Notation(Dataset):
