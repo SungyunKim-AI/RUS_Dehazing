@@ -20,7 +20,7 @@ class UNet(nn.Module):
         self.up2 = Up(512, 256 // factor, bilinear)
         self.up3 = Up(256, 128 // factor, bilinear)
         self.up4 = Up(128, 64, bilinear)
-        self.outc = OutConv(64, out_channels)
+        # self.outc = OutConv(64, out_channels)
         self.outc2 = OutConv2(64, out_channels, img_shape)
 
     def forward(self, x):

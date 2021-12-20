@@ -1,15 +1,14 @@
-"""Utils for monoDepth.
+"""
+Utils for monoDepth.
 """
 import sys
 import re
 import numpy as np
 import cv2
 import torch
-
-from PIL import Image
-
-
-from .pallete import get_mask_pallete
+import torchvision.transforms.functional as F
+from torchvision.transforms import Compose
+from models.depth_models.transforms import Resize, NormalizeImage, PrepareForNet
 
 def read_pfm(path):
     """Read pfm file.
@@ -197,24 +196,43 @@ def write_depth(path, depth, bits=1, absolute_depth=False):
 
     return
 
+def to_tensor(img):
+    img_t = F.to_tensor(img).float()
+    return img_t
+    
+def load_item(haze, clear, transform):
+    haze = read_image(haze)
+    clear = read_image(clear)
+    
+    haze_input  = transform({"image": haze})["image"]
+    clear_input = transform({"image": clear})["image"]
 
-def write_segm_img(path, image, labels, palette="detail", alpha=0.5):
-    """Write depth map to pfm and png file.
+    return haze_input, clear_input
 
-    Args:
-        path (str): filepath without extension
-        image (array): input image
-        labels (array): labeling of the image
-    """
+def make_transform(img_size, norm=False, mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
+    
+    resize = Resize(img_size[0],
+                    img_size[1],
+                    resize_target=None,
+                    keep_aspect_ratio=False,
+                    ensure_multiple_of=32,
+                    resize_method="minimal",
+                    image_interpolation_method=cv2.INTER_CUBIC)
+    
+    # resize = Resize(img_size[0],
+    #                 img_size[1],
+    #                 resize_target=None,
+    #                 keep_aspect_ratio=False,
+    #                 ensure_multiple_of=32,
+    #                 resize_method="",
+    #                 image_interpolation_method=cv2.INTER_AREA)
+    
+    if norm == True:
+        transform = Compose([resize, 
+                             NormalizeImage(mean=mean, std=std),
+                             PrepareForNet()])
+    else:
+        transform = Compose([resize,
+                             PrepareForNet()])
 
-    mask = get_mask_pallete(labels, "ade20k")
-
-    img = Image.fromarray(np.uint8(255*image)).convert("RGBA")
-    seg = mask.convert("RGBA")
-
-    out = Image.blend(img, seg, alpha)
-
-    out.save(path + ".png")
-
-    return
-
+    return transform

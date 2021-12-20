@@ -3,42 +3,40 @@ import random
 import wandb
 import numpy as np
 from tqdm import tqdm
-from PIL import Image
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch import optim
 from torch.utils.data import DataLoader
 
-from models import UNet
+from models.air_models import UNet
 from dataset import NYU_Dataset, RESIDE_Beta_Dataset
 
 def get_args():
+    # opt.dataRoot = 'C:/Users/IIPL/Desktop/data/NYU'
+    # opt.dataRoot = 'D:/data/NYU'
+    # opt.dataRoot = 'D:/data/RESIDE_beta'
     parser = argparse.ArgumentParser(description='Train the UNet')
-    
-    parser.add_argument('--dataset', required=False, default='NYU',  help='dataset name')
-    parser.add_argument('--dataRoot', type=str, default='',  help='data file path')
-    parser.add_argument('--norm', type=bool, default=True,  help='Image Normalize flag')
-    parser.add_argument('--amp', action='store_true', default=False, help='Use mixed precision')
+    parser.add_argument('--dataset', required=False, default='RESIDE_beta',  help='dataset name')
+    parser.add_argument('--dataRoot', type=str, default='C:/Users/IIPL/Desktop/data/RESIDE_beta',  help='data file path')
     
     # learning parameters
     parser.add_argument('--seed', type=int, default=101, help='Random Seed')
-    parser.add_argument('--batchSize', type=int, default=32, help='test dataloader input batch size')
+    parser.add_argument('--batchSize', type=int, default=4, help='test dataloader input batch size')
     parser.add_argument('--imageSize_W', type=int, default=256, help='the width of the resized input image to network')
     parser.add_argument('--imageSize_H', type=int, default=256, help='the height of the resized input image to network')
+    parser.add_argument('--lr', type=float, default=0.001, help='Learning rate for optimizers')
+    parser.add_argument('--epochs', type=int, default=20, help='train epochs')
+    parser.add_argument('--val_step', type=int, default=1, help='validation step')
+    parser.add_argument('--norm', type=bool, default=True,  help='Image Normalize flag')
+    parser.add_argument('--amp', action='store_true', default=False, help='Use mixed precision')
     parser.add_argument('--device', default=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
     
     # train_one_epoch parameters
     parser.add_argument('--verbose', type=bool, default=True, help='print log')
-    parser.add_argument('--epochs', type=int, default=100, help='train epochs')
-    parser.add_argument('--val_step', type=int, default=1, help='validation step')
-    parser.add_argument('--save_path', type=str, default="weights", help='Airlight Estimation model save path')
-    parser.add_argument('--wandb_log', action='store_true', default=True, help='WandB logging flag')
+    parser.add_argument('--save_path', type=str, default="weights/air_weights", help='Airlight Estimation model save path')
+    parser.add_argument('--wandb_log', action='store_true', default=False, help='WandB logging flag')
     
-    # hyperparam
-    parser.add_argument('--lr', type=float, default=0.001, help='Learning rate for optimizers')
-    parser.add_argument('--beta1', type=float, default=0.5, help='Beta1 hyperparam for Adam optimizers')
 
     return parser.parse_args()
 
@@ -51,18 +49,13 @@ def train_one_epoch(opt, dataloader, net, optimizer, grad_scaler, criterion, epo
             iters += 1
             
             # Data Init
-            if opt.dataset == 'NYU':
-                hazy_images, clear_images, GT_airlights, GT_depths, input_names = batch
-            elif opt.dataset == 'RESIDE_beta':
-                hazy_images, clear_images, GT_airlights, input_names = batch
-
+            hazy_images, clear_images, GT_air, GT_depths, input_names = batch
             hazy_images = hazy_images.to(opt.device)
-            # GT_airlights = GT_airlights.to(opt.device, dtype=torch.float)
-            GT_airlights = GT_airlights[:, :, 0, 0].to(opt.device)
+            GT_air = GT_air.to(opt.device, dtype=torch.float)
             
             with torch.cuda.amp.autocast(enabled=opt.amp):
-                air_pred = net(hazy_images)
-                loss = criterion(air_pred, GT_airlights)
+                pred_air = net(hazy_images)
+                loss = criterion(pred_air, GT_air)
 
             optimizer.zero_grad(set_to_none=True)
             grad_scaler.scale(loss).backward()
@@ -89,18 +82,14 @@ def validation(opt, dataloader, net, criterion, epoch):
 
     for batch in tqdm(dataloader, desc='Validate', leave=False):
         # Data Init
-        if opt.dataset == 'NYU':
-            hazy_images, clear_images, GT_airlights, GT_depths, input_names = batch
-        elif opt.dataset == 'RESIDE_beta':
-            hazy_images, clear_images, GT_airlights, input_names = batch
+        hazy_images, clear_images, GT_air, GT_depths, input_names = batch
         
         hazy_images = hazy_images.to(opt.device)
-        # GT_airlights = GT_airlights.to(opt.device, dtype=torch.float)
-        GT_airlights = GT_airlights[:, 0, 0, 0].to(opt.device)
+        GT_air = GT_air.to(opt.device, dtype=torch.float)
 
         with torch.no_grad():
-            air_preds = net(hazy_images)
-            loss = criterion(GT_airlights, air_preds)
+            pred_air = net(hazy_images)
+            loss = criterion(pred_air, GT_air)
 
         val_score.append(loss.item())
         
@@ -148,11 +137,7 @@ if __name__ == '__main__':
     net = UNet([opt.imageSize_W, opt.imageSize_H], in_channels=3, out_channels=1, bilinear=True)
     net.to(device=opt.device)
     
-    
-    # opt.dataRoot = 'C:/Users/IIPL/Desktop/data/NYU'
-    opt.dataRoot = 'D:/data/NYU'
-    # opt.dataRoot = 'D:/data/RESIDE_beta'
-    dataset_args = dict(img_size=[opt.imageSize_W, opt.imageSize_H], printName=False, returnName=True, norm=opt.norm)
+    dataset_args = dict(img_size=[opt.imageSize_W, opt.imageSize_H], norm=opt.norm)
     if opt.dataset == 'NYU':
         train_set = NYU_Dataset(opt.dataRoot + '/train', **dataset_args)
         val_set   = NYU_Dataset(opt.dataRoot + '/val', **dataset_args)
@@ -167,12 +152,12 @@ if __name__ == '__main__':
     if opt.wandb_log:
         wandb.init(project="Airlight", entity="rus", name='original_UNet_NYU_1', config=opt)
     
-    # 4. Set up the optimizer, the loss, the learning rate scheduler and the loss scaling for AMP
     optimizer = optim.RMSprop(net.parameters(), lr=opt.lr, weight_decay=1e-8, momentum=0.9)
     grad_scaler = torch.cuda.amp.GradScaler(enabled=opt.amp)
-    # criterion = nn.L1Loss()
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=2)
+    
+    # riterion = nn.L1Loss()
     criterion = nn.MSELoss()
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=2)  # goal: maximize Dice score
     
     iters = 0
     for epoch in range(1, opt.epochs+1):
