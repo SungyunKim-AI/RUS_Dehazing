@@ -31,14 +31,18 @@ def denormalize(x, norm=True, mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
     
 
 def air_renorm(dataset, airlight, dataset_mean=0.5, dataset_std=0.5):
+    # denorm
     if dataset == 'NYU':
-        air_list = np.array([0.8, 0.9, 1.0])
+        air_list = torch.Tensor([0.8, 0.9, 1.0])
     elif dataset == 'RESIDE_beta':
-        air_list = np.array([0.8, 0.85, 0.9, 0.95, 1.0])
-    
+        air_list = torch.Tensor([0.8, 0.85, 0.9, 0.95, 1.0])
     mean, std = air_list.mean(), air_list.std()
-    
     airlight = (airlight * std) + mean
+    airlight = torch.clamp(airlight, 0, 1)
+    
+    # renorm
+    # dataset_mean = torch.Tensor([dataset_mean])
+    # dataset_std = torch.Tensor([dataset_std])
     airlight = (airlight - dataset_mean) / dataset_std
     
     return airlight

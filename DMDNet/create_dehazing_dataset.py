@@ -5,6 +5,7 @@ import random
 import numpy as np
 from tqdm import tqdm
 import h5py
+from os.path import join
 
 import torch
 from models.depth_models import DPTDepthModel
@@ -13,25 +14,27 @@ from models.air_models import UNet
 from dataset import NYU_Dataset, RESIDE_Beta_Dataset
 from torch.utils.data import DataLoader
 
-from utils import air_renorm, get_ssim_batch, get_psnr_batch
+from utils.util import air_renorm
+from utils.metrics import get_ssim_batch, get_psnr_batch
 
 
 def get_args():
     parser = argparse.ArgumentParser()
     # dataset parameters
     parser.add_argument('--dataset', required=False, default='NYU',  help='dataset name')
-    parser.add_argument('--dataRoot', type=str, default='',  help='data file path')
+    parser.add_argument('--dataRoot', type=str, default='C:/Users/IIPL/Desktop/data/NYU',  help='data file path')
     
     # learning parameters
     parser.add_argument('--seed', type=int, default=101, help='Random Seed')
     parser.add_argument('--batchSize', type=int, default=1, help='test dataloader input batch size')
-    parser.add_argument('--imageSize_W', type=int, default=620, help='the width of the resized input image to network')
-    parser.add_argument('--imageSize_H', type=int, default=460, help='the height of the resized input image to network')
+    parser.add_argument('--imageSize_W', type=int, default=256, help='the width of the resized input image to network')
+    parser.add_argument('--imageSize_H', type=int, default=256, help='the height of the resized input image to network')
     parser.add_argument('--norm', type=bool, default=True,  help='Image Normalize flag')
     parser.add_argument('--device', default=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
     
     # model parameters
-    parser.add_argument('--preTrainedModel', type=str, default='weights/dpt_hybrid-midas-501f0c75.pt', help='pretrained DPT path')
+    parser.add_argument('--preTrainedModel_Depth', type=str, default='weights/depth_weights/dpt_hybrid-midas-501f0c75.pt', help='pretrained DPT path')
+    parser.add_argument('--preTrainedModel_Air', type=str, default='weights/air_weights/Air_UNet_NYU_1D.pt', help='pretrained Airlight Model path')
     parser.add_argument('--backbone', type=str, default="vitb_rn50_384", help='DPT backbone')
     
     # test_stop_when_threshold parameters
@@ -58,11 +61,10 @@ def save_dehazing_image(opt, depth_model,air_model, dataloader):
             airlight = air_renorm(opt.dataset, airlight)
         
         # Multi-Step Depth Estimation and Dehazing
-        images = {}
         beta = opt.betaStep
         best_psnr, best_ssim = np.zeros(opt.batchSize), np.zeros(opt.batchSize)
-        psnr_best_img = torch.Tensor(opt.batchSize, 3, opt.imageSize_H, opt.imageSize_W).to(opt.device)
-        ssim_best_img = torch.Tensor(opt.batchSize, 3, opt.imageSize_H, opt.imageSize_W).to(opt.device)
+        best_psnr_image = torch.Tensor(opt.batchSize, 3, opt.imageSize_H, opt.imageSize_W).to(opt.device)
+        best_ssim_image = torch.Tensor(opt.batchSize, 3, opt.imageSize_H, opt.imageSize_W).to(opt.device)
         last_pred = torch.Tensor().to(opt.device)
         stop_flag_psnr, stop_flag_ssim = [], []
         
@@ -90,27 +92,33 @@ def save_dehazing_image(opt, depth_model,air_model, dataloader):
                     if best_psnr[i] <= psnr[i]:
                         best_psnr[i] = psnr[i]
                     else:
-                        psnr_best_img[i] = prediction[i].clone()
+                        best_psnr_image[i] = prediction[i].clone()
                         stop_flag_psnr.append(i)
                 
                 if i not in stop_flag_ssim:      
                     if best_ssim[i] <= ssim[i]:
                         best_ssim[i] = ssim[i]
                     else:
-                        ssim_best_img[i] = prediction[i].clone()
+                        best_ssim_image[i] = prediction[i].clone()
                         stop_flag_ssim.append(i)
                 
                 if (i not in stop_flag_psnr) and (i not in stop_flag_ssim):
                     pred = prediction[i].clone().unsqueeze(0)
-                    last_pred = torch.cat((last_pred, pred), 0)
+                    last_pred = torch.cat((last_pred, pred), dim=0)
                     
             if (len(stop_flag_psnr) == opt.batchSize) and (len(stop_flag_ssim) == opt.batchSize):
-                images['clear_image'] = clear_image.detach().cpu()
-                images['psnr_best_image'] = psnr_best_img.detach().cpu()
-                images['ssim_best_image'] = ssim_best_img.detach().cpu()
-                # for i in range(last_pred.shape[0]):
-                
-                save_h5py(images)
+                save_path = ''
+                images[f'dehazing_image_{j}'] = last_pred
+                for i in range(opt.batchSize):
+                    images = {}
+                    images['clear_image'] = clear_image.detach().cpu()[i]
+                    images['best_psnr_image'] = best_psnr_image.detach().cpu()[i]
+                    images['best_ssim_image'] = best_ssim_image.detach().cpu()[i]
+                    images['best_psnr'] = torch.Tensor(best_psnr)[i]
+                    images['best_ssim'] = torch.Tensor(best_ssim)[i]
+                    
+                        
+                    save_h5py(save_path, input_name[i], images)
                 
                 
                 break   # Stop Multi Step
@@ -125,25 +133,25 @@ def save_dehazing_image(opt, depth_model,air_model, dataloader):
 def save_h5py(save_path, input_name, images):
     folder = input_name.split('/')[-2]
     file_name = input_name.split('/')[-1][:-4]
-    save_path = os.path.join(save_path, input_name)
-    with h5py.File('data.h5', 'w') as hf: 
+    with h5py.File(f"{save_path}/{folder}/{file_name}.h5", 'w') as hf: 
         for image_name, image in images.items():
             if image_name.split('_')[-1] == 'image':
                 imgSet = hf.create_dataset(
                     name=image_name,
                     data=image,
-                    shape=(HEIGHT, WIDTH, CHANNELS),
-                    maxshape=(HEIGHT, WIDTH, CHANNELS),
+                    shape=image.shape,
                     compression="gzip",
-                    compression_opts=9)
+                    compression_opts=9
+                )
             else:
                 metricSet = hf.create_dataset(
                     name=image_name,
-                    data=image
+                    data=image,
                     shape=(1,),
                     maxshape=(None,),
                     compression="gzip",
-                    compression_opts=9)
+                    compression_opts=9
+                )
                 
             
 
@@ -157,7 +165,7 @@ if __name__ == '__main__':
     print("=========| Option |=========\n", opt)
     
     depth_model = DPTDepthModel(
-        path = opt.preTrainedModel,
+        path = opt.preTrainedModel_Depth,
         scale=0.00030, shift=0.1378, invert=True,
         backbone=opt.backbone,
         non_negative=True,
@@ -170,7 +178,7 @@ if __name__ == '__main__':
     air_model = UNet([opt.imageSize_W, opt.imageSize_H], in_channels=3, out_channels=1, bilinear=True)
     air_model.to(device=opt.device)
     
-    checkpoint = torch.load(opt.air_model_path)
+    checkpoint = torch.load(opt.preTrainedModel_Air)
     air_model.load_state_dict(checkpoint['model_state_dict'])
     
     
