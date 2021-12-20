@@ -13,9 +13,7 @@ from models.air_models import UNet
 from dataset import NYU_Dataset, RESIDE_Beta_Dataset
 from torch.utils.data import DataLoader
 
-from utils import misc, save_log, utils
-from utils import get_ssim_batch, get_psnr_batch
-
+from utils import air_renorm, get_ssim_batch, get_psnr_batch
 
 
 def get_args():
@@ -57,6 +55,7 @@ def save_dehazing_image(opt, depth_model,air_model, dataloader):
         
         with torch.no_grad():
             airlight = air_model(init_hazy)
+            airlight = air_renorm(opt.dataset, airlight)
         
         # Multi-Step Depth Estimation and Dehazing
         images = {}

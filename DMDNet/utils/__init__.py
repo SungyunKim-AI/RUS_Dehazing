@@ -1,2 +1,2 @@
-from .utils import *
+from .util import *
 from .metrics import *

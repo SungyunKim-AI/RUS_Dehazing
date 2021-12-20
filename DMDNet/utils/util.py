@@ -28,6 +28,21 @@ def denormalize(x, norm=True, mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
         return torch.clamp(ten, 0, 1).permute(3, 0, 1, 2)
     else:
         return x
+    
+
+def air_renorm(dataset, airlight, dataset_mean=0.5, dataset_std=0.5):
+    if dataset == 'NYU':
+        air_list = np.array([0.8, 0.9, 1.0])
+    elif dataset == 'RESIDE_beta':
+        air_list = np.array([0.8, 0.85, 0.9, 0.95, 1.0])
+    
+    mean, std = air_list.mean(), air_list.std()
+    
+    airlight = (airlight * std) + mean
+    airlight = (airlight - dataset_mean) / dataset_std
+    
+    return airlight
+
 
 def depth_norm(depth):
     a = 0.0012
