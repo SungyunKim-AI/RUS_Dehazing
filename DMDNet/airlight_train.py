@@ -18,11 +18,11 @@ def get_args():
     # opt.dataRoot = 'D:/data/RESIDE_beta'
     parser = argparse.ArgumentParser(description='Train the UNet')
     parser.add_argument('--dataset', required=False, default='RESIDE_beta',  help='dataset name')
-    parser.add_argument('--dataRoot', type=str, default='C:/Users/IIPL/Desktop/data/RESIDE_beta',  help='data file path')
+    parser.add_argument('--dataRoot', type=str, default='D:/data/RESIDE_beta',  help='data file path')
     
     # learning parameters
     parser.add_argument('--seed', type=int, default=101, help='Random Seed')
-    parser.add_argument('--batchSize', type=int, default=4, help='test dataloader input batch size')
+    parser.add_argument('--batchSize', type=int, default=32, help='test dataloader input batch size')
     parser.add_argument('--imageSize_W', type=int, default=256, help='the width of the resized input image to network')
     parser.add_argument('--imageSize_H', type=int, default=256, help='the height of the resized input image to network')
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate for optimizers')
@@ -34,8 +34,8 @@ def get_args():
     
     # train_one_epoch parameters
     parser.add_argument('--verbose', type=bool, default=True, help='print log')
-    parser.add_argument('--save_path', type=str, default="weights/air_weights", help='Airlight Estimation model save path')
-    parser.add_argument('--wandb_log', action='store_true', default=False, help='WandB logging flag')
+    parser.add_argument('--save_path', type=str, default="weights/air_weights/airlight_NYU_1", help='Airlight Estimation model save path')
+    parser.add_argument('--wandb_log', action='store_true', default=True, help='WandB logging flag')
     
 
     return parser.parse_args()
@@ -150,7 +150,7 @@ if __name__ == '__main__':
     val_loader = DataLoader(dataset=val_set, **loader_args)
     
     if opt.wandb_log:
-        wandb.init(project="Airlight", entity="rus", name='original_UNet_NYU_1', config=opt)
+        wandb.init(project="Airlight", entity="rus", name='UNet_RESIDE_1D', config=opt)
     
     optimizer = optim.RMSprop(net.parameters(), lr=opt.lr, weight_decay=1e-8, momentum=0.9)
     grad_scaler = torch.cuda.amp.GradScaler(enabled=opt.amp)
