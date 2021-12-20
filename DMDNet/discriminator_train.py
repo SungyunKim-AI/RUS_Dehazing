@@ -1,12 +1,8 @@
 # User warnings ignore
 import warnings
-
-from PIL.Image import preinit
 warnings.filterwarnings("ignore")
 
 import os
-os.environ['KMP_DUPLICATE_LIB_OK']='True'
-
 import argparse
 import numpy as np
 import random

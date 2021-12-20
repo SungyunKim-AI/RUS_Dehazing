@@ -81,11 +81,13 @@ class OutConv2(nn.Module):
     def __init__(self, in_channels, out_channels, img_shape):
         super(OutConv2, self).__init__()
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=1)
+        self.pooling = nn.AdaptiveAvgPool2d((256))
         self.flat = nn.Flatten()
-        self.fc = nn.Linear(img_shape[0]*img_shape[1], 1)
+        self.fc = nn.Linear(256*256, 1)
 
     def forward(self, x):
         x = self.conv(x)
+        x = self.pooling(x)
         x = self.flat(x)
         output = self.fc(x)
         return output

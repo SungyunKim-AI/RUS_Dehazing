@@ -1,3 +1,4 @@
+from os.path import basename
 import argparse
 import random
 import numpy as np
@@ -15,14 +16,14 @@ def get_args():
     # opt.dataRoot = 'D:/data/NYU'
     # opt.dataRoot = 'D:/data/RESIDE_beta'
     parser = argparse.ArgumentParser(description='Train the UNet')
-    parser.add_argument('--dataset', required=False, default='RESIDE_beta',  help='dataset name')
-    parser.add_argument('--dataRoot', type=str, default='C:/Users/IIPL/Desktop/data/RESIDE_beta',  help='data file path')
+    parser.add_argument('--dataset', required=False, default='NYU',  help='dataset name')
+    parser.add_argument('--dataRoot', type=str, default='C:/Users/IIPL/Desktop/data/NYU',  help='data file path')
     
     # learning parameters
     parser.add_argument('--seed', type=int, default=101, help='Random Seed')
     parser.add_argument('--batchSize', type=int, default=4, help='test dataloader input batch size')
-    parser.add_argument('--imageSize_W', type=int, default=256, help='the width of the resized input image to network')
-    parser.add_argument('--imageSize_H', type=int, default=256, help='the height of the resized input image to network')
+    parser.add_argument('--imageSize_W', type=int, default=620, help='the width of the resized input image to network')
+    parser.add_argument('--imageSize_H', type=int, default=460, help='the height of the resized input image to network')
     parser.add_argument('--norm', type=bool, default=True,  help='Image Normalize flag')
     parser.add_argument('--device', default=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
     
@@ -36,10 +37,16 @@ def get_args():
 def validation(opt, dataloader, net, criterion):
     net.eval()
     val_score = []
+    
+    if opt.dataset == 'NYU':
+        air_list = np.array([0.8, 0.9, 1.0])
+    else:
+        air_list = np.array([0.8, 0.85, 0.9, 0.95, 1.0])
+        
 
     for batch in dataloader:
         # Data Init
-        hazy_images, _, GT_air, _, _ = batch
+        hazy_images, _, GT_air, _, input_name = batch
         hazy_images = hazy_images.to(opt.device)
         GT_air = GT_air.to(opt.device, dtype=torch.float)
 
@@ -47,7 +54,7 @@ def validation(opt, dataloader, net, criterion):
             pred_air = net(hazy_images)
             # loss = criterion(GT_air, pred_air)
             
-        pred_air = F.adaptive_avg_pool2d(pred_air, output_size=1).squeeze()
+        # pred_air = F.adaptive_avg_pool2d(pred_air, output_size=1).squeeze()
         
         GT_air = GT_air.detach().cpu().squeeze().numpy()
         pred_air = pred_air.detach().cpu().squeeze().numpy()
@@ -57,12 +64,18 @@ def validation(opt, dataloader, net, criterion):
                 avg_air = np.mean(pred_air[i])
                 print(f"GT airlight : {GT_air[i]:.4f} / min airlight : {min_air:.4f} / avg airlight : {avg_air:.4f}")
         else:
+            GT_air = (GT_air * air_list.std()) + air_list.mean()
+            GT_air = np.clip(GT_air, 0, 1)
+            pred_air = (pred_air * air_list.std()) + air_list.mean()
+            pred_air = np.clip(pred_air, 0, 1)
+            err = np.abs(GT_air-pred_air)
             for i in range(opt.batchSize):
-                print(f"GT airlight : {GT_air[i]:.4f} / pred airlight : {pred_air[i]:.4f}")
+                file_name = basename(input_name[i])
+                print(f"{file_name} => GT : {GT_air[i]:.4f} / pred : {pred_air[i]:.4f} / err : {err[i]:.4f}")
 
-        # val_score.append(loss.item())
+                val_score.append(err)
     
-    # return np.array(val_score).mean()
+    return np.array(val_score).mean()
 
 
 if __name__ == '__main__':
@@ -78,7 +91,7 @@ if __name__ == '__main__':
     net = UNet([opt.imageSize_W, opt.imageSize_H], in_channels=3, out_channels=1, bilinear=True)
     net.to(device=opt.device)
     
-    checkpoint = torch.load(opt.model_path + '/Air_UNet_RESIDE_2D.pt')
+    checkpoint = torch.load(opt.model_path + '/Air_UNet_NYU_1D.pt')
     net.load_state_dict(checkpoint['model_state_dict'])
     
     dataset_args = dict(img_size=[opt.imageSize_W, opt.imageSize_H], norm=opt.norm)
@@ -87,7 +100,7 @@ if __name__ == '__main__':
     elif opt.dataset == 'RESIDE_beta':
         val_set   = RESIDE_Beta_Dataset(opt.dataRoot + '/val',   **dataset_args)
     
-    loader_args = dict(batch_size=opt.batchSize, num_workers=2, drop_last=False, shuffle=True)
+    loader_args = dict(batch_size=opt.batchSize, num_workers=2, drop_last=False, shuffle=False)
     val_loader = DataLoader(dataset=val_set, **loader_args)
     criterion = nn.MSELoss()
     

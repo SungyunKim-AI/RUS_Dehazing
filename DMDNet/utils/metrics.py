@@ -14,7 +14,7 @@ import torch
 import torch.nn.functional as F
 from torch.autograd import Variable
 from  torchvision.transforms import ToPILImage
-from util import utils
+from .utils import *
 
 def gaussian(window_size, sigma):
     gauss = torch.Tensor([exp(-(x - window_size // 2) ** 2 / float(2 * sigma ** 2)) for x in range(window_size)])
@@ -58,8 +58,8 @@ def get_ssim(img1, img2, window_size=11, size_average=True):
     return _ssim(img1, img2, window, window_size, channel, size_average)
 
 def get_ssim_batch(img1, img2, window_size=11, size_average=True):
-    img1 = utils.denormalize(img1)
-    img2 = utils.denormalize(img2)
+    img1 = denormalize(img1)
+    img2 = denormalize(img2)
     
     (_, channel, _, _) = img1.size()
     window = create_window(window_size, channel)
@@ -95,8 +95,8 @@ def get_psnr(pred, gt):
     return 20 * math.log10( 1.0 / rmse)
 
 def get_psnr_batch(pred, gt):
-    pred = utils.denormalize(pred)
-    gt = utils.denormalize(gt)
+    pred = denormalize(pred)
+    gt = denormalize(gt)
     imdff = pred - gt
     rmse = torch.sqrt(torch.mean(torch.square(imdff), dim=(1,2,3)))
     psnr = 20 * torch.log10( 1.0 / rmse)
