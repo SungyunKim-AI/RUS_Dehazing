@@ -4,7 +4,7 @@ from .unet_parts import *
 
 
 class UNet(nn.Module):
-    def __init__(self, in_channels, out_channels, bilinear=True):
+    def __init__(self,img_shape, in_channels, out_channels, bilinear=True):
         super(UNet, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -21,6 +21,7 @@ class UNet(nn.Module):
         self.up3 = Up(256, 128 // factor, bilinear)
         self.up4 = Up(128, 64, bilinear)
         self.outc = OutConv(64, out_channels)
+        self.outc2 = OutConv2(64, out_channels, img_shape)
 
     def forward(self, x):
         x1 = self.inc(x)
@@ -32,5 +33,6 @@ class UNet(nn.Module):
         x = self.up2(x, x3)
         x = self.up3(x, x2)
         x = self.up4(x, x1)
-        logits = self.outc(x)
+        # logits = self.outc(x)
+        logits = self.outc2(x)
         return logits

@@ -75,3 +75,17 @@ class OutConv(nn.Module):
 
     def forward(self, x):
         return self.conv(x)
+
+
+class OutConv2(nn.Module):
+    def __init__(self, in_channels, out_channels, img_shape):
+        super(OutConv2, self).__init__()
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=1)
+        self.flat = nn.Flatten()
+        self.fc = nn.Linear(img_shape[0]*img_shape[1], 1)
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.flat(x)
+        output = self.fc(x)
+        return output
