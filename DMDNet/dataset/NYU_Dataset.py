@@ -52,7 +52,7 @@ class NYU_Dataset(Dataset):
         self.returnName = returnName
         
         self.images_count = len(self.hazy_lists[0])
-        self.transform = utils.make_transform(img_size, norm=self.norm)
+        self.transform = utils.make_transform(img_size, norm=self.norm, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         
     def __len__(self):
         return len(self.hazy_lists) * self.images_count
@@ -66,7 +66,7 @@ class NYU_Dataset(Dataset):
         
         airlight = float(os.path.basename(haze).split('_')[-2])
         if self.norm:
-            airlight = (airlight - 0.5) / 0.5
+            airlight = (airlight - 0.449) / 0.226
         airlight = np.full((1, self.img_size[1], self.img_size[0]), airlight).astype(np.float32)
         
         if self.printName:
