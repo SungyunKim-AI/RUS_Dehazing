@@ -91,7 +91,7 @@ def get_psnr(pred, gt):
     imdff = pred - gt
     rmse = math.sqrt(np.mean(imdff ** 2))
     if rmse == 0:
-        return 100
+        return 0
     return 20 * math.log10( 1.0 / rmse)
 
 def get_psnr_batch(pred, gt):

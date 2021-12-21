@@ -20,17 +20,12 @@ import torch.optim as optim
 
 import torch
 import wandb
-from dpt.models import DPTDepthModel
+from models.depth_models import DPTDepthModel
 
 from dataset import *
 from torch.utils.data import DataLoader
 
-from Module_Airlight.Airlight_Module import Airlight_Module
-from Module_Metrics.Entropy_Module import Entropy_Module
-from Module_Metrics.NIQE_Module import NIQE_Module
-from Module_Metrics.metrics import get_ssim, get_psnr
-from util import misc, save_log, utils
-from validate_NYU_depth import compute_errors
+from utils.util import compute_errors
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -71,17 +66,15 @@ def get_args():
     return parser.parse_args()
 def evaluate(model, device, valid_loader, log_wandb, epoch):
     model.eval()
-    
-    #NYU {"0.0":0.0,"0.1":0.0,"0.2":0.0,"0.3":0.0,"0.5":0.0,"0.8":0.0}
-    val_iters = {"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0}
+    val_iters = {"0.0":0.0,"0.1":0.0,"0.2":0.0,"0.3":0.0,"0.5":0.0,"0.6":0.0, "0.7":0.0}
         
-    abs_rel_list ={"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0} 
-    sq_rel_list = {"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0} 
-    rmse_list = {"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0}
-    rmse_log_list = {"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0}
-    a1_list = {"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0}
-    a2_list = {"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0}  
-    a3_list = {"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0} 
+    abs_rel_list ={"0.0":0.0,"0.1":0.0,"0.2":0.0,"0.3":0.0,"0.5":0.0,"0.6":0.0, "0.7":0.0} 
+    sq_rel_list = {"0.0":0.0,"0.1":0.0,"0.2":0.0,"0.3":0.0,"0.5":0.0,"0.6":0.0, "0.7":0.0} 
+    rmse_list = {"0.0":0.0,"0.1":0.0,"0.2":0.0,"0.3":0.0,"0.5":0.0,"0.6":0.0, "0.7":0.0}
+    rmse_log_list = {"0.0":0.0,"0.1":0.0,"0.2":0.0,"0.3":0.0,"0.5":0.0,"0.6":0.0, "0.7":0.0}
+    a1_list = {"0.0":0.0,"0.1":0.0,"0.2":0.0,"0.3":0.0,"0.5":0.0,"0.6":0.0, "0.7":0.0}
+    a2_list = {"0.0":0.0,"0.1":0.0,"0.2":0.0,"0.3":0.0,"0.5":0.0,"0.6":0.0, "0.7":0.0}  
+    a3_list = {"0.0":0.0,"0.1":0.0,"0.2":0.0,"0.3":0.0,"0.5":0.0,"0.6":0.0, "0.7":0.0} 
     
     score_lists = {"val_abs_rel_list":abs_rel_list,
                    "val_sq_rel_list":sq_rel_list,
@@ -138,19 +131,16 @@ def train(model, device, train_loader, optim,loss_fun, log_wandb, epoch):
     else:
         model.train()
     
-    #NYU {"0.0":0.0,"0.1":0.0,"0.2":0.0,"0.3":0.0,"0.5":0.0,"0.8":0.0}
-    #RESIDE {"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0}
-    
-    train_iters = {"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0}
+    train_iters = {"0.0":0.0,"0.1":0.0,"0.2":0.0,"0.3":0.0,"0.5":0.0,"0.6":0.0, "0.7":0.0}
     global_iter = 0
         
-    abs_rel_list ={"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0} 
-    sq_rel_list = {"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0} 
-    rmse_list = {"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0}
-    rmse_log_list = {"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0}
-    a1_list = {"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0}
-    a2_list = {"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0}  
-    a3_list = {"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0} 
+    abs_rel_list ={"0.0":0.0,"0.1":0.0,"0.2":0.0,"0.3":0.0,"0.5":0.0,"0.6":0.0, "0.7":0.0} 
+    sq_rel_list = {"0.0":0.0,"0.1":0.0,"0.2":0.0,"0.3":0.0,"0.5":0.0,"0.6":0.0, "0.7":0.0} 
+    rmse_list = {"0.0":0.0,"0.1":0.0,"0.2":0.0,"0.3":0.0,"0.5":0.0,"0.6":0.0, "0.7":0.0}
+    rmse_log_list = {"0.0":0.0,"0.1":0.0,"0.2":0.0,"0.3":0.0,"0.5":0.0,"0.6":0.0, "0.7":0.0}
+    a1_list = {"0.0":0.0,"0.1":0.0,"0.2":0.0,"0.3":0.0,"0.5":0.0,"0.6":0.0, "0.7":0.0}
+    a2_list = {"0.0":0.0,"0.1":0.0,"0.2":0.0,"0.3":0.0,"0.5":0.0,"0.6":0.0, "0.7":0.0}  
+    a3_list = {"0.0":0.0,"0.1":0.0,"0.2":0.0,"0.3":0.0,"0.5":0.0,"0.6":0.0, "0.7":0.0} 
     
     score_lists = {"train_abs_rel_list":abs_rel_list,
                    "train_sq_rel_list":sq_rel_list,
@@ -225,12 +215,12 @@ def run(model, train_loader, valid_loader, optim, epochs, device, log_wandb):
         train(model,device,train_loader,optim,loss_fun,log_wandb,epoch+1)
         evaluate(model, device, valid_loader, log_wandb,epoch+1)
         
-        weight_path = f'weights/dpt_hybrid_nyu-2ce69ec7_{epoch+1:03}.pt'  #path for storing the weights of genertaor
+        weight_path = f'weights/dpt_hybrid_nyu-2ce69ec7_nyu_haze_{epoch+1:03}.pt'  #path for storing the weights of genertaor
         torch.save(model.state_dict(), weight_path)
 
 if __name__ == '__main__':
     
-    log_wandb = False
+    log_wandb = True
     opt = get_args()
     opt.norm=True
     random.seed(opt.seed)
@@ -241,7 +231,7 @@ if __name__ == '__main__':
         'model_name' : 'DPT_finetuning',
         'init_lr' : opt.lr,
         'epochs' : opt.epochs,
-        'dataset' : 'RESIDE_beta_Dataset',
+        'dataset' : 'NYU_Dataset',
         'batch_size': opt.batchSize_train,
         'image_size': [opt.imageSize_W,opt.imageSize_H]}
     
@@ -260,21 +250,12 @@ if __name__ == '__main__':
     model = model.to(memory_format=torch.channels_last)
     model.to(opt.device)
 
-    #opt.dataRoot = 'D:/data/NYU/'
-    #dataset_train = NYU_Dataset.NYU_Dataset_With_Notation(opt.dataRoot, [opt.imageSize_W, opt.imageSize_H],split='train', printName=False, returnName=True, norm=opt.norm)
-    #loader_train = DataLoader(dataset=dataset_train, batch_size=opt.batchSize_train,num_workers=1, drop_last=False, shuffle=True)
-    
-    #dataset_valid = NYU_Dataset.NYU_Dataset_With_Notation(opt.dataRoot, [opt.imageSize_W, opt.imageSize_H],split='val', printName=False, returnName=True, norm=opt.norm)
-    #loader_valid = DataLoader(dataset=dataset_valid, batch_size=opt.batchSize_val,num_workers=1, drop_last=False, shuffle=True)
-    
-    opt.dataRoot = 'D:/data/RESIDE_beta/'
-    dataset_train = RESIDE_Beta_Dataset.RESIDE_Beta_Dataset_With_Notation(opt.dataRoot, [opt.imageSize_W, opt.imageSize_H],split='train', printName=False, returnName=True, norm=opt.norm)
+    opt.dataRoot = 'D:/data/NYU_crop/'
+    dataset_train = NYU_Dataset.NYU_Dataset_With_Notation(opt.dataRoot, [opt.imageSize_W, opt.imageSize_H],split='train', printName=False, returnName=True, norm=opt.norm)
     loader_train = DataLoader(dataset=dataset_train, batch_size=opt.batchSize_train,num_workers=1, drop_last=False, shuffle=True)
     
-    dataset_valid = RESIDE_Beta_Dataset.RESIDE_Beta_Dataset_With_Notation(opt.dataRoot, [opt.imageSize_W, opt.imageSize_H],split='val', printName=False, returnName=True, norm=opt.norm)
+    dataset_valid = NYU_Dataset.NYU_Dataset_With_Notation(opt.dataRoot, [opt.imageSize_W, opt.imageSize_H],split='val', printName=False, returnName=True, norm=opt.norm)
     loader_valid = DataLoader(dataset=dataset_valid, batch_size=opt.batchSize_val,num_workers=1, drop_last=False, shuffle=True)
-    
-    
     
     optimizer = optim.Adam(model.parameters(),opt.lr, betas = (0.9, 0.999), eps=1e-08)
     

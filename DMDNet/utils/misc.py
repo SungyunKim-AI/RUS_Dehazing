@@ -2,11 +2,9 @@ import os
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-from dpt.vit import get_mean_attention_map
-import torch
-from util import utils
+from models.depth_models.vit import get_mean_attention_map
 import matplotlib.pyplot as plt
-import torchvision.transforms.functional as F
+
 
 def visualize_attention(input, model, prediction, model_type):
     input = (input + 1.0)/2.0
@@ -136,137 +134,37 @@ def multi_show(image_list):
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
-def all_results_saveORshow(dataRoot, input_name, airlight_step_flag, one_shot_flag, images_dict, saveORshow):
+def all_results_saveORshow(dataRoot, input_name, images_dict,saveORshow):
     """
-    init_hazy       metrics_best_prediction   psnr_best_prediction  ssim_best_prediction    one_shot_prediction    clear
-    init_depth      metrics_best_depth        psnr_best_depth       ssim_best_depth         one_shot_depth         clear_depth
-    init_airlight   metrics_best_airlight     psnr_best_airlight    ssim_best_airlight      one_shot_airlight      clear_airlight
+    init_hazy       one_shot_prediction   metrics_best_prediction   psnr_best_prediction      clear         gt_prediction
+    init_depth      one_shot_depth        metrics_best_depth        psnr_best_depth           clear_depth   gt_depth
+    init_airlight   one_shot_airlight     metrics_best_airlight     psnr_best_airlight        gt_airlight   gt_airlight
     """
 
     for name, images in images_dict.items():
         if 'depth' in name:
-            # images * 255 / 10 = images * 25.5
+            images_dict[name] = images_dict[name] / 10
             images_dict[name] = cv2.cvtColor(np.rint(images_dict[name]*255).astype(np.uint8), cv2.COLOR_GRAY2BGR)
         else:
-            if np.max(images) <= 1.0:
+            if np.mean(images) <= 1.0:
                 images_dict[name] = np.rint(images*255).astype(np.uint8)
             images_dict[name] = cv2.cvtColor(images_dict[name].astype(np.uint8), cv2.COLOR_RGB2BGR)
 
-    if one_shot_flag:
-        v1 = np.hstack((images_dict['init_hazy'],     images_dict['metrics_best_prediction'], images_dict['psnr_best_prediction'], images_dict['ssim_best_prediction'], images_dict['one_shot_prediction'], images_dict['clear']))
-        v2 = np.hstack((images_dict['init_depth'],    images_dict['metrics_best_depth'],      images_dict['psnr_best_depth'],      images_dict['ssim_best_depth'],      images_dict['init_depth'],          images_dict['clear_depth']))
-    else:
-        v1 = np.hstack((images_dict['init_hazy'],     images_dict['metrics_best_prediction'], images_dict['psnr_best_prediction'], images_dict['ssim_best_prediction'], images_dict['clear']))
-        v2 = np.hstack((images_dict['init_depth'],    images_dict['metrics_best_depth'],      images_dict['psnr_best_depth'],      images_dict['ssim_best_depth'],      images_dict['clear_depth']))
-    if airlight_step_flag:
-        v3 = np.hstack((images_dict['init_airlight'], images_dict['metrics_best_airlight'],   images_dict['psnr_best_airlight'], images_dict['ssim_best_airlight'],  images_dict['one_shot_airlight'],   images_dict['clear_airlight']))
-        final_image = np.vstack((v1, v2, v3))
-    else:
-        final_image = np.vstack((v1, v2))
+    v1 = np.hstack((images_dict['init_hazy'],     images_dict['one_shot_prediction'], images_dict['metrics_best_prediction'], images_dict['psnr_best_prediction'],  images_dict['clear'],           images_dict['gt_prediction']))
+    v2 = np.hstack((images_dict['init_depth'],    images_dict['one_shot_depth'],      images_dict['metrics_best_depth'],      images_dict['psnr_best_depth'],       images_dict['clear_depth'],     images_dict['gt_depth']))
+    v3 = np.hstack((images_dict['init_airlight'], images_dict['init_airlight'],       images_dict['init_airlight'],           images_dict['init_airlight'],         images_dict['gt_airlight'],     images_dict['gt_airlight']))
+        
+   
+    final_image = np.vstack((v1, v2, v3))
     
     if saveORshow == 'show':
         cv2.imshow('Results Images', final_image)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
     elif saveORshow == 'save':
-        dir_name = dataRoot + 'results/' + input_name.split('\\')[-2]
+        dir_name = dataRoot + 'results/'
         if not os.path.exists(dir_name):
             os.makedirs(dir_name)
         save_path = os.path.join(dir_name, os.path.basename(input_name))
+        print(save_path)
         cv2.imwrite(save_path, final_image)
-        
-def depth_results_saveORshow(dataRoot, input_name, imgSize, images_dict, saveORshow):
-    """
-    clear        init_hazy   psnr_best_prediction   none
-    clear_depth  init_depth  final_depth            GT_depth
-    """
-
-    for name, images in images_dict.items():
-        if 'depth' in name:
-            images_dict[name] = np.squeeze(images_dict[name])
-            images_dict[name] = np.rint(images_dict[name]*20).astype(np.uint8)
-            images_dict[name] = cv2.cvtColor(images_dict[name], cv2.COLOR_GRAY2BGR)
-        else:
-            images_dict[name] = images_dict[name].transpose(1, 2, 0)
-            images_dict[name] = (images_dict[name] * 0.5) + 0.5
-            images_dict[name] = np.rint(images_dict[name]*255).astype(np.uint8)
-            images_dict[name] = cv2.cvtColor(images_dict[name], cv2.COLOR_RGB2BGR)
-        
-        images_dict[name] = cv2.resize(images_dict[name], (0, 0), fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
-    
-    images_dict['none'] = np.full((imgSize[1], imgSize[0], 3), 255).astype(np.uint8)
-    images_dict['none'] = cv2.resize(images_dict['none'], (0, 0), fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
-
-
-    v1 = np.hstack((images_dict['clear'],       images_dict['init_hazy'],  images_dict['psnr_best_prediction'], images_dict['none']))
-    v2 = np.hstack((images_dict['clear_depth'], images_dict['init_depth'], images_dict['final_depth'],          images_dict['GT_depth']))
-    final_image = np.vstack((v1, v2))
-    
-    if saveORshow == 'show':
-        cv2.imshow('Results Images', final_image)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
-        
-    elif saveORshow == 'save':
-        dir_name = dataRoot + 'results/' + input_name.split('\\')[-2]
-        if not os.path.exists(dir_name):
-            os.makedirs(dir_name)
-        save_path = os.path.join(dir_name, os.path.basename(input_name))
-        cv2.imwrite(save_path, final_image)
-        
-def results_save_tensor(dataRoot, input_name, clear_image, hazy_image, last_pred, GT_depth, init_depth, final_depth):
-    """
-    clear     init_hazy   psnr_best_prediction
-    GT_depth  init_depth  final_depth            
-    """
-    image_grid = torch.cat((clear_image, hazy_image, last_pred), 2)
-    image_grid = torch.round(((image_grid * 0.5) + 0.5) * 255).type(torch.uint8)
-    
-    GT_depth = GT_depth.repeat(3,1,1)
-    init_depth = init_depth.repeat(3,1,1)
-    final_depth = final_depth.repeat(3,1,1)
-    depth_grid = torch.cat((GT_depth, init_depth, final_depth), 2)
-    depth_grid = torch.round(depth_grid * 20).type(torch.uint8)
-    
-    images = torch.cat((image_grid, depth_grid), 1)
-    images = images.permute(1,2,0).numpy().astype(np.uint8)
-    
-    dir_name = dataRoot + f'results/' + input_name.split('\\')[-2]
-    if not os.path.exists(dir_name):
-        os.makedirs(dir_name)
-    
-    save_path = os.path.join(dir_name, os.path.basename(input_name))
-    images = cv2.cvtColor(images, cv2.COLOR_RGB2BGR)
-    cv2.imwrite(save_path, images)
-
-def results_save_tensor_2(dataRoot, epoch, input_name, clear_image, hazy_image, preds):
-    """
-    clear     init_hazy   discriminator_prediction       
-    """
-    clear_image = clear_image.detach().cpu()
-    hazy_image = hazy_image.detach().cpu()
-    preds = preds.detach().cpu()
-    
-    image_grid = torch.cat((clear_image, hazy_image, preds), 2)
-    image_grid = torch.round(((image_grid * 0.5) + 0.5) * 255)
-    image_grid = torch.clamp(image_grid, 0, 255).type(torch.uint8)
-    images = image_grid.permute(1,2,0).numpy().astype(np.uint8)
-    
-    dir_name = dataRoot + f'/results/epoch_{epoch}/' + input_name.split('\\')[-2]
-    if not os.path.exists(dir_name):
-        os.makedirs(dir_name)
-    
-    save_path = os.path.join(dir_name, os.path.basename(input_name))
-    images = cv2.cvtColor(images, cv2.COLOR_RGB2BGR)
-    cv2.imwrite(save_path, images)
-
-def tensor_show(imgs):
-    if not isinstance(imgs, list):
-        imgs = [imgs]
-    fix, axs = plt.subplots(ncols=len(imgs), squeeze=False)
-    for i, img in enumerate(imgs):
-        img = img.detach()
-        img = F.to_pil_image(img)
-        axs[0, i].imshow(np.asarray(img))
-        axs[0, i].set(xticklabels=[], yticklabels=[], xticks=[], yticks=[])
-    plt.show()

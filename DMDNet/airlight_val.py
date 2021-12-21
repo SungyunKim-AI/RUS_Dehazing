@@ -17,13 +17,13 @@ def get_args():
     # opt.dataRoot = 'D:/data/RESIDE_beta'
     parser = argparse.ArgumentParser(description='Train the UNet')
     parser.add_argument('--dataset', required=False, default='NYU',  help='dataset name')
-    parser.add_argument('--dataRoot', type=str, default='C:/Users/IIPL/Desktop/data/NYU',  help='data file path')
+    parser.add_argument('--dataRoot', type=str, default='D:/data/NYU',  help='data file path')
     
     # learning parameters
     parser.add_argument('--seed', type=int, default=101, help='Random Seed')
     parser.add_argument('--batchSize', type=int, default=4, help='test dataloader input batch size')
-    parser.add_argument('--imageSize_W', type=int, default=620, help='the width of the resized input image to network')
-    parser.add_argument('--imageSize_H', type=int, default=460, help='the height of the resized input image to network')
+    parser.add_argument('--imageSize_W', type=int, default=256, help='the width of the resized input image to network')
+    parser.add_argument('--imageSize_H', type=int, default=256, help='the height of the resized input image to network')
     parser.add_argument('--norm', type=bool, default=True,  help='Image Normalize flag')
     parser.add_argument('--device', default=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
     
@@ -46,7 +46,7 @@ def validation(opt, dataloader, net, criterion):
 
     for batch in dataloader:
         # Data Init
-        hazy_images, _, GT_air, _, input_name = batch
+        hazy_images, _, _, GT_air, _, input_name = batch
         hazy_images = hazy_images.to(opt.device)
         GT_air = GT_air.to(opt.device, dtype=torch.float)
 
@@ -66,8 +66,10 @@ def validation(opt, dataloader, net, criterion):
         else:
             GT_air = (GT_air * air_list.std()) + air_list.mean()
             GT_air = np.clip(GT_air, 0, 1)
+            print(pred_air)
             pred_air = (pred_air * air_list.std()) + air_list.mean()
             pred_air = np.clip(pred_air, 0, 1)
+            print(pred_air)
             err = np.abs(GT_air-pred_air)
             for i in range(opt.batchSize):
                 file_name = basename(input_name[i])

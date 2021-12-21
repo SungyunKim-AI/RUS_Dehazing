@@ -83,7 +83,7 @@ class DPT(BaseModel):
 
         out = self.scratch.output_conv(path_1)
 
-        return path_1,out
+        return out
 
 
 class DPTDepthModel(DPT):
@@ -112,15 +112,13 @@ class DPTDepthModel(DPT):
             self.load(path)
 
     def forward(self, x):
-        tf_prediction, prediction = super().forward(x)
-        inv_depth = prediction.squeeze(dim=1)
-        #tf_prediction, inv_depth = super().forward(x).squeeze(dim=1)
+        inv_depth = super().forward(x)
 
         if self.invert:
             depth = self.scale * inv_depth + self.shift
             depth[depth < 1e-8] = 1e-8
             depth = 1.0 / depth
-            return tf_prediction, depth
+            return depth
         else:
-            return tf_prediction, inv_depth
+            return inv_depth
 

@@ -61,9 +61,12 @@ class NYU_Dataset(Dataset):
         haze = self.hazy_lists[index//self.images_count][index%self.images_count]
         clear = self.images_clear_list[index%self.images_count]
         GT_depth = np.load(self.depths_list[index%self.images_count])
+        GT_depth = cv2.resize(GT_depth, (self.img_size[0], self.img_size[1]), interpolation=cv2.INTER_CUBIC)
         GT_depth = np.expand_dims(GT_depth, axis=0)
         
         GT_airlight = np.array(float(os.path.basename(haze).split('_')[-2]))
+        GT_beta = np.array(float(haze.split('_')[2].split('\\')[0]))
+        
         if self.norm:
             air_list = np.array([0.8, 0.9, 1.0])
             GT_airlight = (GT_airlight - air_list.mean()) / air_list.std()
@@ -71,6 +74,6 @@ class NYU_Dataset(Dataset):
         
         hazy_input, clear_input = load_item(haze, clear, self.transform)
         
-        return hazy_input, clear_input, GT_airlight, GT_depth, haze
+        return hazy_input, clear_input, GT_depth, GT_airlight, GT_beta, haze
         
     

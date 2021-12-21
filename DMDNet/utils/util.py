@@ -4,8 +4,10 @@ import torchvision.transforms as transforms
 import os
 import numpy as np
 
+#numpy -> torch
 def normalize(x, norm=False, mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
-    x = x / 255.0
+    if np.mean(x)>1:
+        x = x / 255.0
     if norm:
         transform = transforms.Compose([
             transforms.ToTensor(),
@@ -18,6 +20,7 @@ def normalize(x, norm=False, mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
         
     return transform(x)
 
+#torch -> torch
 def denormalize(x, norm=True, mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
     if norm:
         # 3, H, W, B
@@ -29,21 +32,40 @@ def denormalize(x, norm=True, mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
     else:
         return x
     
-
-def air_renorm(dataset, airlight, dataset_mean=0.5, dataset_std=0.5):
+#torch -> torch
+def air_renorm(dataset, norm, airlight, dataset_mean = 0.5, dataset_std = 0.5):
     # denorm
-    if dataset == 'NYU':
-        air_list = torch.Tensor([0.8, 0.9, 1.0])
-    elif dataset == 'RESIDE_beta':
-        air_list = torch.Tensor([0.8, 0.85, 0.9, 0.95, 1.0])
-    mean, std = air_list.mean(), air_list.std()
-    airlight = (airlight * std) + mean
-    airlight = torch.clamp(airlight, 0, 1)
+    airlight = air_denorm(dataset, airlight)
+
+    # norm
+    if norm:
+        airlight = (airlight - dataset_mean) / dataset_std
     
-    # renorm
-    # dataset_mean = torch.Tensor([dataset_mean])
-    # dataset_std = torch.Tensor([dataset_std])
-    airlight = (airlight - dataset_mean) / dataset_std
+    return airlight
+
+#torch->torch
+def air_denorm(dataset,norm, airlight):
+    if norm:
+        if dataset == 'NYU':
+            air_list = torch.Tensor([0.8, 0.9, 1.0])
+        elif dataset == 'RESIDE_beta':
+            air_list = torch.Tensor([0.8, 0.85, 0.9, 0.95, 1.0])
+        mean, std = air_list.mean(), air_list.std(unbiased=False)
+        airlight = (airlight * std) + mean
+        airlight = torch.clamp(airlight, 0, 1)
+
+    return airlight
+
+#numpy->torch
+def air_norm(dataset,norm, airlight):
+    if norm:
+        if dataset == 'NYU':
+            air_list = torch.Tensor([0.8, 0.9, 1.0])
+        elif dataset == 'RESIDE_beta':
+            air_list = torch.Tensor([0.8, 0.85, 0.9, 0.95, 1.0])
+        mean, std = air_list.mean(), air_list.std()
+        airlight = (airlight * std) + mean
+        airlight = torch.clamp(airlight, 0, 1)
     
     return airlight
 
