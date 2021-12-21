@@ -17,8 +17,8 @@ import random
 from tqdm import tqdm
 
 import torch
-from dpt.models import DPTDepthModel
-from dpt import Air_UNet
+from models.depth_models import DPTDepthModel
+from models.air_models import UNet
 
 from dataset import *
 from torch.utils.data import DataLoader
