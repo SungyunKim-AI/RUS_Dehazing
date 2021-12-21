@@ -136,3 +136,4 @@ dmypy.json
 output_log/
 wandb/
 *.npy
+*.pk
