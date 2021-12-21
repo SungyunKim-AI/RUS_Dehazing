@@ -27,6 +27,7 @@ class RESIDE_Beta_Dataset(Dataset):
         
     def __len__(self):
         return len(self.hazy_lists) * self.images_count
+        #return 100
         
     def __getitem__(self,index):
         haze = self.hazy_lists[index//self.images_count][index%self.images_count]
@@ -42,7 +43,11 @@ class RESIDE_Beta_Dataset(Dataset):
         if self.norm:
             air_list = np.array([0.8, 0.85, 0.9, 0.95, 1.0])
             GT_airlight = (GT_airlight - air_list.mean()) / air_list.std()
+            
+            beta_list = np.array([0.04, 0.06, 0.08, 0.1, 0.12, 0.16, 0.2])
+            GT_beta =  (GT_beta - beta_list.mean()) / beta_list.std()
         GT_airlight = np.expand_dims(GT_airlight, axis=0)
+        GT_beta = np.expand_dims(GT_beta, axis=0)
 
         hazy_input, clear_input = load_item(haze, clear, self.transform)
         

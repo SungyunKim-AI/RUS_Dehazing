@@ -48,7 +48,7 @@ def get_args():
     
     # test_stop_when_threshold parameters
     parser.add_argument('--save_log', action='store_true', help='log save flag')
-    parser.add_argument('--saveORshow', type=str, default='',  help='results show or save')
+    parser.add_argument('--saveORshow', type=str, default='show',  help='results show or save')
     parser.add_argument('--verbose', action='store_true', help='print log')
     parser.add_argument('--betaStep', type=float, default=0.005, help='beta step')
     parser.add_argument('--stepLimit', type=int, default=250, help='Multi step limit')
@@ -255,7 +255,7 @@ if __name__ == '__main__':
     
      
     model = DPTDepthModel(
-        path = 'weights/depth_weights/dpt_hybrid_nyu-2ce69ec7_reside_haze_010.pt',
+        path = 'weights/depth_weights/dpt_hybrid_nyu-2ce69ec7_reside_haze_002.pt',
         scale=0.000150, shift=0.1378, invert=True,  #NYU scale = 0.000305, RESIDE_beta sclae = 0.000150
         backbone=opt.backbone,
         non_negative=True,
