@@ -5,7 +5,7 @@ import random
 import numpy as np
 from tqdm import tqdm
 import h5py
-from os.path import join
+import os
 
 import torch
 from models.depth_models import DPTDepthModel
@@ -107,18 +107,16 @@ def save_dehazing_image(opt, depth_model,air_model, dataloader):
                     last_pred = torch.cat((last_pred, pred), dim=0)
                     
             if (len(stop_flag_psnr) == opt.batchSize) and (len(stop_flag_ssim) == opt.batchSize):
-                save_path = ''
-                images[f'dehazing_image_{j}'] = last_pred
-                for i in range(opt.batchSize):
-                    images = {}
-                    images['clear_image'] = clear_image.detach().cpu()[i]
-                    images['best_psnr_image'] = best_psnr_image.detach().cpu()[i]
-                    images['best_ssim_image'] = best_ssim_image.detach().cpu()[i]
-                    images['best_psnr'] = torch.Tensor(best_psnr)[i]
-                    images['best_ssim'] = torch.Tensor(best_ssim)[i]
-                    
-                        
-                    save_h5py(save_path, input_name[i], images)
+                save_path = 'C:\\Users\\IIPL\\Desktop\\data\\NYU_dehazing'
+                images = {}
+                images['clear_image'] = clear_image.detach().cpu().squeeze()
+                images['best_psnr_image'] = best_psnr_image.detach().cpu().squeeze()
+                images['best_ssim_image'] = best_ssim_image.detach().cpu().squeeze()
+                images['best_psnr'] = torch.Tensor(best_psnr).squeeze()
+                images['best_ssim'] = torch.Tensor(best_ssim).squeeze()
+                images[f'dehazing_image'] = last_pred.squeeze()
+                
+                save_h5py(save_path, input_name[i], images)
                 
                 
                 break   # Stop Multi Step
@@ -132,8 +130,11 @@ def save_dehazing_image(opt, depth_model,air_model, dataloader):
             
 def save_h5py(save_path, input_name, images):
     folder = input_name.split('/')[-2]
+    if not os.path.exists(f"{save_path}/{folder}"):
+        os.mkdir(f"{save_path}\\{folder}")
     file_name = input_name.split('/')[-1][:-4]
-    with h5py.File(f"{save_path}/{folder}/{file_name}.h5", 'w') as hf: 
+    
+    with h5py.File(f"{save_path}\\{folder}\\{file_name}.hdf5", 'w') as hf: 
         for image_name, image in images.items():
             if image_name.split('_')[-1] == 'image':
                 imgSet = hf.create_dataset(

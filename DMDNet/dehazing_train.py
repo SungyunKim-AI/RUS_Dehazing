@@ -1,221 +1,281 @@
-import torch
-import cv2
-import math
-import numpy as np
-import wandb
+# User warnings ignore
+import warnings
 
-from torchvision.transforms import Compose
+from numpy.lib.function_base import diff
+
+warnings.filterwarnings("ignore")
+
+import os
+os.environ['KMP_DUPLICATE_LIB_OK']='True'
+
+import torch.nn as nn
+import argparse
+import cv2
+import numpy as np
+import random
+from tqdm import tqdm
 from torchvision.models import vgg16
 from loss import LossNetwork as PerLoss
-from torch import nn
-from torch import optim
-from torch.utils.data import DataLoader
-from tqdm import tqdm
+import torch.optim as optim
 
+import torch
+import wandb
 from dpt.models import DPTDepthModel
-from dpt.transforms import NormalizeImage
-from dpt.transforms import Resize, NormalizeImage, PrepareForNet
-from HazeDataset import *
-from metrics import psnr,ssim
-from dpt.blocks import Interpolate
 
-def calc_trans(hazy,clear,airlight):
-    trans = (hazy-airlight)/(clear-airlight+1e-8)
-    #trans = np.clip(trans,0,1)
-    #trans = np.mean(trans,2)
-    return trans
+from dataset import *
+from torch.utils.data import DataLoader
 
-def calc_trans_tensor(hazy,clear,airlight):
-    trans = (hazy-airlight)/(clear-airlight+1e-8)
-    #trans = torch.clamp(trans,0,1)
-    #trans = torch.mean(trans,1)
-    #trans = trans.unsqueeze(1)
-    return trans
+from Module_Airlight.Airlight_Module import Airlight_Module
+from Module_Metrics.Entropy_Module import Entropy_Module
+from Module_Metrics.NIQE_Module import NIQE_Module
+from Module_Metrics.metrics import get_ssim, get_psnr
+from util import misc, save_log, utils
+from validate_NYU_depth import compute_errors
 
-def lr_schedule_cosdecay(t,T,init_lr):
-    lr=0.5*(1+math.cos(t*math.pi/T))*init_lr
-    return lr
-
-def train(model, train_loader, loader_valid, optim, criterion, epochs, device):
-    batch_num = len(train_loader)
-    #steps = batch_num * epochs
+def get_args():
+    parser = argparse.ArgumentParser()
+    # dataset parameters
+    parser.add_argument('--dataset', required=False, default='RESIDE-beta',  help='dataset name')
+    parser.add_argument('--dataRoot', type=str, default='D:/data/Dense_Haze/train',  help='data file path')
+    parser.add_argument('--norm', action='store_true',  help='Image Normalize flag')
     
-    losses = []
-    i = 0
-    mse_epoch = 0.0
-    ssim_epoch = 0.0
-    psnr_epoch = 0.0
+    # learning parameters
+    parser.add_argument('--seed', type=int, default=101, help='Random Seed')
+    parser.add_argument('--lr', type=float, default=0.00001, help='Learning Rage')
+    parser.add_argument('--batchSize_train', type=int, default=16, help='train dataloader input batch size')
+    parser.add_argument('--batchSize_val', type=int, default=16, help='test dataloader input batch size')
+    parser.add_argument('--imageSize_W', type=int, default=256, help='the width of the resized input image to network')
+    parser.add_argument('--imageSize_H', type=int, default=256, help='the height of the resized input image to network')
+    parser.add_argument('--epochs', type=int, default=100, help='number of epochs to train for')
+    parser.add_argument('--evalIter', type=int, default=10, help='interval for evaluating')
+    parser.add_argument('--savePath', default='weights', help='folder to model checkpoints')
+    parser.add_argument('--inputPath', default='input', help='input path')
+    parser.add_argument('--outputPath', default='output_dehazed', help='dehazed output path')
+    parser.add_argument('--device', default=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
     
-    step = 1 
-    for epoch in range(epochs):
-        model.train()
-        tail.train()
-        i=0
-        mse_epoch = 0.0
-        ssim_epoch = 0.0
-        psnr_epoch = 0.0
-        for batch in tqdm(train_loader):
-            optim.zero_grad()
-            hazy_images, clear_images, airlight_images = batch
-            
-            
-            hazy_images = hazy_images.to(device)
-            clear_images = clear_images.to(device)
-            airlight_images = airlight_images.to(device)
-            tf_pred, depth_pred = model.forward(hazy_images)
+    # model parameters
+    parser.add_argument('--preTrainedModel', type=str, default='weights/dpt_hybrid_nyu-2ce69ec7.pt', help='pretrained DPT path')
+    parser.add_argument('--backbone', type=str, default="vitb_rn50_384", help='DPT backbone')
+    
+    # test_stop_when_threshold parameters
+    parser.add_argument('--save_log', action='store_true', help='log save flag')
+    parser.add_argument('--saveORshow', type=str, default='show',  help='results show or save')
+    parser.add_argument('--verbose', action='store_true', help='print log')
+    parser.add_argument('--airlight_step_flag', action='store_true', help='flag of multi step airlight estimation')
+    parser.add_argument('--betaStep', type=float, default=0.05, help='beta step')
+    parser.add_argument('--stepLimit', type=int, default=250, help='Multi step limit')
+    parser.add_argument('--metrics_module', type=str, default='Entropy_Module',  help='No Reference metrics method name')
+    parser.add_argument('--metricsThreshold', type=float, default=0, help='Metrics threshold: Entropy(0.00), NIQUE(??)')
+    parser.add_argument('--eps', type=float, default=1e-12, help='Epsilon value for non zero calculating')
 
-            trans_pred = tail(tf_pred)
-            
-            #trans_pred = trans_pred.unsqueeze(1)
-            trans_images = calc_trans_tensor(hazy_images,clear_images,airlight_images)
-
-            #trans_pred = trans_pred.repeat([1,3,1,1])
-            #trans_images = trans_images.repeat([1,3,1,1])
-
-            clear_pred = (hazy_images-airlight_images)/(trans_pred+1e-8)+airlight_images
-            loss = criterion[0](trans_pred, trans_images)
-            loss2 = criterion[1](trans_pred, trans_images)
-            #loss3 = criterion[0](trans_pred,trans_images)
-            ssim_ = ssim(clear_pred, clear_images)
-            psnr_ = psnr(clear_pred, clear_images)
-            MSELoss = nn.MSELoss()
-            mse_ = MSELoss(clear_pred, clear_images)
-
-            loss = loss + 0.04*loss2 + ssim_ + psnr_ + mse_
-            loss.backward()
-            
-            optim.step()
-            losses.append(loss.item())
-            
-            mse_epoch += mse_.cpu().item()
-            ssim_epoch += ssim_.cpu().item()
-            psnr_epoch += psnr_
-            i += 1
-            
-            step+=1
-            
-        mse_epoch /= i
-        ssim_epoch /= i
-        psnr_epoch /= i
-        print("mse: + "+str(mse_epoch) + " | ssim: "+ str(ssim_epoch) + " | psnr:"+str(psnr_epoch))
-        print()
+    return parser.parse_args()
+def evaluate(model, device, valid_loader, log_wandb, epoch):
+    model.eval()
+    
+    #NYU {"0.0":0.0,"0.1":0.0,"0.2":0.0,"0.3":0.0,"0.5":0.0,"0.8":0.0}
+    val_iters = {"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0}
         
-        '''
+    abs_rel_list ={"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0} 
+    sq_rel_list = {"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0} 
+    rmse_list = {"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0}
+    rmse_log_list = {"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0}
+    a1_list = {"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0}
+    a2_list = {"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0}  
+    a3_list = {"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0} 
+    
+    score_lists = {"val_abs_rel_list":abs_rel_list,
+                   "val_sq_rel_list":sq_rel_list,
+                   "val_rmse_list":rmse_list,
+                   "val_rmse_log_list":rmse_log_list,
+                   "val_a1_list":a1_list,
+                   "val_a2_list":a2_list,
+                   "val_a3_list":a3_list}
+    
+    score_name_list = ["val_abs_rel_list",
+                       "val_sq_rel_list", 
+                       "val_rmse_list", 
+                       "val_rmse_log_list", 
+                       "val_a1_list", 
+                       "val_a2_list", 
+                       "val_a3_list"] 
+    
+    
+    for batch in tqdm(valid_loader):
+        hazy_images, clear_images , depth_images, _, gt_betas, haze_names = batch
+        
+        hazy_images = hazy_images.to(device)
+        clear_images = clear_images.to(device)
+        depth_images = depth_images.to(device)
+        
+        _, depth_pred = model.forward(hazy_images)
+        
+        gt_depth = depth_images.detach().cpu().numpy()
+        depth_pred = depth_pred.detach().cpu().numpy()
+        
+        for i, haze_name in enumerate(haze_names):
+            beta = str(gt_betas[i].item())
+            
+            val_iters[beta]+=1
+            scores = compute_errors(gt_depth[i], depth_pred[i])
+            for j, score in enumerate(scores):
+                score_name = score_name_list[j]
+                score_lists[score_name][beta] += score
+    
+    for score_name in score_name_list:
+        score_list = score_lists[score_name]
+        for beta, val_iter in val_iters.items():
+            score_list[beta] /= val_iter
+    
+    score_lists["global_step"] = epoch
+        
+    if log_wandb:
+        wandb.log(score_lists)
+
+
+def train(model, device, train_loader, optim,loss_fun, log_wandb, epoch):
+    if epoch==0:
         model.eval()
+    else:
+        model.train()
+    
+    #NYU {"0.0":0.0,"0.1":0.0,"0.2":0.0,"0.3":0.0,"0.5":0.0,"0.8":0.0}
+    #RESIDE {"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0}
+    
+    train_iters = {"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0}
+    global_iter = 0
         
-        for batch in loader_valid:
-            hazy_images, clear_images, airlight_images = batch
-            with torch.no_grad():
-                hazy_images = hazy_images.to(device)
-                clear_images = clear_images.to(device)
-                airlight_images = airlight_images.to(device)
-                _, hazy_trans = model.forward(hazy_images)
-            
-            hazy_trans = hazy_trans[0].unsqueeze(2).detach().cpu().numpy()
-            hazy = (hazy_images[0] * 0.5 + 0.5).detach().cpu().numpy().transpose(1,2,0)
-            clear = (clear_images[0] * 0.5 + 0.5).detach().cpu().numpy().transpose(1,2,0)
-            airlight = (airlight_images[0] * 0.5 + 0.5).detach().cpu().numpy().transpose(1,2,0)
-            
-            prediction = (hazy-airlight)/(hazy_trans+1e-8) + airlight
-            print(hazy_trans)
-            trans_calc = calc_trans(hazy,clear,airlight)
-            
-            hazy = cv2.cvtColor(hazy,cv2.COLOR_BGR2RGB)
-            clear = cv2.cvtColor(clear,cv2.COLOR_BGR2RGB)
-            prediction = cv2.cvtColor(prediction,cv2.COLOR_BGR2RGB)
-            airlight = cv2.cvtColor(airlight,cv2.COLOR_BGR2RGB)
-            
-            #hazy_depth = cv2.applyColorMap((hazy_depth/5*255).astype(np.uint8),cv2.COLORMAP_JET)
-            
-            cv2.imshow("hazy",hazy)
-            cv2.imshow("clear",clear)
-            
-            cv2.imshow("hazy_trans", hazy_trans)
-            cv2.imshow("calc_trans", trans_calc)
-            
-            cv2.imshow("airlight",airlight)
-            
-            cv2.imshow("clear_prediction",prediction)
-            cv2.waitKey(0)
-            break
-        '''
+    abs_rel_list ={"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0} 
+    sq_rel_list = {"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0} 
+    rmse_list = {"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0}
+    rmse_log_list = {"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0}
+    a1_list = {"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0}
+    a2_list = {"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0}  
+    a3_list = {"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0} 
+    
+    score_lists = {"train_abs_rel_list":abs_rel_list,
+                   "train_sq_rel_list":sq_rel_list,
+                   "train_rmse_list":rmse_list,
+                   "train_rmse_log_list":rmse_log_list,
+                   "train_a1_list":a1_list,
+                   "train_a2_list":a2_list,
+                   "train_a3_list":a3_list}
+    
+    score_name_list = ["train_abs_rel_list",
+                       "train_sq_rel_list", 
+                       "train_rmse_list", 
+                       "train_rmse_log_list", 
+                       "train_a1_list", 
+                       "train_a2_list", 
+                       "train_a3_list"] 
+    
+    loss_sum = 0 
+    for batch in tqdm(train_loader):
+        optim.zero_grad()
+        hazy_images, clear_images , depth_images, _, gt_betas, haze_names = batch
+        
+        hazy_images = hazy_images.to(device)
+        clear_images = clear_images.to(device)
+        depth_images = depth_images.to(device)
+        
+        _, depth_pred = model.forward(hazy_images)
+        global_iter +=1
+        
+
+        loss = loss_fun(depth_pred, depth_images)
+        if epoch!=0:
+            loss.backward()
+                
+            optim.step()
+        loss_sum += loss.item()
         
         
-        wandb.log({"MSE" : mse_epoch,
-                   "SSIM": ssim_epoch,
-                   "PSNR" : psnr_epoch,
-                   "global_step" : epoch+1})
+        gt_depth = depth_images.detach().cpu().numpy()
+        depth_pred = depth_pred.detach().cpu().numpy()
         
-        weight_path = f'weights/dpt_hybrid-midas-501f0c75_trans_{epoch+1:03}.pt'  #path for storing the weights of genertaor
+        for i, haze_name in enumerate(haze_names):
+            beta = str(gt_betas[i].item())
+            train_iters[beta]+=1
+            scores = compute_errors(gt_depth[i], depth_pred[i])
+            for j, score in enumerate(scores):
+                score_name = score_name_list[j]
+                score_lists[score_name][beta] += score
+    
+    for score_name in score_name_list:
+        score_list = score_lists[score_name]
+        for beta, train_iter in train_iters.items():
+            score_list[beta] /= train_iter
+    
+    
+    loss_mean = loss_sum / global_iter
+    score_lists["global_step"] = epoch
+        
+    if log_wandb:
+        wandb.log(score_lists)
+        wandb.log({"loss":loss_mean,
+                   "global_step":epoch})
+
+def run(model, train_loader, valid_loader, optim, epochs, device, log_wandb):
+    
+    loss_fun = nn.L1Loss().to(device)
+    
+    train(model,device,train_loader,optim,loss_fun,log_wandb,0)
+    evaluate(model, device, valid_loader, log_wandb,0)
+        
+    for epoch in range(epochs):
+        train(model,device,train_loader,optim,loss_fun,log_wandb,epoch+1)
+        evaluate(model, device, valid_loader, log_wandb,epoch+1)
+        
+        weight_path = f'weights/dpt_hybrid_nyu-2ce69ec7_{epoch+1:03}.pt'  #path for storing the weights of genertaor
         torch.save(model.state_dict(), weight_path)
 
 if __name__ == '__main__':
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"device: {device}")
     
-    epochs = 20
-    net_w = 256
-    net_h = 256
-    batch_size = 27
-    lr = 0.01
-    input_path = 'input'
-    output_path = 'output_dehazed'
+    log_wandb = False
+    opt = get_args()
+    opt.norm=True
+    random.seed(opt.seed)
+    torch.manual_seed(opt.seed)
+    torch.cuda.manual_seed_all(opt.seed)
     
     config_defaults = {
         'model_name' : 'DPT_finetuning',
-        'init_lr' : lr,
-        'epochs' : epochs,
-        'dataset' : 'NTIRE_Dataset',
-        'batch_size': batch_size,
-        'image_size': [net_w,net_h]}
-    wandb.init(config=config_defaults, project='Dehazing', entity='rus')
-    wandb.run.name = config_defaults['model_name']
+        'init_lr' : opt.lr,
+        'epochs' : opt.epochs,
+        'dataset' : 'RESIDE_beta_Dataset',
+        'batch_size': opt.batchSize_train,
+        'image_size': [opt.imageSize_W,opt.imageSize_H]}
+    
+    if log_wandb:
+        wandb.init(config=config_defaults, project='Dehazing', entity='rus')
+        wandb.run.name = config_defaults['model_name']
     
     model = DPTDepthModel(
-        path = 'weights/dpt_hybrid-midas-501f0c75.pt',
-        scale=0.00006016,
-        shift=0.00579,
-        invert=True,
-        backbone="vitb_rn50_384",
+        path = opt.preTrainedModel,
+        scale=0.000150, shift=0.1378, invert=True,
+        backbone=opt.backbone,
         non_negative=True,
         enable_attention_hooks=False,
     )
     
     model = model.to(memory_format=torch.channels_last)
-    model.to(device)
+    model.to(opt.device)
 
-    tail =  nn.Sequential( #t_map
-        nn.Conv2d(256, 128, kernel_size=3, stride=1, padding=1),
-        Interpolate(scale_factor=2, mode="bilinear", align_corners=True),
-        nn.Conv2d(128, 32, kernel_size=3, stride=1, padding=1),
-        nn.ReLU(True),
-        nn.Conv2d(32, 3, kernel_size=1, stride=1, padding=0),
-        nn.ReLU(True)
-    )
-    tail.to(device)
+    #opt.dataRoot = 'D:/data/NYU/'
+    #dataset_train = NYU_Dataset.NYU_Dataset_With_Notation(opt.dataRoot, [opt.imageSize_W, opt.imageSize_H],split='train', printName=False, returnName=True, norm=opt.norm)
+    #loader_train = DataLoader(dataset=dataset_train, batch_size=opt.batchSize_train,num_workers=1, drop_last=False, shuffle=True)
     
-    dataset_train=NTIRE_Dataset('D:/data',[net_w,net_h],flag='train',verbose=False)
-    loader_train = DataLoader(
-                dataset=dataset_train,
-                batch_size=batch_size,
-                num_workers=0,
-                drop_last=False,
-                shuffle=True)
+    #dataset_valid = NYU_Dataset.NYU_Dataset_With_Notation(opt.dataRoot, [opt.imageSize_W, opt.imageSize_H],split='val', printName=False, returnName=True, norm=opt.norm)
+    #loader_valid = DataLoader(dataset=dataset_valid, batch_size=opt.batchSize_val,num_workers=1, drop_last=False, shuffle=True)
     
-    dataset_valid=NTIRE_Dataset('D:/data',[net_w,net_h],flag='val',verbose=False)
-    loader_valid = DataLoader(
-                dataset=dataset_train,
-                batch_size=1,
-                num_workers=0,
-                drop_last=False,
-                shuffle=False)
-    criterion = []
-    criterion.append(nn.L1Loss().to(device))
-    vgg_model = vgg16(pretrained=True).features[:16]
-    vgg_model = vgg_model.to(device)
-    for param in vgg_model.parameters():
-        param.requires_grad = False
-    criterion.append(PerLoss(vgg_model).to(device))
-    optimizer = optim.Adam(model.parameters(),lr, betas = (0.9, 0.999), eps=1e-08)
+    opt.dataRoot = 'D:/data/RESIDE_beta/'
+    dataset_train = RESIDE_Beta_Dataset.RESIDE_Beta_Dataset_With_Notation(opt.dataRoot, [opt.imageSize_W, opt.imageSize_H],split='train', printName=False, returnName=True, norm=opt.norm)
+    loader_train = DataLoader(dataset=dataset_train, batch_size=opt.batchSize_train,num_workers=1, drop_last=False, shuffle=True)
     
-    train(model, loader_train,loader_valid, optimizer, criterion, epochs, device)
+    dataset_valid = RESIDE_Beta_Dataset.RESIDE_Beta_Dataset_With_Notation(opt.dataRoot, [opt.imageSize_W, opt.imageSize_H],split='val', printName=False, returnName=True, norm=opt.norm)
+    loader_valid = DataLoader(dataset=dataset_valid, batch_size=opt.batchSize_val,num_workers=1, drop_last=False, shuffle=True)
+    
+    
+    
+    optimizer = optim.Adam(model.parameters(),opt.lr, betas = (0.9, 0.999), eps=1e-08)
+    
+    run(model, loader_train, loader_valid, optimizer, opt.epochs, opt.device, log_wandb)
