@@ -134,3 +134,5 @@ dmypy.json
 *.bmp
 *.h5
 output_log/
+wandb/
+*.npy

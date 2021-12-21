@@ -122,34 +122,5 @@ class DPTDepthModel(DPT):
             depth = 1.0 / depth
             return tf_prediction, depth
         else:
-            return tf_prediction, -inv_depth
+            return tf_prediction, inv_depth
 
-
-class DPTSegmentationModel(DPT):
-    def __init__(self, num_classes, path=None, **kwargs):
-
-        features = kwargs["features"] if "features" in kwargs else 256
-
-        kwargs["use_bn"] = True
-
-        head = nn.Sequential(
-            nn.Conv2d(features, features, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(features),
-            nn.ReLU(True),
-            nn.Dropout(0.1, False),
-            nn.Conv2d(features, num_classes, kernel_size=1),
-            Interpolate(scale_factor=2, mode="bilinear", align_corners=True),
-        )
-
-        super().__init__(head, **kwargs)
-
-        self.auxlayer = nn.Sequential(
-            nn.Conv2d(features, features, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(features),
-            nn.ReLU(True),
-            nn.Dropout(0.1, False),
-            nn.Conv2d(features, num_classes, kernel_size=1),
-        )
-
-        if path is not None:
-            self.load(path)

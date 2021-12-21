@@ -1,96 +1,76 @@
+import os
 import cv2
-import h5py
 from glob import glob
-
+import numpy as np
 from torch.utils.data import Dataset
+from torchvision import transforms
+from utils.io import *
 
-from dpt.transforms import Resize
-from dataset import utils
-from util import io
-
-class NYU_Dataset_With_Notation(Dataset):
-    def __init__(self, path, img_size, printName=False, returnName=False):
+class NYU_Dataset_clear(Dataset):
+    """
+    => return (NYU_Dataset)
+        images : 480x640x3 (HxWx3) Tensor of RGB images.
+        depths : 480x640 (HxW) matrix of in-painted depth map. The values of the depth elements are in meters.
+    """
+    def __init__(self, dataRoot):
         super().__init__()
-        self.img_size = img_size
-        h5s_path = path+'/*.h5'
-        self.h5s_list = glob(h5s_path)
-        self.printName = printName
-        self.returnName = returnName
-        self.transform = utils.make_transform(img_size)
-        
-        self.air_resize = Resize(
-            img_size[0],
-            img_size[1],
-            resize_target=None,
-            keep_aspect_ratio=False,
-            ensure_multiple_of=32,
-            resize_method="minimal",
-            image_interpolation_method=cv2.INTER_NEAREST,
-        )
+        self.images = glob(dataRoot + '/clear/*.jpg')
+        self.depths = glob(dataRoot + '/depth/*.npy')
+        self.toTensor = transforms.ToTensor()
         
     def __len__(self):
-        return len(self.h5s_list)
+        return len(self.images)
+    
+    def __getitem__(self, index):
+        name = os.path.basename(self.images[index])[:-4]
+        image = cv2.imread(self.images[index])
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        image = self.toTensor(image)
         
-    def __getitem__(self,index):
-        h5 = self.h5s_list[index]
-        f = h5py.File(h5,'r')
+        depth = np.load(self.depths[index])
         
-        haze = f['haze'][:]
-        clear = f['gt'][:]
-        trans = f['trans'][:]
-        airlight = f['ato'][:]
-        
-        haze_input  = self.transform({"image": haze})["image"]
-        clear_input  = self.transform({"image": clear})["image"]
-        airlight_input = self.transform({"image": airlight})["image"]
-        trans_input = self.transform({"image": trans})["image"]
-        
-        if self.returnName:
-            return haze_input, clear_input, airlight_input, trans_input, h5
-        else :
-            return haze_input, clear_input, airlight_input
-
+        return image, depth, name
+    
+    
 class NYU_Dataset(Dataset):
-    def __init__(self, path, img_size, printName=False, returnName=False):
+    def __init__(self, path, img_size, norm=False, verbose=False):
         super().__init__()
-        self.img_size = img_size
-        h5s_path = path+'/*.h5'
-        airlight_path = path+'_airlight/*.png'
-        self.h5s_list = glob(h5s_path)
-        self.airglith_list = glob(airlight_path)
-        self.printName = printName
-        self.returnName = returnName
-        self.transform = utils.make_transform(img_size)
+        self.norm = norm
+        # clear images
+        self.images_clear_list = glob(path + '/clear/*.jpg')
+        self.depths_list = glob(path + '/depth/*.npy')
         
-        self.air_resize = Resize(
-            img_size[0],
-            img_size[1],
-            resize_target=None,
-            keep_aspect_ratio=False,
-            ensure_multiple_of=32,
-            resize_method="",
-            image_interpolation_method=cv2.INTER_NEAREST,
-        )
+        # hazy images
+        self.hazy_lists = []
+        for images_hazy_folder in glob(path+'/hazy/*/'):
+            if verbose:
+                print(images_hazy_folder + ' dataset ready!')
+            self.hazy_lists.append(glob(images_hazy_folder+'*.jpg'))
+
+        self.img_size = img_size
+        
+        self.images_count = len(self.hazy_lists[0])
+        # mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+        self.transform = make_transform(img_size, norm=self.norm)
         
     def __len__(self):
-        return len(self.h5s_list)
+        return len(self.hazy_lists) * self.images_count
+        # return 20
         
     def __getitem__(self,index):
-        h5 = self.h5s_list[index]
-        f = h5py.File(h5,'r')
+        haze = self.hazy_lists[index//self.images_count][index%self.images_count]
+        clear = self.images_clear_list[index%self.images_count]
+        GT_depth = np.load(self.depths_list[index%self.images_count])
+        GT_depth = np.expand_dims(GT_depth, axis=0)
         
-        haze = f['haze'][:]
-        clear = f['gt'][:]
-        airlight = io.read_image(self.airglith_list[index])
+        GT_airlight = np.array(float(os.path.basename(haze).split('_')[-2]))
+        if self.norm:
+            air_list = np.array([0.8, 0.9, 1.0])
+            GT_airlight = (GT_airlight - air_list.mean()) / air_list.std()
+        GT_airlight = np.expand_dims(GT_airlight, axis=0)
         
-        haze_input  = self.transform({"image": haze})["image"]
-        clear_input  = self.transform({"image": clear})["image"]
-        airlight_input = self.transform({"image": airlight})["image"]
+        hazy_input, clear_input = load_item(haze, clear, self.transform)
         
-        if(self.printName):
-            print(h5)
-        if self.returnName:
-            return haze_input, clear_input, airlight_input, h5
-        else:
-            return haze_input, clear_input, airlight_input
+        return hazy_input, clear_input, GT_airlight, GT_depth, haze
         
+    

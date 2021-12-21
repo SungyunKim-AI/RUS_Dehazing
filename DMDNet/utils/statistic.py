@@ -4,18 +4,25 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 
-def read_csv_all(dataRoot, metrics_name, header):
+def read_csv_all(dataRoot, metrics_name, beta):
+    header = ['stage', 'step_beta', 'cur_val', 'diff_val', 'psnr', 'ssim']
     all_df_dict = {}
     path = os.path.join(dataRoot, metrics_name)
-    for file in glob(path + '/*'):
-        fileName = os.path.basename(file)[:-4]
-        df = pd.read_csv(file)
-        df = pd.DataFrame(df, columns=header)
-        df = df.drop([df.index[0]])
-        # df.set_index('stage', inplace=True)
-        all_df_dict[fileName] = df
+    for folder in glob(path + '/*'):
+        if folder.startswith('.'):
+            continue
+        
+        if float(os.path.basename(folder).split('_')[-1]) not in beta:
+            continue
+        
+        for file in glob(folder + '/*.csv'):
+            fileName = os.path.basename(file)[:-4]
+            df = pd.read_csv(file)
+            df = pd.DataFrame(df, columns=header)
+            df = df.drop([df.index[0]])
+            # df.set_index('stage', inplace=True)
+            all_df_dict[fileName] = df
     
-    # return pd.concat(all_df, ignore_index=True)
     return all_df_dict
 
 def data_plot(dfName, df, labels):
@@ -86,9 +93,9 @@ def getMaxPSNR_SSIM(all_df_dict):
     df_diff = pd.DataFrame(psnr_diff_val)
     
     print("PSNR")
-    print(f'stage : mean={df_stage.mean()[0]}, median={df_stage.median()[0]}, std={df_stage.std()[0]}')
-    print(f'cur : mean={df_cur.mean()[0]}, median={df_cur.median()[0]}, std={df_cur.std()[0]}')
-    print(f'diff : mean={df_diff.mean()[0]}, median={df_diff.median()[0]}, std={df_diff.std()[0]}')
+    print(f'stage : mean={df_stage.mean()[0]:.3f}, median={df_stage.median()[0]:.3f}, std={df_stage.std()[0]:.3f}')
+    print(f'cur : mean={df_cur.mean()[0]:.3f}, median={df_cur.median()[0]:.3f}, std={df_cur.std()[0]:.3f}')
+    print(f'diff : mean={df_diff.mean()[0]:.3f}, median={df_diff.median()[0]:.3f}, std={df_diff.std()[0]:.3f}')
     print()
     
     df_stage = pd.DataFrame(ssim_stage)
@@ -96,9 +103,9 @@ def getMaxPSNR_SSIM(all_df_dict):
     df_diff = pd.DataFrame(ssim_diff_val)
     
     print("SSIM")
-    print(f'stage : mean={df_stage.mean()[0]}, median={df_stage.median()[0]}, std={df_stage.std()[0]}')
-    print(f'cur : mean={df_cur.mean()[0]}, median={df_cur.median()[0]}, std={df_cur.std()[0]}')
-    print(f'diff : mean={df_diff.mean()[0]}, median={df_diff.median()[0]}, std={df_diff.std()[0]}')
+    print(f'stage : mean={df_stage.mean()[0]:.3f}, median={df_stage.median()[0]:.3f}, std={df_stage.std()[0]:.3f}')
+    print(f'cur : mean={df_cur.mean()[0]:.3f}, median={df_cur.median()[0]:.3f}, std={df_cur.std()[0]:.3f}')
+    print(f'diff : mean={df_diff.mean()[0]:.3f}, median={df_diff.median()[0]:.3f}, std={df_diff.std()[0]:.3f}')
 
 def getMean_Max_PSNR_SSIM(all_df_dict):
     max_psnr, max_ssim = [], []
@@ -109,59 +116,62 @@ def getMean_Max_PSNR_SSIM(all_df_dict):
     max_psnr = pd.DataFrame(max_psnr).mean()[0]
     max_ssim = pd.DataFrame(max_ssim).mean()[0]
     
-    print(f'max_psnr={max_psnr}, max_ssim={max_ssim}')    
+    print(f'max_psnr={max_psnr:.3f}, max_ssim={max_ssim:.3f}')    
     
-def getDiff_val(all_df_dict):
-    idx_psnr, idx_ssim = [], []
-    for dfName, df in all_df_dict.items():
-        idx = df.index[(df['diff_val'] < 0)].tolist()[0]
-        idx_psnr.append(df.loc[idx-1]['psnr'])
-        idx_ssim.append(df.loc[idx-1]['ssim'])
-        
-    idx_psnr = pd.DataFrame(idx_psnr).mean()[0]
-    idx_ssim = pd.DataFrame(idx_ssim).mean()[0]
-    
-    print(f'idx_psnr={idx_psnr}, idx_ssim={idx_ssim}')
 
 def getMax_val(all_df_dict, label, val):
-    idx_psnr, idx_ssim = [], []
+    idx_stage, idx_psnr, idx_ssim = [], [], []
     for dfName, df in all_df_dict.items():
-        try:
-            idx = df.index[(df[label] <= val)].tolist()[0]
-        except:
-            print(dfName, df[label].min())
-            continue
+        gt_beta = float(dfName.split('_')[-1])
+        
+        idx = df.index[(df[label] <= val)].tolist()[0]
+        
+        idx_stage.append([df.loc[idx]['stage']*df.loc[idx]['step_beta'] - gt_beta])
         idx_psnr.append(df.loc[idx]['psnr'])
         idx_ssim.append(df.loc[idx]['ssim'])
-        
+    
+    
+    idx_stage = pd.DataFrame(idx_stage)
     idx_psnr = pd.DataFrame(idx_psnr)
     idx_ssim = pd.DataFrame(idx_ssim)
     
-    print(f'{val} : idx_psnr={idx_psnr.mean()[0]}({idx_psnr.std()[0]}), idx_ssim={idx_ssim.mean()[0]}({idx_ssim.std()[0]})')
+    print(f'{val} : psnr_mean={idx_psnr.mean()[0]:.3f}({idx_psnr.std()[0]:.3f}), ssim_mean={idx_ssim.mean()[0]:.3f}({idx_ssim.std()[0]:.3f}), beta_err={idx_stage.mean()[0]:.3f}')
     
 
 if __name__ == '__main__':
-    dataRoot = 'output_log'
-    header = ['stage', 'step_beta', 'cur_val', 'diff_val', 'psnr', 'ssim']
+    # dataRoot = 'output_log'
+    dataRoot = 'D:/data/RESIDE_beta_sample_100'
+    # for beta in [[0.04], [0.06], [0.08], [0.1], [0.12], [0.16], [0.2]]:
+    #     all_df_dict = read_csv_all(dataRoot, 'Entropy_Module', beta)
+    #     getMaxPSNR_SSIM(all_df_dict)
+    #     getMean_Max_PSNR_SSIM(all_df_dict)
     
-    all_df_dict = read_csv_all(dataRoot, 'niqe_csv', header)
-    # all_df_plot(all_df_dict)
     
-    # getMaxPSNR_SSIM(all_df_dict)
-    # getMean_Max_PSNR_SSIM(all_df_dict)
+    beta = [0.04, 0.06, 0.08, 0.1, 0.12, 0.16, 0.2]
+    #beta = [0.1]
+    all_df_dict = read_csv_all(dataRoot, 'Entropy_Module', beta)
+    for dfName, df in all_df_dict.items():
+        data_plot(dfName, df, labels=['cur_val', 'psnr'])
     
-    # Current Value 
-    # getMax_val(all_df_dict, 'cur_val', 4.0)
-    # getMax_val(all_df_dict, 'cur_val', 5.0)
-    # getMax_val(all_df_dict, 'cur_val', 6.0)
-    # getMax_val(all_df_dict, 'cur_val', 7.0)
-    # getMax_val(all_df_dict, 'cur_val', 8.0)
     
-    # Diff Value
-    # getMax_val(all_df_dict, 'diff_val', -0.30)
-    # getMax_val(all_df_dict, 'diff_val', -0.20)
-    # getMax_val(all_df_dict, 'diff_val', -0.10)
+    
+    # for beta in [[0.04], [0.06], [0.08], [0.1], [0.12], [0.16], [0.2]]:
+    #     all_df_dict = read_csv_all(dataRoot, 'Entropy_Module', beta)
+    #     getMax_val(all_df_dict, 'diff_val', 0.0)
+        
+    # beta = [0.04, 0.06, 0.08, 0.1, 0.12, 0.16, 0.2]    
+    # all_df_dict = read_csv_all(dataRoot, 'Entropy_Module', beta)
     # getMax_val(all_df_dict, 'diff_val', -0.01)
     # getMax_val(all_df_dict, 'diff_val', 0.0)
+    # getMax_val(all_df_dict, 'diff_val', 0.01)
+    # getMax_val(all_df_dict, 'diff_val', 0.005)
+    
+    # getMax_val(all_df_dict, 'cur_val', 7.4)    
+    # getMax_val(all_df_dict, 'cur_val', 7.5)
+    # getMax_val(all_df_dict, 'cur_val', 7.6)
+    
+    # for beta in [[0.04], [0.06], [0.08], [0.1], [0.12], [0.16], [0.2]]:
+    #     all_df_dict = read_csv_all(dataRoot, 'Entropy_Module', beta)
+    #     getMax_val(all_df_dict, 'cur_val', 7.5) 
     
     
