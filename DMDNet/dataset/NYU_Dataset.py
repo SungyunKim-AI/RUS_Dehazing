@@ -34,7 +34,7 @@ class NYU_Dataset_clear(Dataset):
     
     
 class NYU_Dataset(Dataset):
-    def __init__(self, path, img_size, norm=False, verbose=False):
+    def __init__(self, path, img_size, norm=False, verbose=False, selection=[]):
         super().__init__()
         self.norm = norm
         # clear images
@@ -70,6 +70,7 @@ class NYU_Dataset(Dataset):
         if self.norm:
             air_list = np.array([0.8, 0.9, 1.0])
             GT_airlight = (GT_airlight - air_list.mean()) / air_list.std()
+        
         GT_airlight = np.expand_dims(GT_airlight, axis=0)
         
         hazy_input, clear_input = load_item(haze, clear, self.transform)
