@@ -10,6 +10,8 @@ import argparse
 import random
 from tqdm import tqdm
 import torch.optim as optim
+import numpy as np
+import cv2 as cv
 
 import torch
 import wandb
@@ -18,6 +20,7 @@ from models.depth_models import DPTDepthModel
 from dataset import *
 from torch.utils.data import DataLoader
 from utils.util import compute_errors
+from utils.util import denormalize
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -28,7 +31,7 @@ def get_args():
     
     # learning parameters
     parser.add_argument('--seed', type=int, default=101, help='Random Seed')
-    parser.add_argument('--lr', type=float, default=0.00001, help='Learning Rage')
+    parser.add_argument('--lr', type=float, default=0.0001, help='Learning Rage')
     parser.add_argument('--batchSize_train', type=int, default=16, help='train dataloader input batch size')
     parser.add_argument('--batchSize_val', type=int, default=16, help='test dataloader input batch size')
     parser.add_argument('--imageSize_W', type=int, default=256, help='the width of the resized input image to network')
@@ -147,9 +150,6 @@ def train(model, device, train_loader, optim,loss_fun, log_wandb, epoch):
         depth_images = depth_images.to(device)
         
         depth_pred = model.forward(hazy_images)
-        global_iter +=1
-        
-
         loss = loss_fun(depth_pred, depth_images)
         if epoch!=0:
             loss.backward()
@@ -160,14 +160,25 @@ def train(model, device, train_loader, optim,loss_fun, log_wandb, epoch):
         
         gt_depth = depth_images.detach().cpu().numpy()
         depth_pred = depth_pred.detach().cpu().numpy()
+        hazy_images = denormalize(hazy_images,opt.norm).detach().cpu().numpy()
+
+        if global_iter%100 == 0:
+            hazy_imgaes_batch_img = cv.cvtColor(np.hstack(hazy_images.transpose(0,2,3,1)),cv.COLOR_RGB2BGR)*255
+            gt_depth_batch_img = cv.cvtColor(np.hstack(gt_depth.transpose(0,2,3,1)),cv.COLOR_GRAY2BGR)*30
+            depth_pred_batch_img = cv.cvtColor(np.hstack(depth_pred.transpose(0,2,3,1)),cv.COLOR_GRAY2BGR)*30
+            img = np.vstack((hazy_imgaes_batch_img, gt_depth_batch_img, depth_pred_batch_img))
+            cv.imwrite(f'save/img_{global_iter:05d}.jpg',np.clip(img.astype(np.int32),0,255))
         
-        for i, haze_name in enumerate(haze_names):
+
+        for i, _ in enumerate(haze_names):
             beta = str(gt_betas[i].item())
             train_iters[beta]+=1
             scores = compute_errors(gt_depth[i], depth_pred[i])
             for j, score in enumerate(scores):
                 score_name = score_name_list[j]
                 score_lists[score_name][beta] += score
+
+        global_iter +=1
     
     for score_name in score_name_list:
         score_list = score_lists[score_name]
@@ -176,16 +187,19 @@ def train(model, device, train_loader, optim,loss_fun, log_wandb, epoch):
     
     
     loss_mean = loss_sum / global_iter
-    score_lists["global_step"] = epoch
+    score_lists["epoch"] = epoch
         
     if log_wandb:
         wandb.log(score_lists)
         wandb.log({"loss":loss_mean,
-                   "global_step":epoch})
+                   "epoch":epoch})
 
 def run(model, train_loader, valid_loader, optim, epochs, device, log_wandb):
     
     loss_fun = nn.L1Loss().to(device)
+
+    train(model,device,train_loader,optim,loss_fun,log_wandb,0)
+    evaluate(model, device, valid_loader, log_wandb,0)
         
     for epoch in range(epochs+1):
         train(model,device,train_loader,optim,loss_fun,log_wandb,epoch+1)
@@ -197,7 +211,7 @@ def run(model, train_loader, valid_loader, optim, epochs, device, log_wandb):
 
 if __name__ == '__main__':
     
-    log_wandb = True
+    log_wandb = False
     opt = get_args()
 
     opt.norm=True
