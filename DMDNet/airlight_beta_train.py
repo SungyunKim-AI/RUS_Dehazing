@@ -25,7 +25,7 @@ def get_args():
     parser.add_argument('--batchSize', type=int, default=8, help='test dataloader input batch size')
     parser.add_argument('--imageSize_W', type=int, default=256, help='the width of the resized input image to network')
     parser.add_argument('--imageSize_H', type=int, default=256, help='the height of the resized input image to network')
-    parser.add_argument('--lr', type=float, default=0.001, help='Learning rate for optimizers')
+    parser.add_argument('--lr', type=float, default=0.01, help='Learning rate for optimizers')
     parser.add_argument('--epochs', type=int, default=100, help='train epochs')
     parser.add_argument('--val_step', type=int, default=1, help='validation step')
     parser.add_argument('--norm', type=bool, default=True,  help='Image Normalize flag')
@@ -115,15 +115,15 @@ def validation(opt, dataloader, net, criterion, epoch):
             
         loss = air_loss + beta_loss + var_loss
     
-    if opt.wandb_log:
-        wandb.log({
-            'val air loss': air_loss.item(),
-            'val beta loss': beta_loss.item(),
-            'val var loss': var_loss.item(),
-            'val loss': loss.item(),
-            'iters': iters,
-            'epoch': epoch
-        })
+        if opt.wandb_log:
+            wandb.log({
+                'val air loss': air_loss.item(),
+                'val beta loss': beta_loss.item(),
+                'val var loss': var_loss.item(),
+                'val loss': loss.item(),
+                'iters': iters,
+                'epoch': epoch
+            })
 
 
 

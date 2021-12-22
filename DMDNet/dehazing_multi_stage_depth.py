@@ -1,10 +1,5 @@
 # User warnings ignore
-from genericpath import exists
 import warnings
-
-from numpy.lib.function_base import diff
-from numpy.lib.type_check import imag
-
 warnings.filterwarnings("ignore")
 
 import os
@@ -32,18 +27,30 @@ from utils.entropy_module import Entropy_Module
 def get_args():
     parser = argparse.ArgumentParser()
     # dataset parameters
+    # NYU
+    # parser.add_argument('--dataset', required=False, default='NYU',  help='dataset name')
+    # parser.add_argument('--dataRoot', type=str, default='D:/data/NYU_crop',  help='data file path')
+    # parser.add_argument('--scale', type=float, default=0.000305,  help='depth scale')
+    # parser.add_argument('--shift', type=float, default= 0.1378,  help='depth shift')
+    # parser.add_argument('--preTrainedModel', type=str, default=weights/depth_weights/dpt_hybrid_nyu-2ce69ec7_nyu_haze_002.pt, help='pretrained DPT path')
+    # parser.add_argument('--preTrainedAirModel', type=str, default='weights/air_weights/Air_UNet_NYU_1D.pt', help='pretrained Air path')
+    
+    # RESIDE
     parser.add_argument('--dataset', required=False, default='RESIDE_beta',  help='dataset name')
-    parser.add_argument('--dataRoot', type=str, default='D:/data/RESIDE_beta/',  help='data file path')
-    parser.add_argument('--norm', action='store_true',  help='Image Normalize flag')
+    parser.add_argument('--dataRoot', type=str, default='D:/data/RESIDE_beta',  help='data file path')
+    parser.add_argument('--scale', type=float, default=0.000150,  help='depth scale')
+    parser.add_argument('--shift', type=float, default= 0.1378,  help='depth shift')
+    parser.add_argument('--preTrainedModel', type=str, default='weights/depth_weights/dpt_hybrid_nyu-2ce69ec7_reside_haze_002.pt', help='pretrained DPT path')
+    parser.add_argument('--preTrainedAirModel', type=str, default='weights/air_weights/Air_UNet_RESIDE_1D.pt', help='pretrained Air path')
     
     # learning parameters
     parser.add_argument('--seed', type=int, default=101, help='Random Seed')
+    parser.add_argument('--norm', action='store_true',  help='Image Normalize flag')
     parser.add_argument('--imageSize_W', type=int, default=256, help='the width of the resized input image to network')
     parser.add_argument('--imageSize_H', type=int, default=256, help='the height of the resized input image to network')
     parser.add_argument('--device', default=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
     
     # model parameters
-    parser.add_argument('--preTrainedModel', type=str, default='weights/dpt_hybrid_nyu-2ce69ec7.pt', help='pretrained DPT path')
     parser.add_argument('--backbone', type=str, default="vitb_rn50_384", help='DPT backbone')
     
     # test_stop_when_threshold parameters
@@ -255,8 +262,8 @@ if __name__ == '__main__':
     
      
     model = DPTDepthModel(
-        path = 'weights/depth_weights/dpt_hybrid_nyu-2ce69ec7_reside_haze_002.pt',
-        scale=0.000150, shift=0.1378, invert=True,  #NYU scale = 0.000305, RESIDE_beta sclae = 0.000150
+        path = opt.preTrainedModel,
+        scale=opt.scale, shift=opt.shift, invert=True,
         backbone=opt.backbone,
         non_negative=True,
         enable_attention_hooks=False,
@@ -266,7 +273,7 @@ if __name__ == '__main__':
     
         
     airlight_model = UNet([opt.imageSize_W, opt.imageSize_H], in_channels=3, out_channels=1, bilinear=True)
-    checkpoint = torch.load(f'weights/air_weights/Air_UNet_RESIDE_1D.pt')
+    checkpoint = torch.load(opt.preTrainedAirModel)
     airlight_model.load_state_dict(checkpoint['model_state_dict'])
     airlight_model.to(opt.device)
 
