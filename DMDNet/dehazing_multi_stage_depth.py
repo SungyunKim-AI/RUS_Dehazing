@@ -28,20 +28,20 @@ def get_args():
     parser = argparse.ArgumentParser()
     # dataset parameters
     # NYU
-    # parser.add_argument('--dataset', required=False, default='NYU',  help='dataset name')
-    # parser.add_argument('--dataRoot', type=str, default='D:/data/NYU_crop',  help='data file path')
-    # parser.add_argument('--scale', type=float, default=0.000305,  help='depth scale')
-    # parser.add_argument('--shift', type=float, default= 0.1378,  help='depth shift')
-    # parser.add_argument('--preTrainedModel', type=str, default=weights/depth_weights/dpt_hybrid_nyu-2ce69ec7_nyu_haze_002.pt, help='pretrained DPT path')
-    # parser.add_argument('--preTrainedAirModel', type=str, default='weights/air_weights/Air_UNet_NYU_1D.pt', help='pretrained Air path')
+    parser.add_argument('--dataset', required=False, default='NYU',  help='dataset name')
+    parser.add_argument('--dataRoot', type=str, default='D:/data/NYU_crop',  help='data file path')
+    parser.add_argument('--scale', type=float, default=0.000305,  help='depth scale')
+    parser.add_argument('--shift', type=float, default= 0.1378,  help='depth shift')
+    parser.add_argument('--preTrainedModel', type=str, default='weights/depth_weights/dpt_hybrid_nyu-2ce69ec7_nyu_haze_002.pt', help='pretrained DPT path')
+    parser.add_argument('--preTrainedAirModel', type=str, default='weights/air_weights/Air_UNet_NYU_1D.pt', help='pretrained Air path')
     
     # RESIDE
-    parser.add_argument('--dataset', required=False, default='RESIDE_beta',  help='dataset name')
-    parser.add_argument('--dataRoot', type=str, default='D:/data/RESIDE_beta',  help='data file path')
-    parser.add_argument('--scale', type=float, default=0.000150,  help='depth scale')
-    parser.add_argument('--shift', type=float, default= 0.1378,  help='depth shift')
-    parser.add_argument('--preTrainedModel', type=str, default='weights/depth_weights/dpt_hybrid_nyu-2ce69ec7_reside_haze_002.pt', help='pretrained DPT path')
-    parser.add_argument('--preTrainedAirModel', type=str, default='weights/air_weights/Air_UNet_RESIDE_1D.pt', help='pretrained Air path')
+    # parser.add_argument('--dataset', required=False, default='RESIDE_beta',  help='dataset name')
+    # parser.add_argument('--dataRoot', type=str, default='D:/data/RESIDE_beta',  help='data file path')
+    # parser.add_argument('--scale', type=float, default=0.000150,  help='depth scale')
+    # parser.add_argument('--shift', type=float, default= 0.1378,  help='depth shift')
+    # parser.add_argument('--preTrainedModel', type=str, default='weights/depth_weights/dpt_hybrid_nyu-2ce69ec7_reside_haze_002.pt', help='pretrained DPT path')
+    # parser.add_argument('--preTrainedAirModel', type=str, default='weights/air_weights/Air_UNet_RESIDE_1D.pt', help='pretrained Air path')
     
     # learning parameters
     parser.add_argument('--seed', type=int, default=101, help='Random Seed')
