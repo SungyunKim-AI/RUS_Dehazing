@@ -10,19 +10,18 @@ from torch import optim
 from torch.utils.data import DataLoader
 
 from models.air_models import UNet
-from dataset import NYU_Dataset, RESIDE_Beta_Dataset
+from dataset import NYU_Dataset, RESIDE_Dataset
 
 def get_args():
-    # opt.dataRoot = 'C:/Users/IIPL/Desktop/data/NYU'
     # opt.dataRoot = 'D:/data/NYU'
     # opt.dataRoot = 'D:/data/RESIDE_beta'
     parser = argparse.ArgumentParser(description='Train the UNet')
-    parser.add_argument('--dataset', required=False, default='RESIDE_beta',  help='dataset name')
-    parser.add_argument('--dataRoot', type=str, default='D:/data/RESIDE_beta',  help='data file path')
+    parser.add_argument('--dataset', required=False, default='RESIDE',  help='dataset name')
+    parser.add_argument('--dataRoot', type=str, default='C:/Users/IIPL/Desktop/data/RESIDE_V0_outdoor',  help='data file path')
     
     # learning parameters
     parser.add_argument('--seed', type=int, default=101, help='Random Seed')
-    parser.add_argument('--batchSize', type=int, default=32, help='test dataloader input batch size')
+    parser.add_argument('--batchSize', type=int, default=12, help='dataloader input batch size')
     parser.add_argument('--imageSize_W', type=int, default=256, help='the width of the resized input image to network')
     parser.add_argument('--imageSize_H', type=int, default=256, help='the height of the resized input image to network')
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate for optimizers')
@@ -34,7 +33,7 @@ def get_args():
     
     # train_one_epoch parameters
     parser.add_argument('--verbose', type=bool, default=True, help='print log')
-    parser.add_argument('--save_path', type=str, default="weights/air_weights/airlight_NYU_1", help='Airlight Estimation model save path')
+    parser.add_argument('--save_path', type=str, default="weights/air_weights", help='Airlight Estimation model save path')
     parser.add_argument('--wandb_log', action='store_true', default=True, help='WandB logging flag')
     
 
@@ -49,7 +48,7 @@ def train_one_epoch(opt, dataloader, net, optimizer, grad_scaler, criterion, epo
             iters += 1
             
             # Data Init
-            hazy_images, clear_images, GT_air, GT_depths, input_names = batch
+            hazy_images, clear_images, GT_depths, GT_air, GT_beta, file_names = batch
             hazy_images = hazy_images.to(opt.device)
             GT_air = GT_air.to(opt.device, dtype=torch.float)
             
@@ -82,7 +81,7 @@ def validation(opt, dataloader, net, criterion, epoch):
 
     for batch in tqdm(dataloader, desc='Validate', leave=False):
         # Data Init
-        hazy_images, clear_images, GT_air, GT_depths, input_names = batch
+        hazy_images, clear_images, GT_depths, GT_air, GT_beta, file_names = batch
         
         hazy_images = hazy_images.to(opt.device)
         GT_air = GT_air.to(opt.device, dtype=torch.float)
@@ -141,9 +140,9 @@ if __name__ == '__main__':
     if opt.dataset == 'NYU':
         train_set = NYU_Dataset(opt.dataRoot + '/train', **dataset_args)
         val_set   = NYU_Dataset(opt.dataRoot + '/val', **dataset_args)
-    elif opt.dataset == 'RESIDE_beta':
-        train_set = RESIDE_Beta_Dataset(opt.dataRoot + '/train', **dataset_args)
-        val_set   = RESIDE_Beta_Dataset(opt.dataRoot + '/val',   **dataset_args)
+    elif opt.dataset == 'RESIDE':
+        train_set = RESIDE_Dataset(opt.dataRoot + '/train', **dataset_args)
+        val_set   = RESIDE_Dataset(opt.dataRoot + '/val',   **dataset_args)
     
     loader_args = dict(batch_size=opt.batchSize, num_workers=2, drop_last=False, shuffle=True)
     train_loader = DataLoader(dataset=train_set, **loader_args)
@@ -152,11 +151,11 @@ if __name__ == '__main__':
     if opt.wandb_log:
         wandb.init(project="Airlight", entity="rus", name='UNet_RESIDE_1D', config=opt)
     
-    optimizer = optim.RMSprop(net.parameters(), lr=opt.lr, weight_decay=1e-8, momentum=0.9)
+    optimizer = optim.Adam(net.parameters(), lr=opt.lr)
     grad_scaler = torch.cuda.amp.GradScaler(enabled=opt.amp)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=2)
     
-    # riterion = nn.L1Loss()
+    # criterion = nn.L1Loss()
     criterion = nn.MSELoss()
     
     iters = 0
@@ -170,5 +169,5 @@ if __name__ == '__main__':
                 'epoch': epoch,
                 'model_state_dict': net.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict()
-                }, f"{opt.save_path}/orginal_UNet_epoch_{epoch:02d}.pt")
+                }, f"{opt.save_path}/Air_UNet_RESIDE_V0_epoch_{epoch:02d}.pt")
     
