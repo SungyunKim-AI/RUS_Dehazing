@@ -1,4 +1,5 @@
 import os
+from posixpath import pardir
 import cv2
 from glob import glob
 import numpy as np
@@ -33,7 +34,7 @@ class NYU_Dataset_clear(Dataset):
     
     
 class NYU_Dataset(Dataset):
-    def __init__(self, path, img_size, norm=False, verbose=False):
+    def __init__(self, path, img_size, norm=False, verbose=False, selection=[]):
         super().__init__()
         self.norm = norm
         # clear images
@@ -55,7 +56,6 @@ class NYU_Dataset(Dataset):
         
     def __len__(self):
         return len(self.hazy_lists) * self.images_count
-        # return 20
         
     def __getitem__(self,index):
         haze = self.hazy_lists[index//self.images_count][index%self.images_count]
@@ -65,12 +65,14 @@ class NYU_Dataset(Dataset):
         GT_depth = np.expand_dims(GT_depth, axis=0)
         
         GT_airlight = np.array(float(os.path.basename(haze).split('_')[-2]))
-        GT_beta = np.array(float(haze.split('_')[2].split('\\')[0]))
-        
+        GT_beta = np.array(float(os.path.basename(haze).split('_')[-1][:-4]))
+
         if self.norm:
             air_list = np.array([0.8, 0.9, 1.0])
             GT_airlight = (GT_airlight - air_list.mean()) / air_list.std()
+        
         GT_airlight = np.expand_dims(GT_airlight, axis=0)
+        GT_beta = np.expand_dims(GT_beta, axis=0)
         
         hazy_input, clear_input = load_item(haze, clear, self.transform)
         

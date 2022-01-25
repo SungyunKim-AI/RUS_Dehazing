@@ -1,8 +1,5 @@
 # User warnings ignore
 import warnings
-
-from numpy.lib.function_base import diff
-
 warnings.filterwarnings("ignore")
 
 import os
@@ -10,13 +7,11 @@ os.environ['KMP_DUPLICATE_LIB_OK']='True'
 
 import torch.nn as nn
 import argparse
-import cv2
-import numpy as np
 import random
 from tqdm import tqdm
-from torchvision.models import vgg16
-from loss import LossNetwork as PerLoss
 import torch.optim as optim
+import numpy as np
+import cv2 as cv
 
 import torch
 import wandb
@@ -24,46 +19,33 @@ from models.depth_models import DPTDepthModel
 
 from dataset import *
 from torch.utils.data import DataLoader
-
 from utils.util import compute_errors
+from utils.util import denormalize
 
 def get_args():
     parser = argparse.ArgumentParser()
     # dataset parameters
-    parser.add_argument('--dataset', required=False, default='RESIDE-beta',  help='dataset name')
-    parser.add_argument('--dataRoot', type=str, default='D:/data/Dense_Haze/train',  help='data file path')
+    parser.add_argument('--dataset', required=False, default='NYU',  help='dataset name')
+    parser.add_argument('--dataRoot', type=str, default='D:/data/NYU_crop',  help='data file path')
     parser.add_argument('--norm', action='store_true',  help='Image Normalize flag')
     
     # learning parameters
     parser.add_argument('--seed', type=int, default=101, help='Random Seed')
-    parser.add_argument('--lr', type=float, default=0.00001, help='Learning Rage')
+    parser.add_argument('--lr', type=float, default=0.0001, help='Learning Rage')
     parser.add_argument('--batchSize_train', type=int, default=16, help='train dataloader input batch size')
     parser.add_argument('--batchSize_val', type=int, default=16, help='test dataloader input batch size')
     parser.add_argument('--imageSize_W', type=int, default=256, help='the width of the resized input image to network')
     parser.add_argument('--imageSize_H', type=int, default=256, help='the height of the resized input image to network')
-    parser.add_argument('--epochs', type=int, default=100, help='number of epochs to train for')
-    parser.add_argument('--evalIter', type=int, default=10, help='interval for evaluating')
+    parser.add_argument('--epochs', type=int, default=10, help='number of epochs to train for')
     parser.add_argument('--savePath', default='weights', help='folder to model checkpoints')
-    parser.add_argument('--inputPath', default='input', help='input path')
-    parser.add_argument('--outputPath', default='output_dehazed', help='dehazed output path')
     parser.add_argument('--device', default=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
     
     # model parameters
-    parser.add_argument('--preTrainedModel', type=str, default='weights/dpt_hybrid_nyu-2ce69ec7.pt', help='pretrained DPT path')
+    parser.add_argument('--preTrainedModel', type=str, default='weights/depth_weights/dpt_hybrid_nyu-2ce69ec7.pt', help='pretrained DPT path')
     parser.add_argument('--backbone', type=str, default="vitb_rn50_384", help='DPT backbone')
-    
-    # test_stop_when_threshold parameters
-    parser.add_argument('--save_log', action='store_true', help='log save flag')
-    parser.add_argument('--saveORshow', type=str, default='show',  help='results show or save')
-    parser.add_argument('--verbose', action='store_true', help='print log')
-    parser.add_argument('--airlight_step_flag', action='store_true', help='flag of multi step airlight estimation')
-    parser.add_argument('--betaStep', type=float, default=0.05, help='beta step')
-    parser.add_argument('--stepLimit', type=int, default=250, help='Multi step limit')
-    parser.add_argument('--metrics_module', type=str, default='Entropy_Module',  help='No Reference metrics method name')
-    parser.add_argument('--metricsThreshold', type=float, default=0, help='Metrics threshold: Entropy(0.00), NIQUE(??)')
-    parser.add_argument('--eps', type=float, default=1e-12, help='Epsilon value for non zero calculating')
 
     return parser.parse_args()
+
 def evaluate(model, device, valid_loader, log_wandb, epoch):
     model.eval()
     val_iters = {"0.0":0.0,"0.1":0.0,"0.2":0.0,"0.3":0.0,"0.5":0.0,"0.6":0.0, "0.7":0.0}
@@ -94,13 +76,13 @@ def evaluate(model, device, valid_loader, log_wandb, epoch):
     
     
     for batch in tqdm(valid_loader):
-        hazy_images, clear_images , depth_images, _, gt_betas, haze_names = batch
+        hazy_images, clear_images , depth_images, gt_airlights, gt_betas, haze_names = batch
         
         hazy_images = hazy_images.to(device)
         clear_images = clear_images.to(device)
         depth_images = depth_images.to(device)
         
-        _, depth_pred = model.forward(hazy_images)
+        depth_pred = model.forward(hazy_images)
         
         gt_depth = depth_images.detach().cpu().numpy()
         depth_pred = depth_pred.detach().cpu().numpy()
@@ -161,16 +143,13 @@ def train(model, device, train_loader, optim,loss_fun, log_wandb, epoch):
     loss_sum = 0 
     for batch in tqdm(train_loader):
         optim.zero_grad()
-        hazy_images, clear_images , depth_images, _, gt_betas, haze_names = batch
+        hazy_images, clear_images , depth_images, gt_airlights, gt_betas, haze_names = batch
         
         hazy_images = hazy_images.to(device)
         clear_images = clear_images.to(device)
         depth_images = depth_images.to(device)
         
-        _, depth_pred = model.forward(hazy_images)
-        global_iter +=1
-        
-
+        depth_pred = model.forward(hazy_images)
         loss = loss_fun(depth_pred, depth_images)
         if epoch!=0:
             loss.backward()
@@ -181,14 +160,25 @@ def train(model, device, train_loader, optim,loss_fun, log_wandb, epoch):
         
         gt_depth = depth_images.detach().cpu().numpy()
         depth_pred = depth_pred.detach().cpu().numpy()
+        hazy_images = denormalize(hazy_images,opt.norm).detach().cpu().numpy()
+
+        if global_iter%100 == 0:
+            hazy_imgaes_batch_img = cv.cvtColor(np.hstack(hazy_images.transpose(0,2,3,1)),cv.COLOR_RGB2BGR)*255
+            gt_depth_batch_img = cv.cvtColor(np.hstack(gt_depth.transpose(0,2,3,1)),cv.COLOR_GRAY2BGR)*30
+            depth_pred_batch_img = cv.cvtColor(np.hstack(depth_pred.transpose(0,2,3,1)),cv.COLOR_GRAY2BGR)*30
+            img = np.vstack((hazy_imgaes_batch_img, gt_depth_batch_img, depth_pred_batch_img))
+            cv.imwrite(f'save/img_{global_iter:05d}.jpg',np.clip(img.astype(np.int32),0,255))
         
-        for i, haze_name in enumerate(haze_names):
+
+        for i, _ in enumerate(haze_names):
             beta = str(gt_betas[i].item())
             train_iters[beta]+=1
             scores = compute_errors(gt_depth[i], depth_pred[i])
             for j, score in enumerate(scores):
                 score_name = score_name_list[j]
                 score_lists[score_name][beta] += score
+
+        global_iter +=1
     
     for score_name in score_name_list:
         score_list = score_lists[score_name]
@@ -197,31 +187,33 @@ def train(model, device, train_loader, optim,loss_fun, log_wandb, epoch):
     
     
     loss_mean = loss_sum / global_iter
-    score_lists["global_step"] = epoch
+    score_lists["epoch"] = epoch
         
     if log_wandb:
         wandb.log(score_lists)
         wandb.log({"loss":loss_mean,
-                   "global_step":epoch})
+                   "epoch":epoch})
 
 def run(model, train_loader, valid_loader, optim, epochs, device, log_wandb):
     
     loss_fun = nn.L1Loss().to(device)
-    
+
     train(model,device,train_loader,optim,loss_fun,log_wandb,0)
     evaluate(model, device, valid_loader, log_wandb,0)
         
-    for epoch in range(epochs):
+    for epoch in range(epochs+1):
         train(model,device,train_loader,optim,loss_fun,log_wandb,epoch+1)
         evaluate(model, device, valid_loader, log_wandb,epoch+1)
         
-        weight_path = f'weights/dpt_hybrid_nyu-2ce69ec7_nyu_haze_{epoch+1:03}.pt'  #path for storing the weights of genertaor
+        weight_path = f'weights/depth_weights/dpt_hybrid_nyu-2ce69ec7_nyu_crop_haze_{epoch+1:03}.pt'  #path for storing the weights of genertaor
         torch.save(model.state_dict(), weight_path)
+        print(weight_path, "was saved!")
 
 if __name__ == '__main__':
     
-    log_wandb = True
+    log_wandb = False
     opt = get_args()
+
     opt.norm=True
     random.seed(opt.seed)
     torch.manual_seed(opt.seed)
@@ -231,7 +223,7 @@ if __name__ == '__main__':
         'model_name' : 'DPT_finetuning',
         'init_lr' : opt.lr,
         'epochs' : opt.epochs,
-        'dataset' : 'NYU_Dataset',
+        'dataset' : 'NYU_crop_Dataset',
         'batch_size': opt.batchSize_train,
         'image_size': [opt.imageSize_W,opt.imageSize_H]}
     
@@ -241,7 +233,7 @@ if __name__ == '__main__':
     
     model = DPTDepthModel(
         path = opt.preTrainedModel,
-        scale=0.000150, shift=0.1378, invert=True,
+        scale=0.000305, shift=0.1378, invert=True,
         backbone=opt.backbone,
         non_negative=True,
         enable_attention_hooks=False,
@@ -250,11 +242,10 @@ if __name__ == '__main__':
     model = model.to(memory_format=torch.channels_last)
     model.to(opt.device)
 
-    opt.dataRoot = 'D:/data/NYU_crop/'
-    dataset_train = NYU_Dataset.NYU_Dataset_With_Notation(opt.dataRoot, [opt.imageSize_W, opt.imageSize_H],split='train', printName=False, returnName=True, norm=opt.norm)
+    dataset_train = NYU_Dataset(opt.dataRoot + '/train',[opt.imageSize_W, opt.imageSize_H],norm=opt.norm)
     loader_train = DataLoader(dataset=dataset_train, batch_size=opt.batchSize_train,num_workers=1, drop_last=False, shuffle=True)
     
-    dataset_valid = NYU_Dataset.NYU_Dataset_With_Notation(opt.dataRoot, [opt.imageSize_W, opt.imageSize_H],split='val', printName=False, returnName=True, norm=opt.norm)
+    dataset_valid = NYU_Dataset(opt.dataRoot + '/val',[opt.imageSize_W, opt.imageSize_H],norm=opt.norm)
     loader_valid = DataLoader(dataset=dataset_valid, batch_size=opt.batchSize_val,num_workers=1, drop_last=False, shuffle=True)
     
     optimizer = optim.Adam(model.parameters(),opt.lr, betas = (0.9, 0.999), eps=1e-08)

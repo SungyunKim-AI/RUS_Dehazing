@@ -1,8 +1,5 @@
 # User warnings ignore
 import warnings
-
-from numpy.lib.function_base import diff
-
 warnings.filterwarnings("ignore")
 
 import os
@@ -10,33 +7,23 @@ os.environ['KMP_DUPLICATE_LIB_OK']='True'
 
 import torch.nn as nn
 import argparse
-import cv2
-import numpy as np
 import random
 from tqdm import tqdm
-from torchvision.models import vgg16
-from loss import LossNetwork as PerLoss
 import torch.optim as optim
 
 import torch
 import wandb
-from dpt.models import DPTDepthModel
+from models.depth_models import DPTDepthModel
 
 from dataset import *
 from torch.utils.data import DataLoader
-
-from Module_Airlight.Airlight_Module import Airlight_Module
-from Module_Metrics.Entropy_Module import Entropy_Module
-from Module_Metrics.NIQE_Module import NIQE_Module
-from Module_Metrics.metrics import get_ssim, get_psnr
-from util import misc, save_log, utils
-from validate_NYU_depth import compute_errors
+from utils.util import compute_errors
 
 def get_args():
     parser = argparse.ArgumentParser()
     # dataset parameters
-    parser.add_argument('--dataset', required=False, default='RESIDE-beta',  help='dataset name')
-    parser.add_argument('--dataRoot', type=str, default='D:/data/Dense_Haze/train',  help='data file path')
+    parser.add_argument('--dataset', required=False, default='RESIDE_V0_outdoor',  help='dataset name')
+    parser.add_argument('--dataRoot', type=str, default='D:/data/RESIDE_V0_outdoor',  help='data file path')
     parser.add_argument('--norm', action='store_true',  help='Image Normalize flag')
     
     # learning parameters
@@ -47,32 +34,18 @@ def get_args():
     parser.add_argument('--imageSize_W', type=int, default=256, help='the width of the resized input image to network')
     parser.add_argument('--imageSize_H', type=int, default=256, help='the height of the resized input image to network')
     parser.add_argument('--epochs', type=int, default=100, help='number of epochs to train for')
-    parser.add_argument('--evalIter', type=int, default=10, help='interval for evaluating')
     parser.add_argument('--savePath', default='weights', help='folder to model checkpoints')
-    parser.add_argument('--inputPath', default='input', help='input path')
-    parser.add_argument('--outputPath', default='output_dehazed', help='dehazed output path')
     parser.add_argument('--device', default=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
     
     # model parameters
-    parser.add_argument('--preTrainedModel', type=str, default='weights/dpt_hybrid_nyu-2ce69ec7.pt', help='pretrained DPT path')
+    parser.add_argument('--preTrainedModel', type=str, default='weights/depth_weights/dpt_hybrid_nyu-2ce69ec7.pt', help='pretrained DPT path')
     parser.add_argument('--backbone', type=str, default="vitb_rn50_384", help='DPT backbone')
-    
-    # test_stop_when_threshold parameters
-    parser.add_argument('--save_log', action='store_true', help='log save flag')
-    parser.add_argument('--saveORshow', type=str, default='show',  help='results show or save')
-    parser.add_argument('--verbose', action='store_true', help='print log')
-    parser.add_argument('--airlight_step_flag', action='store_true', help='flag of multi step airlight estimation')
-    parser.add_argument('--betaStep', type=float, default=0.05, help='beta step')
-    parser.add_argument('--stepLimit', type=int, default=250, help='Multi step limit')
-    parser.add_argument('--metrics_module', type=str, default='Entropy_Module',  help='No Reference metrics method name')
-    parser.add_argument('--metricsThreshold', type=float, default=0, help='Metrics threshold: Entropy(0.00), NIQUE(??)')
-    parser.add_argument('--eps', type=float, default=1e-12, help='Epsilon value for non zero calculating')
 
     return parser.parse_args()
+
 def evaluate(model, device, valid_loader, log_wandb, epoch):
     model.eval()
     
-    #NYU {"0.0":0.0,"0.1":0.0,"0.2":0.0,"0.3":0.0,"0.5":0.0,"0.8":0.0}
     val_iters = {"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0}
         
     abs_rel_list ={"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0} 
@@ -168,6 +141,7 @@ def train(model, device, train_loader, optim,loss_fun, log_wandb, epoch):
     loss_sum = 0 
     for batch in tqdm(train_loader):
         optim.zero_grad()
+        # hazy_input, clear_input, depth_input, airlight_input, beta_input, filename
         hazy_images, clear_images , depth_images, _, gt_betas, haze_names = batch
         
         hazy_images = hazy_images.to(device)
@@ -214,21 +188,20 @@ def train(model, device, train_loader, optim,loss_fun, log_wandb, epoch):
 def run(model, train_loader, valid_loader, optim, epochs, device, log_wandb):
     
     loss_fun = nn.L1Loss().to(device)
-    
-    train(model,device,train_loader,optim,loss_fun,log_wandb,0)
-    evaluate(model, device, valid_loader, log_wandb,0)
         
     for epoch in range(epochs):
         train(model,device,train_loader,optim,loss_fun,log_wandb,epoch+1)
         evaluate(model, device, valid_loader, log_wandb,epoch+1)
         
-        weight_path = f'weights/dpt_hybrid_nyu-2ce69ec7_reside_haze_{epoch+1:03}.pt'  #path for storing the weights of genertaor
+        weight_path = f'weights/depth_weights/dpt_hybrid_nyu-2ce69ec7_reside_haze_{epoch+1:03}.pt'  #path for storing the weights of genertaor
         torch.save(model.state_dict(), weight_path)
+        print(weight_path, "was saved!")
 
 if __name__ == '__main__':
     
     log_wandb = True
     opt = get_args()
+
     opt.norm=True
     random.seed(opt.seed)
     torch.manual_seed(opt.seed)
@@ -238,7 +211,7 @@ if __name__ == '__main__':
         'model_name' : 'DPT_finetuning',
         'init_lr' : opt.lr,
         'epochs' : opt.epochs,
-        'dataset' : 'RESIDE_beta_Dataset',
+        'dataset' : 'RESIDE_V0_outdoor',
         'batch_size': opt.batchSize_train,
         'image_size': [opt.imageSize_W,opt.imageSize_H]}
     
@@ -257,11 +230,10 @@ if __name__ == '__main__':
     model = model.to(memory_format=torch.channels_last)
     model.to(opt.device)
     
-    opt.dataRoot = 'D:/data/RESIDE_beta/'
-    dataset_train = RESIDE_Beta_Dataset.RESIDE_Beta_Dataset_With_Notation(opt.dataRoot, [opt.imageSize_W, opt.imageSize_H],split='train', printName=False, returnName=True, norm=opt.norm)
+    dataset_train = RESIDE_Dataset(opt.dataRoot + '/train',[opt.imageSize_W, opt.imageSize_H],norm=opt.norm)
     loader_train = DataLoader(dataset=dataset_train, batch_size=opt.batchSize_train,num_workers=1, drop_last=False, shuffle=True)
     
-    dataset_valid = RESIDE_Beta_Dataset.RESIDE_Beta_Dataset_With_Notation(opt.dataRoot, [opt.imageSize_W, opt.imageSize_H],split='val', printName=False, returnName=True, norm=opt.norm)
+    dataset_valid = RESIDE_Dataset(opt.dataRoot + '/val',[opt.imageSize_W, opt.imageSize_H],norm=opt.norm)
     loader_valid = DataLoader(dataset=dataset_valid, batch_size=opt.batchSize_val,num_workers=1, drop_last=False, shuffle=True)
     
     
