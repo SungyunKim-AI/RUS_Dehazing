@@ -22,7 +22,7 @@ from torch.utils.data import DataLoader
 
 from Module_Metrics.metrics import get_ssim_batch, get_psnr_batch
 from util import misc, save_log, utils
-from discriminator_val import validation
+from _discriminator_val import validation
 
 import matplotlib.pyplot as plt
 import torchvision.transforms.functional as F

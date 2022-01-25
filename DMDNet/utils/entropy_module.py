@@ -15,23 +15,19 @@ class Entropy_Module():
         self.best_value = 0.0
         
 
-    def get_cur(self, img, channel_first=False):
+    def get_cur(self, img):
 
         img = (img*255).astype(np.uint8)
+        self.img_size = img.shape[0] * img.shape[1]
+        entropys = np.array([0.0, 0.0, 0.0])
         
-        gray_img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-        val, cnt = np.unique(gray_img, return_counts=True)
-        
-        if channel_first:
-            self.img_size = img.shape[1] * img.shape[2]
-        else:
-            self.img_size = img.shape[0] * img.shape[1]
-        
-        prob = cnt / self.img_size    # PMF
-        
-        H_s = (-1) * np.sum(prob * np.log2(prob + self.eps))
-        
-        return H_s
+        for i in range(3):
+            channel = img[:,:,i]
+            val, cnt = np.unique(channel, return_counts=True)            
+            prob = cnt / self.img_size    # PMF
+            H_s = (-1) * np.sum(prob * np.log2(prob + self.eps))
+            entropys[i] = H_s
+        return np.mean(entropys), np.max(entropys), np.min(entropys)
     
     def get_diff(self, cur_img):
         self.cur_value = self.get_cur(cur_img)

@@ -72,6 +72,7 @@ class NYU_Dataset(Dataset):
             GT_airlight = (GT_airlight - air_list.mean()) / air_list.std()
         
         GT_airlight = np.expand_dims(GT_airlight, axis=0)
+        GT_beta = np.expand_dims(GT_beta, axis=0)
         
         hazy_input, clear_input = load_item(haze, clear, self.transform)
         

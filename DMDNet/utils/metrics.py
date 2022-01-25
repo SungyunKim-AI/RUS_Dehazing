@@ -86,8 +86,8 @@ def get_psnr(pred, gt):
     pred = torch.Tensor(pred).unsqueeze(0)
     gt = torch.Tensor(gt).unsqueeze(0)
     
-    pred=pred.clamp(0,1).cpu().detach().numpy()
-    gt=gt.clamp(0,1).cpu().detach().numpy()
+    pred=pred.cpu().detach().numpy()
+    gt=gt.cpu().detach().numpy()
     imdff = pred - gt
     rmse = math.sqrt(np.mean(imdff ** 2))
     if rmse == 0:

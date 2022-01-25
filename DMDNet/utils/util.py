@@ -48,7 +48,7 @@ def air_denorm(dataset,norm, airlight):
     if norm:
         if dataset == 'NYU':
             air_list = torch.Tensor([0.8, 0.9, 1.0])
-        elif dataset == 'RESIDE_beta':
+        elif dataset == 'RESIDE':
             air_list = torch.Tensor([0.8, 0.85, 0.9, 0.95, 1.0])
         mean, std = air_list.mean(), air_list.std(unbiased=False)
         airlight = (airlight * std) + mean
@@ -61,7 +61,7 @@ def air_norm(dataset,norm, airlight):
     if norm:
         if dataset == 'NYU':
             air_list = torch.Tensor([0.8, 0.9, 1.0])
-        elif dataset == 'RESIDE_beta':
+        elif dataset == 'RESIDE':
             air_list = torch.Tensor([0.8, 0.85, 0.9, 0.95, 1.0])
         mean, std = air_list.mean(), air_list.std()
         airlight = (airlight * std) + mean

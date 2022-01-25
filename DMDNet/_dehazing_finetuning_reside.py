@@ -22,8 +22,8 @@ from utils.util import compute_errors
 def get_args():
     parser = argparse.ArgumentParser()
     # dataset parameters
-    parser.add_argument('--dataset', required=False, default='RESIDE-beta',  help='dataset name')
-    parser.add_argument('--dataRoot', type=str, default='D:/data/RESIDE_beta',  help='data file path')
+    parser.add_argument('--dataset', required=False, default='RESIDE_V0_outdoor',  help='dataset name')
+    parser.add_argument('--dataRoot', type=str, default='D:/data/RESIDE_V0_outdoor',  help='data file path')
     parser.add_argument('--norm', action='store_true',  help='Image Normalize flag')
     
     # learning parameters
@@ -46,7 +46,6 @@ def get_args():
 def evaluate(model, device, valid_loader, log_wandb, epoch):
     model.eval()
     
-    #NYU {"0.0":0.0,"0.1":0.0,"0.2":0.0,"0.3":0.0,"0.5":0.0,"0.8":0.0}
     val_iters = {"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0}
         
     abs_rel_list ={"0.1":0.0,"0.2":0.0,"0.04":0.0,"0.06":0.0,"0.08":0.0,"0.12":0.0, "0.16":0.0} 
@@ -142,6 +141,7 @@ def train(model, device, train_loader, optim,loss_fun, log_wandb, epoch):
     loss_sum = 0 
     for batch in tqdm(train_loader):
         optim.zero_grad()
+        # hazy_input, clear_input, depth_input, airlight_input, beta_input, filename
         hazy_images, clear_images , depth_images, _, gt_betas, haze_names = batch
         
         hazy_images = hazy_images.to(device)
@@ -211,7 +211,7 @@ if __name__ == '__main__':
         'model_name' : 'DPT_finetuning',
         'init_lr' : opt.lr,
         'epochs' : opt.epochs,
-        'dataset' : 'RESIDE_beta_Dataset',
+        'dataset' : 'RESIDE_V0_outdoor',
         'batch_size': opt.batchSize_train,
         'image_size': [opt.imageSize_W,opt.imageSize_H]}
     
@@ -230,10 +230,10 @@ if __name__ == '__main__':
     model = model.to(memory_format=torch.channels_last)
     model.to(opt.device)
     
-    dataset_train = RESIDE_Beta_Dataset(opt.dataRoot + '/train',[opt.imageSize_W, opt.imageSize_H],norm=opt.norm)
+    dataset_train = RESIDE_Dataset(opt.dataRoot + '/train',[opt.imageSize_W, opt.imageSize_H],norm=opt.norm)
     loader_train = DataLoader(dataset=dataset_train, batch_size=opt.batchSize_train,num_workers=1, drop_last=False, shuffle=True)
     
-    dataset_valid = RESIDE_Beta_Dataset(opt.dataRoot + '/val',[opt.imageSize_W, opt.imageSize_H],norm=opt.norm)
+    dataset_valid = RESIDE_Dataset(opt.dataRoot + '/val',[opt.imageSize_W, opt.imageSize_H],norm=opt.norm)
     loader_valid = DataLoader(dataset=dataset_valid, batch_size=opt.batchSize_val,num_workers=1, drop_last=False, shuffle=True)
     
     

@@ -58,25 +58,25 @@ def get_args():
     
     # run parameters
     parser.add_argument('--betaStep', type=float, default=0.005, help='beta step')
-    parser.add_argument('--stepLimit', type=int, default=100, help='Multi step limit')
+    parser.add_argument('--stepLimit', type=int, default=250, help='Multi step limit')
     parser.add_argument('--eps', type=float, default=1e-12, help='Epsilon value for non zero calculating')
     return parser.parse_args()
     
 
 
-def run(opt, model, airlight_model, metrics_module, imgs, transform):
+def run(opt, model, airlight_model, imgs, transform):
     model.eval()
     airlight_model.eval()
 
     for img in imgs:
-        hazy = transform({"image": cv2.cvtColor(cv2.imread(img), cv2.COLOR_BGR2RGB) / 255.0})["image"]
-        
-        haze_name = os.path.basename(img)
+        hazy, clear = load_item(img['hazy'], img['clear'],transform)
+        haze_name = os.path.basename(img['hazy'])
         print(haze_name)
 
         hazy_images = torch.Tensor(hazy).unsqueeze(0).to(opt.device)
+        clear_images = torch.Tensor(clear).unsqueeze(0).to(opt.device)
         cur_hazy = hazy_images
-        last_entropy = 0
+        last_psnr = 0
         with torch.no_grad():
             airlight = airlight_model.forward(cur_hazy)
         airlight = util.air_denorm(opt.dataset,opt.norm,airlight)
@@ -89,27 +89,17 @@ def run(opt, model, airlight_model, metrics_module, imgs, transform):
 
             trans = torch.exp(cur_depth*opt.betaStep*-1)
             prediction = (cur_hazy - airlight) / (trans + opt.eps) + airlight
-            
-            
             folder_name = f'output/{haze_name[:-4]}'
             if not os.path.exists(folder_name):
                 os.mkdir(folder_name)
-            
-            
-            result_img = cv2.cvtColor(prediction[0].detach().cpu().numpy().transpose(1,2,0),cv2.COLOR_RGB2BGR)
-            cv2.imshow("airlight", np.full([opt.imageSize_W, opt.imageSize_W],airlight.detach().cpu()))
-            cv2.imshow("depth", cur_depth[0][0].detach().cpu().numpy()/10)
-            cv2.imshow("result", result_img)
-            cv2.imwrite(f"{folder_name}/{haze_name[:-4]}_{step*opt.betaStep:1.3f}.jpg",result_img*255)
+            cv2.imwrite(f"{folder_name}/{haze_name[:-4]}_{step*opt.betaStep:1.3f}.jpg",cv2.cvtColor(prediction[0].detach().cpu().numpy().transpose(1,2,0),cv2.COLOR_RGB2BGR)*255)
             cv2.waitKey(0)
+            cur_psnr = get_psnr(prediction[0].detach().cpu().numpy(),util.denormalize(clear_images,opt.norm)[0].detach().cpu().numpy())
+            print(cur_psnr)
             
-            
-            cur_mean_entropy, _, _ = metrics_module.get_cur(prediction[0].detach().cpu().numpy().transpose(1,2,0))
-            print(cur_mean_entropy)
-            
-            # if cur_mean_entropy < last_entropy and step!=1:
-            #     break
-            last_entropy = cur_mean_entropy
+            if cur_psnr<last_psnr:
+                break
+            last_psnr = cur_psnr
             cur_hazy = util.normalize(prediction[0].detach().cpu().numpy().transpose(1,2,0),opt.norm).unsqueeze(0).to(opt.device)
             
 
@@ -142,13 +132,14 @@ if __name__ == '__main__':
     airlight_model.load_state_dict(checkpoint['model_state_dict'])
     airlight_model.to(opt.device)
 
-    hazy_imgs = glob('input/*.jpg')
+    hazy_imgs = glob('input/hazy/*.*')
 
     imgs=[]
-    for hazy_img in hazy_imgs:
-        imgs.append(hazy_img)
+    for i,_ in enumerate(hazy_imgs):
+        token = os.path.basename(hazy_imgs[i]).split('_')
+        imgs.append({'hazy':hazy_imgs[i],'clear':'input/clear/'+token[0]+'.'+token[-1].split('.')[-1]})
+
     
     transform = make_transform([opt.imageSize_W, opt.imageSize_H], norm=opt.norm)
-    metrics_module = Entropy_Module()
 
-    run(opt, model, airlight_model, metrics_module, imgs, transform)
+    run(opt, model, airlight_model, imgs, transform)
