@@ -17,11 +17,11 @@ def get_args():
     # opt.dataRoot = 'D:/data/RESIDE_beta'
     parser = argparse.ArgumentParser(description='Train the UNet')
     parser.add_argument('--dataset', required=False, default='RESIDE',  help='dataset name')
-    parser.add_argument('--dataRoot', type=str, default='C:/Users/IIPL/Desktop/data/RESIDE_V0_outdoor',  help='data file path')
+    parser.add_argument('--dataRoot', type=str, default='D:/data/RESIDE_V0_outdoor',  help='data file path')
     
     # learning parameters
     parser.add_argument('--seed', type=int, default=101, help='Random Seed')
-    parser.add_argument('--batchSize', type=int, default=12, help='dataloader input batch size')
+    parser.add_argument('--batchSize', type=int, default=48, help='dataloader input batch size')
     parser.add_argument('--imageSize_W', type=int, default=256, help='the width of the resized input image to network')
     parser.add_argument('--imageSize_H', type=int, default=256, help='the height of the resized input image to network')
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate for optimizers')
@@ -154,12 +154,16 @@ if __name__ == '__main__':
     optimizer = optim.Adam(net.parameters(), lr=opt.lr)
     grad_scaler = torch.cuda.amp.GradScaler(enabled=opt.amp)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=2)
+
+    checkpoint = torch.load(opt.save_path + "/Air_UNet_RESIDE_V0_epoch_01.pt")
+    net.load_state_dict(checkpoint['model_state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     
     # criterion = nn.L1Loss()
     criterion = nn.MSELoss()
     
     iters = 0
-    for epoch in range(1, opt.epochs+1):
+    for epoch in range(2, opt.epochs+1):
         epoch_loss, iters = train_one_epoch(opt, train_loader, net, optimizer, grad_scaler, criterion, epoch, iters)
         scheduler.step(epoch_loss)
         
