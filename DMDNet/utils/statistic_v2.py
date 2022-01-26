@@ -206,7 +206,7 @@ if __name__ == '__main__':
         # print(f'max_psnr_mean={max_psnr_mean:.3f}({max_psnr_std:.3f}), max_ssim_mean={max_ssim_mean:.3f}({max_ssim_std:.3f})')
         
         stopper_psnr_mean, stopper_ssim_mean, stopper_psnr_std, stopper_ssim_std = getMean_Stopper_PSNR_SSIM_3(all_df_dict)
-        print(f'stopper_psnr_mean={stopper_psnr_mean:.3f}({stopper_psnr_std:.3f}), stopper_ssim_mean={stopper_ssim_mean:.3f}({stopper_ssim_std:.3f})')
+        print(f'stopper_psnr_mean={stopper_psnr_mean:.3f}({stopper_psnr_std:.3f})       {stopper_ssim_mean:.3f}({stopper_ssim_std:.3f})')
         print()
         
         # Data Plot
@@ -241,6 +241,13 @@ if __name__ == '__main__':
 (beta=0.12) 33.204(7.097)       0.961(0.096)
 (beta=0.16) 33.149(6.199)       0.958(0.108)
 (beta=0.20) 33.618(6.671)       0.956(0.109)
+
+4. 기회 2번 + 전거 + 체리피킹
+            stopper_psnr_mean   stopper_ssim_mean
+(beta=0.08) 33.599(7.018)       0.959(0.113)
+(beta=0.12) 33.491(6.420)       0.970(0.036)
+(beta=0.16) 33.352(5.934)       0.960(0.108)
+(beta=0.20) 33.702(6.647)       0.956(0.109)
 
 """
     
