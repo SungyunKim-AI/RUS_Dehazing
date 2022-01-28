@@ -59,13 +59,14 @@ class NYU_Dataset(Dataset):
         
     def __getitem__(self,index):
         haze = self.hazy_lists[index//self.images_count][index%self.images_count]
+        filename = os.path.basename(haze)
         clear = self.images_clear_list[index%self.images_count]
         GT_depth = np.load(self.depths_list[index%self.images_count])
         GT_depth = cv2.resize(GT_depth, (self.img_size[0], self.img_size[1]), interpolation=cv2.INTER_CUBIC)
         GT_depth = np.expand_dims(GT_depth, axis=0)
         
-        GT_airlight = np.array(float(os.path.basename(haze).split('_')[-2]))
-        GT_beta = np.array(float(os.path.basename(haze).split('_')[-1][:-4]))
+        GT_airlight = np.array(float(filename.split('_')[-2]))
+        GT_beta = np.array(float(filename.split('_')[-1][:-4]))
 
         if self.norm:
             air_list = np.array([0.8, 0.9, 1.0])
@@ -76,6 +77,6 @@ class NYU_Dataset(Dataset):
         
         hazy_input, clear_input = load_item(haze, clear, self.transform)
         
-        return hazy_input, clear_input, GT_depth, GT_airlight, GT_beta, haze
+        return hazy_input, clear_input, GT_depth, GT_airlight, GT_beta, filename
         
     

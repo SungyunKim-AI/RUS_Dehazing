@@ -138,4 +138,6 @@ wandb/
 *.npy
 *.pk
 *.csv
-RESIDE_v0/
+1234.txt
+*.zip
+*.mat

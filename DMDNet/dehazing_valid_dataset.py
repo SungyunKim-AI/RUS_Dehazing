@@ -41,11 +41,11 @@ def get_args():
     
     # RESIDE
     parser.add_argument('--dataset', required=False, default='RESIDE',  help='dataset name')
-    parser.add_argument('--dataRoot', type=str, default='D:/data/RESIDE',  help='data file path')
+    parser.add_argument('--dataRoot', type=str, default='D:/data/RESIDE_V0_outdoor',  help='data file path')
     parser.add_argument('--scale', type=float, default=0.000150,  help='depth scale')
     parser.add_argument('--shift', type=float, default= 0.1378,  help='depth shift')
-    parser.add_argument('--preTrainedModel', type=str, default='weights/depth_weights/dpt_hybrid_nyu-2ce69ec_RESIDE_011.pt', help='pretrained DPT path')
-    parser.add_argument('--preTrainedAirModel', type=str, default='weights/air_weights/Air_UNet_RESIDE_1D.pt', help='pretrained Air path')
+    parser.add_argument('--preTrainedModel', type=str, default='weights/depth_weights/dpt_hybrid_nyu-2ce69ec_RESIDE_017_RESIDE_002.pt', help='pretrained DPT path')
+    parser.add_argument('--preTrainedAirModel', type=str, default='weights/air_weights/Air_UNet_RESIDE_V0_epoch_16.pt', help='pretrained Air path')
     
     # learning parameters
     parser.add_argument('--seed', type=int, default=101, help='Random Seed')
@@ -135,7 +135,7 @@ def run(opt, model, airlight_model, metrics_module, loader):
         #     cv2.imshow("best_max", best_max_entropy_image)
         # if best_min_entropy_image is not None:
         #     cv2.imshow("best_min", best_min_entropy_image)
-        # cv2.waitKey(0) 
+        # cv2.waitKey(0)
         
         f.close()
            
@@ -173,8 +173,7 @@ if __name__ == '__main__':
     if opt.dataset == 'NYU':
         val_set   = NYU_Dataset(opt.dataRoot + '/val', **dataset_args)
     elif opt.dataset == 'RESIDE':
-        #val_set   = RESIDE_Dataset(opt.dataRoot + '/val',   **dataset_args)
-        val_set   = RESIDE_Dataset('D:/data/RESIDE_V0_outdoor' + '/val',   **dataset_args)
+        val_set   = RESIDE_Dataset(opt.dataRoot + '/val',   **dataset_args)
 
     loader_args = dict(batch_size=1, num_workers=1, drop_last=False, shuffle=True)
     val_loader = DataLoader(dataset=val_set, **loader_args)

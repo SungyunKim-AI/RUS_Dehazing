@@ -33,18 +33,18 @@ def get_args():
     parser = argparse.ArgumentParser()
     # dataset parameters
     # NYU
-    parser.add_argument('--dataset', required=False, default='NYU',  help='dataset name')
-    parser.add_argument('--scale', type=float, default=0.000305,  help='depth scale')
-    parser.add_argument('--shift', type=float, default= 0.1378,  help='depth shift')
-    parser.add_argument('--preTrainedModel', type=str, default='weights/depth_weights/dpt_hybrid_nyu-2ce69ec7_nyu_haze_002.pt', help='pretrained DPT path')
-    parser.add_argument('--preTrainedAirModel', type=str, default='weights/air_weights/Air_UNet_NYU_1D.pt', help='pretrained Air path')
+    # parser.add_argument('--dataset', required=False, default='NYU',  help='dataset name')
+    # parser.add_argument('--scale', type=float, default=0.000305,  help='depth scale')
+    # parser.add_argument('--shift', type=float, default= 0.1378,  help='depth shift')
+    # parser.add_argument('--preTrainedModel', type=str, default='weights/depth_weights/dpt_hybrid_nyu-2ce69ec_RESIDE_017_RESIDE_002', help='pretrained DPT path')
+    # parser.add_argument('--preTrainedAirModel', type=str, default='weights/air_weights/Air_UNet_RESIDE_V0_epoch_16.pt', help='pretrained Air path')
     
     # RESIDE
-    # parser.add_argument('--dataset', required=False, default='RESIDE_beta',  help='dataset name')
-    # parser.add_argument('--scale', type=float, default=0.000150,  help='depth scale')
-    # parser.add_argument('--shift', type=float, default= 0.1378,  help='depth shift')
-    # parser.add_argument('--preTrainedModel', type=str, default='weights/depth_weights/dpt_hybrid_nyu-2ce69ec7_reside_haze_002.pt', help='pretrained DPT path')
-    # parser.add_argument('--preTrainedAirModel', type=str, default='weights/air_weights/Air_UNet_RESIDE_1D.pt', help='pretrained Air path')
+    parser.add_argument('--dataset', required=False, default='RESIDE',  help='dataset name')
+    parser.add_argument('--scale', type=float, default=0.000150,  help='depth scale')
+    parser.add_argument('--shift', type=float, default= 0.1378,  help='depth shift')
+    parser.add_argument('--preTrainedModel', type=str, default='weights/depth_weights/dpt_hybrid_nyu-2ce69ec_RESIDE_017_RESIDE_002.pt', help='pretrained DPT path')
+    parser.add_argument('--preTrainedAirModel', type=str, default='weights/air_weights/Air_UNet_RESIDE_V0_epoch_16.pt', help='pretrained Air path')
     
     # learning parameters
     parser.add_argument('--seed', type=int, default=101, help='Random Seed')
@@ -57,8 +57,8 @@ def get_args():
     parser.add_argument('--backbone', type=str, default="vitb_rn50_384", help='DPT backbone')
     
     # run parameters
-    parser.add_argument('--betaStep', type=float, default=0.005, help='beta step')
-    parser.add_argument('--stepLimit', type=int, default=100, help='Multi step limit')
+    parser.add_argument('--betaStep', type=float, default=0.01, help='beta step')
+    parser.add_argument('--stepLimit', type=int, default=30, help='Multi step limit')
     parser.add_argument('--eps', type=float, default=1e-12, help='Epsilon value for non zero calculating')
     return parser.parse_args()
     
@@ -97,9 +97,9 @@ def run(opt, model, airlight_model, metrics_module, imgs, transform):
             
             
             result_img = cv2.cvtColor(prediction[0].detach().cpu().numpy().transpose(1,2,0),cv2.COLOR_RGB2BGR)
-            cv2.imshow("airlight", np.full([opt.imageSize_W, opt.imageSize_W],airlight.detach().cpu()))
-            cv2.imshow("depth", cur_depth[0][0].detach().cpu().numpy()/10)
-            cv2.imshow("result", result_img)
+            # cv2.imshow("airlight", np.full([opt.imageSize_W, opt.imageSize_W],airlight.detach().cpu()))
+            # cv2.imshow("depth", cur_depth[0][0].detach().cpu().numpy()/10)
+            # cv2.imshow("result", result_img)
             cv2.imwrite(f"{folder_name}/{haze_name[:-4]}_{step*opt.betaStep:1.3f}.jpg",result_img*255)
             cv2.waitKey(0)
             
