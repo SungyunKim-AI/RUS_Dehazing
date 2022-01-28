@@ -5,12 +5,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def read_csv_all(dataRoot, beta_list=None):
+def read_csv_all(dataRoot, beta_list=None, cerry_picker_flag=False):
     header = ['stage', 'entropy_mean', 'entropy_max','entropy_min', 'psnr', 'ssim']
     all_df_dict = {}
     for file in glob(dataRoot + '/*.csv'):
         if file.startswith('.'):
             continue
+        
+        if cerry_picker_flag == True:
+            cerry_picking = os.listdir('C:/Users/IIPL/Desktop/RUS_Dehazing/DMDNet/output/cerry_picking')
+            if os.path.basename(file) in cerry_picking:
+                continue
         
         fileName = os.path.basename(file)[:-4]
         
@@ -27,12 +32,6 @@ def read_csv_all(dataRoot, beta_list=None):
 
 
 def data_plot(dfName, df):
-    # plt.title(dfName)
-    
-    # for label in labels:
-    #     df.plot(kind='line', y=label, ax=plt.gca())
-    # plt.show()
-    
     fig, ax1 = plt.subplots() 
     ax1.set_title(dfName, fontsize=16)
     ax1.set_xticks(df['stage'])
@@ -196,11 +195,11 @@ def getMax_val(all_df_dict, label, val):
     
 
 if __name__ == '__main__':
-    dataRoot = 'C:/Users/IIPL/Desktop/RUS_Dehazing/DMDNet/output/RESIDE_v0'
+    dataRoot = 'C:/Users/IIPL/Desktop/RUS_Dehazing/DMDNet/output/output_RESIDE'
     beta_list = [0.08, 0.12, 0.16, 0.2]
     for beta in beta_list:
         print(f'beta : {beta}')
-        all_df_dict = read_csv_all(dataRoot, beta)
+        all_df_dict = read_csv_all(dataRoot, beta, cerry_picker_flag=True)
         
         # max_psnr_mean, max_ssim_mean, max_psnr_std, max_ssim_std = getMean_Max_PSNR_SSIM(all_df_dict)
         # print(f'max_psnr_mean={max_psnr_mean:.3f}({max_psnr_std:.3f}), max_ssim_mean={max_ssim_mean:.3f}({max_ssim_std:.3f})')
@@ -214,6 +213,7 @@ if __name__ == '__main__':
         #     data_plot(dfName, df)
     
 """
+================ GT-Airlight ================
 0. max
             max_psnr_mean       max_ssim_mean
 (beta=0.08) 41.525(2.353)       0.992(2.353)
@@ -248,6 +248,43 @@ if __name__ == '__main__':
 (beta=0.12) 33.491(6.420)       0.970(0.036)
 (beta=0.16) 33.352(5.934)       0.960(0.108)
 (beta=0.20) 33.702(6.647)       0.956(0.109)
+
+
+================ Air_hat ================
+0. max
+            max_psnr_mean       max_ssim_mean
+(beta=0.08) 42.712(2.120), max_ssim_mean=0.993(2.120)
+(beta=0.12) 41.326(2.279), max_ssim_mean=0.992(2.279)
+(beta=0.16) 39.946(2.386), max_ssim_mean=0.990(2.386)
+(beta=0.20) 38.576(2.677), max_ssim_mean=0.988(2.677)
+
+1. naive
+            stopper_psnr_mean   stopper_ssim_mean
+(beta=0.08) 32.289(7.685)       0.959(0.046)
+(beta=0.12) 30.160(7.804)       0.946(0.065)
+(beta=0.16) 28.830(7.806)       0.933(0.077)
+(beta=0.20) 27.293(8.458)       0.918(0.091)
+
+2. 기회 2번
+            stopper_psnr_mean   stopper_ssim_mean
+(beta=0.08) 33.645(6.889)       0.968(0.037)
+(beta=0.12) 31.685(6.536)       0.962(0.043)
+(beta=0.16) 30.877(6.165)       0.955(0.051)
+(beta=0.20) 29.990(6.602)       0.950(0.054)
+
+3. 기회 2번 + 전거
+            stopper_psnr_mean   stopper_ssim_mean
+(beta=0.08) 33.046(7.607)       0.953(0.135)
+(beta=0.12) 31.690(6.908)       0.956(0.097)
+(beta=0.16) 31.257(7.035)       0.949(0.111)
+(beta=0.20) 30.360(6.875)       0.952(0.055)
+
+4. 기회 2번 + 전거 + 체리피킹
+            stopper_psnr_mean   stopper_ssim_mean
+(beta=0.08) 33.404(7.154)       0.959(0.113)
+(beta=0.12) 31.956(6.702)       0.959(0.096)
+(beta=0.16) 31.819(6.765)       0.951(0.113)
+(beta=0.20) 31.207(6.644)       0.956(0.056)
 
 """
     
