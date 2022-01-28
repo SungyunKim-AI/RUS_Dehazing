@@ -22,7 +22,7 @@ def get_args():
     parser.add_argument('--dataRoot', type=str, default='D:/data/RESIDE_V0_outdoor',  help='data file path')
     parser.add_argument('--scale', type=float, default=0.000150,  help='depth scale')
     parser.add_argument('--shift', type=float, default= 0.1378,  help='depth shift')
-    parser.add_argument('--preTrainedModel', type=str, default='weights/depth_weights/dpt_hybrid_nyu-2ce69ec7.pt', help='pretrained DPT path')
+    parser.add_argument('--preTrainedModel', type=str, default='weights/depth_weights/dpt_hybrid_nyu-2ce69ec_RESIDE_017.pt', help='pretrained DPT path')
     parser.add_argument('--backbone', type=str, default="vitb_rn50_384", help='DPT backbone')
 
     # learning parameters
@@ -36,11 +36,10 @@ def get_args():
 
     return parser.parse_args()
 
-def train(model, train_loader, optim, device, loss_fun, log_wandb, epoch):
+def train(model, train_loader, optim, device, loss_fun, log_wandb, epoch, global_iter):
     
     loss_sum = 0
     for batch in tqdm(train_loader):
-        global_iter = 0
         optim.zero_grad()
         # hazy_input, clear_input, depth_input, airlight_input, beta_input, filename
         hazy_images, _, depth_images, _, _, _ = batch
@@ -55,12 +54,12 @@ def train(model, train_loader, optim, device, loss_fun, log_wandb, epoch):
         if epoch!=0:
             loss.backward()
             optim.step()
-        loss_sum += loss.item()
-    if log_wandb:
-        wandb.log({
-            "loss":loss_sum / global_iter,
-            "epoch":epoch
-        })
+        if log_wandb:
+            wandb.log({
+                "loss":loss.item(),
+                "iters": global_iter,
+                "epoch":epoch
+            })
     
 def evaluate(model, input, device, log_wandb, epoch):
     # hazy_input, clear_input, depth_input, airlight_input, beta_input, filename
@@ -79,11 +78,12 @@ def evaluate(model, input, device, log_wandb, epoch):
 def run(model, train_loader, optim, device, log_wandb):
     #loss_fun = nn.L1Loss().to(device)
     loss_fun = nn.MSELoss().to(device)
+    global_iter = 0;   
     evaluate(model, train_loader.dataset[0], device, log_wandb, 0)
-    train(model, train_loader, optim, device, loss_fun, log_wandb, 0)
+    train(model, train_loader, optim, device, loss_fun, log_wandb, 0, global_iter)
     
     for epoch in range(1, 100):
-        train(model, train_loader, optim, device, loss_fun, log_wandb, epoch)
+        train(model, train_loader, optim, device, loss_fun, log_wandb, epoch, global_iter)
         
         evaluate(model, train_loader.dataset[0], device, log_wandb, epoch)
         
@@ -95,7 +95,7 @@ if __name__ == '__main__':
     
     opt = get_args()
     
-    opt.log_wandb = False
+    opt.log_wandb = True
     opt.norm = True
     opt.verbose = True
     

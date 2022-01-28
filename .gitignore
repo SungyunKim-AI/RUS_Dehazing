@@ -139,3 +139,5 @@ wandb/
 *.pk
 *.csv
 1234.txt
+*.zip
+*.mat

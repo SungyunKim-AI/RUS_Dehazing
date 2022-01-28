@@ -50,9 +50,12 @@ def air_denorm(dataset,norm, airlight):
             air_list = torch.Tensor([0.8, 0.9, 1.0])
         elif dataset == 'RESIDE':
             air_list = torch.Tensor([0.8, 0.85, 0.9, 0.95, 1.0])
+        elif dataset == 'KITTI':
+            return airlight
         mean, std = air_list.mean(), air_list.std(unbiased=False)
         airlight = (airlight * std) + mean
         airlight = torch.clamp(airlight, 0, 1)
+            
 
     return airlight
 
