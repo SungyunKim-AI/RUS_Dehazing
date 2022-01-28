@@ -204,13 +204,14 @@ if __name__ == '__main__':
         # max_psnr_mean, max_ssim_mean, max_psnr_std, max_ssim_std = getMean_Max_PSNR_SSIM(all_df_dict)
         # print(f'max_psnr_mean={max_psnr_mean:.3f}({max_psnr_std:.3f}), max_ssim_mean={max_ssim_mean:.3f}({max_ssim_std:.3f})')
         
-        stopper_psnr_mean, stopper_ssim_mean, stopper_psnr_std, stopper_ssim_std = getMean_Stopper_PSNR_SSIM_3(all_df_dict)
-        print(f'stopper_psnr_mean={stopper_psnr_mean:.3f}({stopper_psnr_std:.3f})       {stopper_ssim_mean:.3f}({stopper_ssim_std:.3f})')
-        print()
+        # stopper_psnr_mean, stopper_ssim_mean, stopper_psnr_std, stopper_ssim_std = getMean_Stopper_PSNR_SSIM_3(all_df_dict)
+        # print(f'stopper_psnr_mean={stopper_psnr_mean:.3f}({stopper_psnr_std:.3f})       {stopper_ssim_mean:.3f}({stopper_ssim_std:.3f})')
+        # print()
         
         # Data Plot
-        # for dfName, df in all_df_dict.items():
-        #     data_plot(dfName, df)
+        for dfName, df in all_df_dict.items():
+            data_plot(dfName, df)
+    
     
 """
 ================ GT-Airlight ================

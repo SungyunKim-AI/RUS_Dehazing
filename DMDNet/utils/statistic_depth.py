@@ -38,8 +38,8 @@ def data_plot(dfName, df):
     
     ax2 = ax1.twinx() 
     color_2 = 'tab:red' 
-    ax2.set_ylabel('sq_rel (red)', color=color_2) 
-    ax2.plot(df['sq_rel'], marker='.', color=color_2) 
+    ax2.set_ylabel('a1 (red)', color=color_2) 
+    ax2.plot(df['a1'], marker='.', color=color_2) 
     ax2.tick_params(axis='y', labelcolor=color_2)
     plt.show()
 
@@ -98,29 +98,29 @@ if __name__ == '__main__':
     # header = ['stage', 'abs_rel', 'sq_rel','rmse', 'rmse_log', 'a1', 'a2', 'a3']
     # dataRoot = 'C:/Users/IIPL/Desktop/RUS_Dehazing/DMDNet/output/output_DPT_depth_NYU'
     
-    # dataRoot = 'C:/Users/IIPL/Desktop/RUS_Dehazing/DMDNet/output/output_Monodepth_depth_KITTI'
-    # beta_list = [0.1, 0.2, 0.3]
+    dataRoot = 'C:/Users/IIPL/Desktop/RUS_Dehazing/DMDNet/output/output_Monodepth_depth_KITTI'
+    beta_list = [0.1, 0.2, 0.3]
     
     # dataRoot = 'C:/Users/IIPL/Desktop/RUS_Dehazing/DMDNet/output/output_DPT_depth_NYU'
     # beta_list = [0.1, 0.3, 0.5, 0.7]
     
-    dataRoot = 'C:/Users/IIPL/Desktop/RUS_Dehazing/DMDNet/output/output_DPT_depth_KITTI'
-    beta_list = [0.1, 0.2, 0.3]
+    # dataRoot = 'C:/Users/IIPL/Desktop/RUS_Dehazing/DMDNet/output/output_DPT_depth_KITTI'
+    # beta_list = [0.1, 0.2, 0.3]
     
     for beta in beta_list:
         print(f'beta : {beta}')
         all_df_dict = read_csv_all(dataRoot, beta)
         
-        var_dict = get_Varitation(all_df_dict, beta, labels=['abs_rel', 'sq_rel','rmse', 'rmse_log', 'a1', 'a2', 'a3'])
-        for key, value in var_dict.items():
-            print(key)
-            percent, improve_mean, decade_mean = var_dict[key]['percent'], var_dict[key]['improve_mean'], var_dict[key]['decade_mean']
-            print(f'depth 개선 비율 : {percent:.2f}%')
-            print(f'개선 정도 : {improve_mean:.5f}')
-            print(f'퇴보 정도 : {decade_mean:.5f}')
-        print()
+        # var_dict = get_Varitation(all_df_dict, beta, labels=['abs_rel', 'sq_rel','rmse', 'rmse_log', 'a1', 'a2', 'a3'])
+        # for key, value in var_dict.items():
+        #     print(key)
+        #     percent, improve_mean, decade_mean = var_dict[key]['percent'], var_dict[key]['improve_mean'], var_dict[key]['decade_mean']
+        #     print(f'depth 개선 비율 : {percent:.2f}%')
+        #     print(f'개선 정도 : {improve_mean:.5f}')
+        #     print(f'퇴보 정도 : {decade_mean:.5f}')
+        # print()
         
         # Data Plot
-        # for dfName, df in all_df_dict.items():
-        #     data_plot(dfName, df)
+        for dfName, df in all_df_dict.items():
+            data_plot(dfName, df)
     
