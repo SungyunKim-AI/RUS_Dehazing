@@ -4,7 +4,6 @@ import numpy as np
 from torch.utils.data.dataloader import DataLoader
 from tqdm import tqdm
 import torch
-from models.depth_models import DPTDepthModel
 from dataset import *
 from utils.entropy_module import Entropy_Module
 from utils import util
