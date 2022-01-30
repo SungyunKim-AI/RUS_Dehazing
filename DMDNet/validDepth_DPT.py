@@ -15,7 +15,7 @@ import csv
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--betaStep', type=float, default=0.01, help='beta step')
+    parser.add_argument('--betaStep', type=float, default=0.005, help='beta step')
     parser.add_argument('--norm', action='store_true',  help='Image Normalize flag')
     # NYU
     # parser.add_argument('--dataset', required=False, default='NYU',  help='dataset name')
@@ -70,12 +70,12 @@ def run(opt, model, loader, airlight_module, entropy_module):
         # airlight = util.air_denorm(opt.dataset, opt.norm, airlight).item()
         # airlight = util.air_denorm(opt.dataset, opt.norm, gt_airlight).item()
 
-        steps = int((gt_beta+0.1) / opt.betaStep)
+        steps = int((gt_beta+0.02) / opt.betaStep)
         for step in range(0,steps):
             with torch.no_grad():
                 cur_depth = model.forward(cur_hazy)
             cur_hazy = util.denormalize(cur_hazy,opt.norm)
-            trans = torch.exp(cur_depth/5*opt.betaStep*-1)
+            trans = torch.exp(cur_depth*opt.betaStep*-1)
             prediction = (cur_hazy - airlight) / (trans + 1e-12) + airlight
             prediction = torch.clamp(prediction.float(),0,1)
              
@@ -94,7 +94,7 @@ def run(opt, model, loader, airlight_module, entropy_module):
             
             cv2.imshow('depth', cv2.resize(depth_set.detach().cpu().numpy().astype(np.uint8).transpose(1,2,0),(500,500)))
             cv2.imshow('dehaze', cv2.resize(cv2.cvtColor(haze_set.detach().cpu().numpy().astype(np.uint8).transpose(1,2,0),cv2.COLOR_RGB2BGR),(500,500)))
-            cv2.waitKey(1)        
+            cv2.waitKey(0)        
 
             cur_hazy = util.normalize(prediction[0].detach().cpu().numpy().transpose(1,2,0).astype(np.float32),opt.norm).unsqueeze(0).to('cuda')
         f.close()
