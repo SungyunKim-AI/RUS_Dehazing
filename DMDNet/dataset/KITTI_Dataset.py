@@ -33,7 +33,6 @@ class KITTI_Dataset(Dataset):
     def __getitem__(self,index):
         haze = self.hazy_lists[index]
         filename = os.path.basename(haze)
-        print(filename)
         airlight_input = np.array(float(filename.split('_')[1]))
         beta_input = np.array(float(filename.split('_')[2][:-4]))
         

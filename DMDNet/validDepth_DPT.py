@@ -23,7 +23,7 @@ def get_args():
     
     # KITTI
     parser.add_argument('--dataset', required=False, default='KITTI',  help='dataset name')
-    parser.add_argument('--dataRoot', type=str, default='D:/data/KITTI/val',  help='data file path')
+    parser.add_argument('--dataRoot', type=str, default='D:/data/KITTI_eigen_benchmark/val',  help='data file path')
     
     
     

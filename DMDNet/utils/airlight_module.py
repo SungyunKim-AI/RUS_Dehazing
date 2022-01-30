@@ -411,8 +411,6 @@ class Airlight_Module():
 
     def get_airlight(self, image, norm):
         image_numpy = (denormalize(image, norm)[0].detach().cpu().numpy().transpose(1,2,0)*255).astype(np.uint8)
-
-        print(image_numpy.shape)
         awc_rgb = self.AWC(image_numpy, True, 'BGR')
         _, airlight = self.LLF(awc_rgb)
         return airlight[0]
