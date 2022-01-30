@@ -23,7 +23,7 @@ def get_args():
     
     # KITTI
     parser.add_argument('--dataset', required=False, default='KITTI',  help='dataset name')
-    parser.add_argument('--dataRoot', type=str, default='D:/data/KITTI_eigen_benchmark/val',  help='data file path')
+    parser.add_argument('--dataRoot', type=str, default='D:/data/KITTI/val',  help='data file path')
     
     
     
@@ -49,14 +49,16 @@ def run(opt, model, loader, airlight_module, entropy_module):
         # hazy_input, clear_input, GT_depth, GT_airlight, GT_beta, haze
         hazy_images, clear_images, depth_images, gt_airlight, gt_beta, input_names = batch
         with torch.no_grad():
-            hazy_images = hazy_images.to('cuda')
             clear_images = clear_images.to('cuda')
-            depth_images = depth_images.to('cuda')
-            cur_hazy = hazy_images.to('cuda')
+            depth_images = model.forward(clear_images)
+            trans = torch.exp(depth_images*gt_beta.item()*-1)
+            gt_airlight = util.air_denorm(opt.dataset, opt.norm, gt_airlight)[0][0]
+            hazy_images = clear_images*trans + gt_airlight*(1-trans)
+            cur_hazy = hazy_images
             init_depth = model.forward(cur_hazy)
-            #depth_images = model.forward(clear_images)
 
-        output_name = output_folder + '/' + input_names[0] + '.csv'
+        output_name = output_folder + '/' + input_names[0][:-4] + '/' + input_names[0][:-4] + '.csv'
+        print(output_name)
         if not os.path.exists(f'{output_folder}/{input_names[0][:-4]}'):
             os.makedirs(f'{output_folder}/{input_names[0][:-4]}')
         f = open(output_name,'w', newline='')
@@ -92,9 +94,9 @@ def run(opt, model, loader, airlight_module, entropy_module):
             cv2.imwrite(f'{output_folder}/{input_names[0][:-4]}/{step:03}.jpg', cv2.cvtColor(save_set.detach().cpu().numpy().astype(np.uint8).transpose(1,2,0), cv2.COLOR_RGB2BGR))
             
             
-            cv2.imshow('depth', cv2.resize(depth_set.detach().cpu().numpy().astype(np.uint8).transpose(1,2,0),(500,500)))
-            cv2.imshow('dehaze', cv2.resize(cv2.cvtColor(haze_set.detach().cpu().numpy().astype(np.uint8).transpose(1,2,0),cv2.COLOR_RGB2BGR),(500,500)))
-            cv2.waitKey(0)        
+            # cv2.imshow('depth', cv2.resize(depth_set.detach().cpu().numpy().astype(np.uint8).transpose(1,2,0),(500,500)))
+            # cv2.imshow('dehaze', cv2.resize(cv2.cvtColor(haze_set.detach().cpu().numpy().astype(np.uint8).transpose(1,2,0),cv2.COLOR_RGB2BGR),(500,500)))
+            # cv2.waitKey(0)        
 
             cur_hazy = util.normalize(prediction[0].detach().cpu().numpy().transpose(1,2,0).astype(np.float32),opt.norm).unsqueeze(0).to('cuda')
         f.close()

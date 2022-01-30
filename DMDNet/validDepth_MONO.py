@@ -19,7 +19,7 @@ from monodepth.layers import disp_to_depth
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--betaStep', type=float, default=0.01, help='beta step')
+    parser.add_argument('--betaStep', type=float, default=0.005, help='beta step')
     parser.add_argument('--norm', action='store_true',  help='Image Normalize flag')
     # NYU
     parser.add_argument('--dataset', required=False, default='KITTI',  help='dataset name')
@@ -41,18 +41,17 @@ def run(opt, encoder, decoder, loader, airlight_module, entropy_module):
         hazy_images, clear_images, depth_images, gt_airlight, gt_beta, input_names = batch
         # print(input_names)
         with torch.no_grad():
-            hazy_images = hazy_images.to('cuda')
             clear_images = clear_images.to('cuda')
-            depth_images = 1/(depth_images.to('cuda'))
-            cur_hazy = hazy_images.to('cuda')
-            init_depth = decoder(encoder(cur_hazy))[("disp", 0)]
-            _, init_depth = disp_to_depth(init_depth, 0.1, 100)
-        # print(torch.max(depth_images[0]))
+            _, depth_images = disp_to_depth(decoder(encoder(clear_images))[("disp", 0)], 0.1, 100)
+            trans = torch.exp(depth_images*gt_beta.item()*-1)
+            gt_airlight = util.air_denorm(opt.dataset, opt.norm, gt_airlight)[0][0]
+            hazy_images = clear_images*trans + gt_airlight*(1-trans)
+            cur_hazy = hazy_images
+            _, init_depth = disp_to_depth(decoder(encoder(cur_hazy))[("disp", 0)], 0.1, 100)
 
-        output_name = output_folder + '/' + input_names[0] + '.csv'
+        output_name = output_folder + '/' + input_names[0][:-4] + '/' + input_names[0][-4] + '.csv'
         if not os.path.exists(f'{output_folder}/{input_names[0][:-4]}'):
             os.makedirs(f'{output_folder}/{input_names[0][:-4]}')
-            
         f = open(output_name,'w', newline='')
         wr = csv.writer(f)
         
@@ -67,7 +66,7 @@ def run(opt, encoder, decoder, loader, airlight_module, entropy_module):
         print('airlight = ', airlight, 'gt_airlight = ', util.air_denorm(opt.dataset, opt.norm, gt_airlight).item())
         # print('beta = ',gt_beta)
         
-        steps = int((gt_beta+0.1) / opt.betaStep)
+        steps = int((gt_beta+0.02) / opt.betaStep)
         dehaze = None
         for step in range(0,steps):
             with torch.no_grad():
@@ -90,9 +89,9 @@ def run(opt, encoder, decoder, loader, airlight_module, entropy_module):
             save_set = torch.cat([haze_set, depth_set], dim=2)
             cv2.imwrite(f'{output_folder}/{input_names[0][:-4]}/{step:03}.jpg', cv2.cvtColor(save_set.detach().cpu().numpy().astype(np.uint8).transpose(1,2,0), cv2.COLOR_RGB2BGR))
             
-            cv2.imshow('depth', cv2.resize(depth_set.detach().cpu().numpy().astype(np.uint8).transpose(1,2,0),(500,500)))
-            cv2.imshow('dehaze', cv2.resize(cv2.cvtColor(haze_set.detach().cpu().numpy().astype(np.uint8).transpose(1,2,0),cv2.COLOR_RGB2BGR),(500,500)))
-            cv2.waitKey(0)
+            # cv2.imshow('depth', cv2.resize(depth_set.detach().cpu().numpy().astype(np.uint8).transpose(1,2,0),(500,500)))
+            # cv2.imshow('dehaze', cv2.resize(cv2.cvtColor(haze_set.detach().cpu().numpy().astype(np.uint8).transpose(1,2,0),cv2.COLOR_RGB2BGR),(500,500)))
+            # cv2.waitKey(0)
 
             cur_hazy = util.normalize(prediction[0].detach().cpu().numpy().transpose(1,2,0).astype(np.float32),opt.norm).unsqueeze(0).to('cuda')        
         #init_psnr = get_psnr(init_depth[0].detach().cpu().numpy(), depth_images[0].detach().cpu().numpy())
