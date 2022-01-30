@@ -58,7 +58,6 @@ def run(opt, model, loader, airlight_module, entropy_module):
             init_depth = model.forward(cur_hazy)
 
         output_name = output_folder + '/' + input_names[0][:-4] + '/' + input_names[0][:-4] + '.csv'
-        print(output_name)
         if not os.path.exists(f'{output_folder}/{input_names[0][:-4]}'):
             os.makedirs(f'{output_folder}/{input_names[0][:-4]}')
         f = open(output_name,'w', newline='')
