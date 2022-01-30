@@ -20,11 +20,11 @@ class KITTI_Dataset(Dataset):
         for hazy_folder in glob(path+'/hazy/*/'):
             if verbose:
                 print(hazy_folder + ' dataset ready!')
-            for hazy_image in glob(hazy_folder + '*.jpg'):
+            for hazy_image in glob(hazy_folder + '*.png'):
                 self.hazy_lists.append(hazy_image)
                 self.hazy_count+=1
         self.transform = make_transform(img_size, norm=norm)
-        self.airlights = np.load(path+'/airlight.npz')['data']
+        #self.airlights = np.load(path+'/airlight.npz')['data']
         
     def __len__(self):
         return self.hazy_count
@@ -33,18 +33,17 @@ class KITTI_Dataset(Dataset):
     def __getitem__(self,index):
         haze = self.hazy_lists[index]
         filename = os.path.basename(haze)
-        airlight_input = self.airlights[index%672]/255
-        beta_input = np.array(float(filename.split('_')[1][:-4]))
+        print(filename)
+        airlight_input = np.array(float(filename.split('_')[1]))
+        beta_input = np.array(float(filename.split('_')[2][:-4]))
         
         og_filename = filename.split('_')[0]
         
-        clear = self.path + '/clear/' + og_filename + '.jpg'
-        if not os.path.isfile(clear):
-            clear = self.path + '/clear/' + og_filename + '.png'
+        clear = self.path + '/clear/' + og_filename + '.png'
 
-        depth = self.path + '/depth/' + og_filename + '.npy'
+        depth = self.path + '/dense_depth/' + og_filename + '.npy'
         if os.path.isfile(depth):
-            depth_input = np.load(depth)[0].transpose(1,2,0)
+            depth_input = np.load(depth)
             depth_input = cv2.resize(depth_input, (self.img_size[0], self.img_size[1]), interpolation=cv2.INTER_CUBIC)
             depth_input = np.expand_dims(depth_input, axis=0)
             depth_input = depth_input.astype(np.float32)

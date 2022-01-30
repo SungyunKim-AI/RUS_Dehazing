@@ -75,12 +75,8 @@ def run(opt, model, airlight_model, metrics_module, loader):
 
     pbar = tqdm(loader)
     for batch in pbar:
-        hazy_images, clear_images, _, _, gt_betas, input_names = batch
+        hazy_images, clear_images, depth_images, _, gt_betas, input_names = batch
         gt_beta = gt_betas[0]
-        
-        last_mean_entropy = 0
-        last_max_entropy = 0
-        last_min_entropy = 0
             
         output_name = output_folder + '/' + input_names[0] + '.csv'
         f = open(output_name,'w', newline='')
@@ -123,10 +119,7 @@ def run(opt, model, airlight_model, metrics_module, loader):
             #     print("^^^^^^^^^^^^^^^^^^^^^^^^ best min_entropy")
             #     best_min_entropy_image = cv2.cvtColor(cur_hazy[0].detach().cpu().numpy().transpose(1,2,0),cv2.COLOR_RGB2BGR)
             
-            wr.writerow([step, cur_mean_entropy, cur_max_entropy, cur_min_entropy, cur_psnr, cur_ssim])
-            last_mean_entropy = cur_mean_entropy
-            last_max_entropy = cur_max_entropy
-            last_min_entropy = cur_min_entropy
+            wr.writerow([step, cur_mean_entropy, cur_psnr, cur_ssim])
             
             cur_hazy = util.normalize(prediction[0].detach().cpu().numpy().transpose(1,2,0),opt.norm).unsqueeze(0).to(opt.device)
         # if best_mean_entropy_image is not None:
@@ -171,9 +164,9 @@ if __name__ == '__main__':
 
     dataset_args = dict(img_size=[opt.imageSize_W, opt.imageSize_H], norm=opt.norm)
     if opt.dataset == 'NYU':
-        val_set   = NYU_Dataset(opt.dataRoot + '/val', **dataset_args)
+        val_set   = NYU_Dataset(opt.dataRoot + '/train', **dataset_args)
     elif opt.dataset == 'RESIDE':
-        val_set   = RESIDE_Dataset(opt.dataRoot + '/val',   **dataset_args)
+        val_set   = RESIDE_Dataset(opt.dataRoot + '/train',   **dataset_args)
 
     loader_args = dict(batch_size=1, num_workers=1, drop_last=False, shuffle=True)
     val_loader = DataLoader(dataset=val_set, **loader_args)
