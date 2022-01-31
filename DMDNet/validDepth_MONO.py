@@ -23,7 +23,7 @@ def get_args():
     parser.add_argument('--norm', action='store_true',  help='Image Normalize flag')
     # NYU
     parser.add_argument('--dataset', required=False, default='KITTI',  help='dataset name')
-    parser.add_argument('--dataRoot', type=str, default='D:/data/KITTI',  help='data file path')
+    parser.add_argument('--dataRoot', type=str, default='Z:/KITTI_eigen_benchmark',  help='data file path')
     return parser.parse_args()
 
 def print_score(score):
@@ -49,7 +49,7 @@ def run(opt, encoder, decoder, loader, airlight_module, entropy_module):
             cur_hazy = hazy_images
             _, init_depth = disp_to_depth(decoder(encoder(cur_hazy))[("disp", 0)], 0.1, 100)
 
-        output_name = output_folder + '/' + input_names[0][:-4] + '/' + input_names[0][-4] + '.csv'
+        output_name = output_folder + '/' + input_names[0][:-4] + '/' + input_names[0][:-4] + '.csv'
         if not os.path.exists(f'{output_folder}/{input_names[0][:-4]}'):
             os.makedirs(f'{output_folder}/{input_names[0][:-4]}')
         f = open(output_name,'w', newline='')
@@ -63,7 +63,7 @@ def run(opt, encoder, decoder, loader, airlight_module, entropy_module):
         # airlight = util.air_denorm(opt.dataset, opt.norm, airlight).item()
         # airlight = util.air_denorm(opt.dataset, opt.norm, gt_airlight).item()
 
-        print('airlight = ', airlight, 'gt_airlight = ', util.air_denorm(opt.dataset, opt.norm, gt_airlight).item())
+        # print('airlight = ', airlight, 'gt_airlight = ', util.air_denorm(opt.dataset, opt.norm, gt_airlight).item())
         # print('beta = ',gt_beta)
         
         steps = int((gt_beta+0.02) / opt.betaStep)
@@ -124,7 +124,7 @@ if __name__ == '__main__':
     depth_decoder.eval()
     
     # init dataset
-    val_set   = KITTI_Dataset('D:/data/KITTI' + '/val',  img_size=[feed_width,feed_height], norm=opt.norm)
+    val_set   = KITTI_Dataset(opt.dataRoot + '/val',  img_size=[feed_width,feed_height], norm=opt.norm)
     loader_args = dict(batch_size=1, num_workers=1, drop_last=False, shuffle=True)
     val_loader = DataLoader(dataset=val_set, **loader_args)
 
