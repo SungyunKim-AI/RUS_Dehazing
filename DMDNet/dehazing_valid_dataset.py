@@ -78,12 +78,15 @@ def run(opt, model, airlight_model, metrics_module, loader):
         hazy_images, clear_images, depth_images, _, gt_betas, input_names = batch
         gt_beta = gt_betas[0]
             
-        output_name = output_folder + '/' + input_names[0] + '.csv'
+        output_name = output_folder + '/' + input_names[0][:-4] + '/' + input_names[0][:-4] + '.csv'
+        if not os.path.exists(f'{output_folder}/{input_names[0][:-4]}'):
+            os.makedirs(f'{output_folder}/{input_names[0][:-4]}')
         f = open(output_name,'w', newline='')
         wr = csv.writer(f)
         
         with torch.no_grad():
             cur_hazy = hazy_images.to(opt.device)
+            #depth_images = depth_images.to(opt.device)
             airlight = airlight_model.forward(cur_hazy)
         airlight = util.air_denorm(opt.dataset,opt.norm,airlight)
         hazy_image = util.denormalize(hazy_images, opt.norm)[0].detach().cpu().numpy().transpose(1,2,0)
@@ -100,13 +103,15 @@ def run(opt, model, airlight_model, metrics_module, loader):
             cur_hazy = util.denormalize(cur_hazy,opt.norm)
             trans = torch.exp(cur_depth*opt.betaStep*-1)
             prediction = (cur_hazy - airlight) / (trans + opt.eps) + airlight
-            if step==0:
-                prediction = cur_hazy
+            prediction = torch.clamp(prediction, 0, 1)
 
-            cur_mean_entropy, cur_max_entropy, cur_min_entropy = metrics_module.get_cur(prediction[0].detach().cpu().numpy().transpose(1,2,0))
-            cur_psnr = get_psnr(prediction[0].detach().cpu().numpy(),util.denormalize(clear_images,opt.norm)[0].detach().cpu().numpy())
-            cur_ssim = get_ssim(prediction[0].detach().cpu().numpy(),util.denormalize(clear_images,opt.norm)[0].detach().cpu().numpy()).item()
-            
+            cur_mean_entropy, _, _ = metrics_module.get_cur(cur_hazy[0].detach().cpu().numpy().transpose(1,2,0))
+            cur_psnr = get_psnr(cur_hazy[0].detach().cpu().numpy(),util.denormalize(clear_images,opt.norm)[0].detach().cpu().numpy())
+            cur_ssim = get_ssim(cur_hazy[0].detach().cpu().numpy(),util.denormalize(clear_images,opt.norm)[0].detach().cpu().numpy()).item()
+
+            ratio = np.median(depth_images[0].detach().cpu().numpy()) / np.median(cur_depth[0].detach().cpu().numpy())
+            # multi_score = util.compute_errors(cur_depth[0].detach().cpu().numpy() * ratio, depth_images[0].detach().cpu().numpy())
+
             # if cur_mean_entropy<last_mean_entropy and (best_mean_entropy_image is None) and step!=1:
             #     print("^^^^^^^^^^^^^^^^^^^^^^^^ best mean_entropy")
             #     best_mean_entropy_image = cv2.cvtColor(cur_hazy[0].detach().cpu().numpy().transpose(1,2,0),cv2.COLOR_RGB2BGR)
@@ -118,8 +123,13 @@ def run(opt, model, airlight_model, metrics_module, loader):
             # if cur_min_entropy<last_min_entropy and (best_min_entropy_image is None) and step!=1:
             #     print("^^^^^^^^^^^^^^^^^^^^^^^^ best min_entropy")
             #     best_min_entropy_image = cv2.cvtColor(cur_hazy[0].detach().cpu().numpy().transpose(1,2,0),cv2.COLOR_RGB2BGR)
-            
             wr.writerow([step, cur_mean_entropy, cur_psnr, cur_ssim])
+            
+            cur_depth = cur_depth[0]/torch.max(cur_depth[0])
+            cur_depth = cur_depth.repeat(3,1,1)
+            image_set = torch.cat([cur_hazy[0], cur_depth],1)*255
+            cv2.imwrite(f'{output_folder}/{input_names[0][:-4]}/{step:03}.jpg', cv2.cvtColor(image_set.detach().cpu().numpy().astype(np.uint8).transpose(1,2,0), cv2.COLOR_RGB2BGR))
+
             
             cur_hazy = util.normalize(prediction[0].detach().cpu().numpy().transpose(1,2,0),opt.norm).unsqueeze(0).to(opt.device)
         # if best_mean_entropy_image is not None:
@@ -166,7 +176,7 @@ if __name__ == '__main__':
     if opt.dataset == 'NYU':
         val_set   = NYU_Dataset(opt.dataRoot + '/train', **dataset_args)
     elif opt.dataset == 'RESIDE':
-        val_set   = RESIDE_Dataset(opt.dataRoot + '/train',   **dataset_args)
+        val_set   = RESIDE_Dataset(opt.dataRoot + '/val',   **dataset_args)
 
     loader_args = dict(batch_size=1, num_workers=1, drop_last=False, shuffle=True)
     val_loader = DataLoader(dataset=val_set, **loader_args)

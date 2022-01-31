@@ -41,9 +41,9 @@ def run(opt, model, loader, airlight_module, entropy_module):
         os.makedirs(output_folder)
     
     if opt.dataset == 'KITTI':
-        dim = 1
+        cat_axis = 0
     if opt.dataset == 'NYU':
-        dim = 2
+        cat_axis = 1
     
     for batch in tqdm(loader):
         # hazy_input, clear_input, GT_depth, GT_airlight, GT_beta, haze
@@ -51,6 +51,7 @@ def run(opt, model, loader, airlight_module, entropy_module):
         with torch.no_grad():
             clear_images = clear_images.to('cuda')
             depth_images = model.forward(clear_images)
+            # depth_images = depth_images.to('cuda')
             trans = torch.exp(depth_images*gt_beta.item()*-1)
             gt_airlight = util.air_denorm(opt.dataset, opt.norm, gt_airlight)[0][0]
             hazy_images = clear_images*trans + gt_airlight*(1-trans)
@@ -81,16 +82,28 @@ def run(opt, model, loader, airlight_module, entropy_module):
             prediction = torch.clamp(prediction.float(),0,1)
              
             entropy, _, _ = entropy_module.get_cur(cur_hazy[0].detach().cpu().numpy().transpose(1,2,0))
-            haze_set = torch.cat([util.denormalize(hazy_images, opt.norm)[0]*255, cur_hazy[0]*255, util.denormalize(clear_images, opt.norm)[0]*255], dim=1)
-            
+
+            ##viz haze##
+            init_haze_viz = (util.denormalize(hazy_images, opt.norm)[0].detach().cpu().numpy().transpose(1,2,0)*255).astype(np.uint8)
+            cur_haze_viz = (cur_hazy[0].detach().cpu().numpy().transpose(1,2,0)*255).astype(np.uint8)
+            init_clear_viz = (util.denormalize(clear_images, opt.norm)[0].detach().cpu().numpy().transpose(1,2,0)*255).astype(np.uint8)
+            haze_set= cv2.cvtColor(np.concatenate([init_haze_viz, cur_haze_viz, init_clear_viz], axis = cat_axis), cv2.COLOR_RGB2BGR)
+            ############
+
+
             ratio = np.median(depth_images[0].detach().cpu().numpy()) / np.median(cur_depth[0].detach().cpu().numpy())
             multi_score = util.compute_errors(cur_depth[0].detach().cpu().numpy() * ratio, depth_images[0].detach().cpu().numpy())
             wr.writerow([step]+multi_score+[entropy])
         
-            depth_set = torch.cat([init_depth[0]*255/torch.max(init_depth[0]), cur_depth[0]*255/torch.max(cur_depth[0]), depth_images[0]*255/torch.max(depth_images[0])],dim=dim)
-            depth_set = depth_set.repeat(3,1,1)
-            save_set = torch.cat([haze_set, depth_set], dim=2)
-            cv2.imwrite(f'{output_folder}/{input_names[0][:-4]}/{step:03}.jpg', cv2.cvtColor(save_set.detach().cpu().numpy().astype(np.uint8).transpose(1,2,0), cv2.COLOR_RGB2BGR))
+            ##viz depth##
+            init_depth_viz = util.visualize_depth(init_depth[0])
+            cur_depth_viz = util.visualize_depth(cur_depth[0])
+            gt_depth_viz = util.visualize_depth(depth_images[0])
+            depth_set = np.concatenate([init_depth_viz, cur_depth_viz, gt_depth_viz],axis=cat_axis)
+            #############
+
+            save_set = np.concatenate([haze_set, depth_set], axis=1)
+            cv2.imwrite(f'{output_folder}/{input_names[0][:-4]}/{step:03}.jpg', save_set)
             
             
             # cv2.imshow('depth', cv2.resize(depth_set.detach().cpu().numpy().astype(np.uint8).transpose(1,2,0),(500,500)))
