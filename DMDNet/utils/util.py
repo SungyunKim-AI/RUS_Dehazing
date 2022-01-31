@@ -1,8 +1,8 @@
-from cv2 import transform
 import torch
 import torchvision.transforms as transforms
 import os
 import numpy as np
+import cv2
 
 #numpy -> torch
 def normalize(x, norm=False, mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
@@ -102,3 +102,13 @@ def compute_errors(gt, pred):
     sq_rel = np.mean(((gt - pred)**2) / gt)
 
     return [abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3]
+
+def visualize_depth(depth): #input : torch(1 X W X H)
+    min = torch.min(depth)
+    max = torch.max(depth)
+    depth = (depth-min)/(max-min)
+    depth = (depth.detach().cpu().numpy().transpose(1,2,0)*255).astype(np.uint8)
+    #depth = cv2.equalizeHist(depth)
+    depth = cv2.applyColorMap(depth, cv2.COLORMAP_INFERNO)
+
+    return depth
