@@ -20,7 +20,7 @@ def get_args():
     parser.add_argument('--norm', action='store_true',  help='Image Normalize flag')
     # NYU
     parser.add_argument('--dataset', required=False, default='KITTI',  help='dataset name')
-    parser.add_argument('--dataRoot', type=str, default='D:/data/KITTI',  help='data file path')
+    parser.add_argument('--dataRoot', type=str, default='Z:/KITTI_eigen_benchmark',  help='data file path')
     return parser.parse_args()
 
 def print_score(score):
@@ -48,13 +48,14 @@ def run(opt, model, loader, airlight_module, entropy_module):
             init_depth = 1/up_module(model(cur_hazy))*90
 
             
-        output_name = output_folder + '/' + input_names[0][:-4] + '/' + input_names[0][-4] + '.csv'
+        output_name = output_folder + '/' + input_names[0][:-4] + '/' + input_names[0][:-4] + '.csv'
         if not os.path.exists(f'{output_folder}/{input_names[0][:-4]}'):
             os.makedirs(f'{output_folder}/{input_names[0][:-4]}')
         f = open(output_name,'w', newline='')
         wr = csv.writer(f)
         
         cur_depth = None
+        sum_depth = torch.zeros_like(init_depth).to('cuda')
 
         airlight = airlight_module.get_airlight(cur_hazy, opt.norm)
         airlight = util.air_denorm(opt.dataset, opt.norm, airlight)
@@ -63,7 +64,7 @@ def run(opt, model, loader, airlight_module, entropy_module):
         # airlight = util.air_denorm(opt.dataset, opt.norm, airlight).item()
         # airlight = util.air_denorm(opt.dataset, opt.norm, gt_airlight).item()
 
-        print('airlight = ', airlight, 'gt_airlight = ', util.air_denorm(opt.dataset, opt.norm, gt_airlight).item())
+        # print('airlight = ', airlight, 'gt_airlight = ', util.air_denorm(opt.dataset, opt.norm, gt_airlight).item())
 
         steps = int((gt_beta+0.02) / opt.betaStep)
         dehaze = None
@@ -72,26 +73,37 @@ def run(opt, model, loader, airlight_module, entropy_module):
             #     print('gt_step')
             with torch.no_grad():
                 cur_depth = 1/up_module(model(cur_hazy))*90
+            
+            diff_depth = cur_depth*step - sum_depth
             cur_hazy = util.denormalize(cur_hazy,opt.norm)
-            trans = torch.exp(cur_depth*opt.betaStep*-1)
+            trans = torch.exp((diff_depth+cur_depth)*opt.betaStep*-1)
+            sum_depth = cur_depth * (step+1) 
             prediction = (cur_hazy - airlight) / (trans + 1e-12) + airlight
             prediction = torch.clamp(prediction.float(),0,1)
             
             entropy, _, _ = entropy_module.get_cur(cur_hazy[0].detach().cpu().numpy().transpose(1,2,0))
-            haze_set = torch.cat([util.denormalize(hazy_images, opt.norm)[0]*255, cur_hazy[0]*255, util.denormalize(clear_images, opt.norm)[0]*255], dim=1)
+            
+            ##viz haze##
+            init_haze_viz = (util.denormalize(hazy_images, opt.norm)[0].detach().cpu().numpy().transpose(1,2,0)*255).astype(np.uint8)
+            cur_haze_viz = (cur_hazy[0].detach().cpu().numpy().transpose(1,2,0)*255).astype(np.uint8)
+            init_clear_viz = (util.denormalize(clear_images, opt.norm)[0].detach().cpu().numpy().transpose(1,2,0)*255).astype(np.uint8)
+            haze_set= cv2.cvtColor(np.concatenate([init_haze_viz, cur_haze_viz, init_clear_viz], axis = 0), cv2.COLOR_RGB2BGR)
+            ############
             
             ratio = np.median(depth_images[0].detach().cpu().numpy()) / np.median(cur_depth[0].detach().cpu().numpy())
             multi_score = util.compute_errors(cur_depth[0].detach().cpu().numpy() * ratio, depth_images[0].detach().cpu().numpy())
             wr.writerow([step]+multi_score+[entropy])
             
-            # if step == int(gt_beta/opt.betaStep):
-            #     dehaze = cur_hazy.clone()
-        
-            depth_set = torch.cat([init_depth[0]*255/torch.max(init_depth[0]), cur_depth[0]*255/torch.max(cur_depth[0]), depth_images[0]*255/torch.max(depth_images[0])],dim=1)
-            depth_set = depth_set.repeat(3,1,1)
-            save_set = torch.cat([haze_set, depth_set], dim=2)
-            cv2.imwrite(f'{output_folder}/{input_names[0][:-4]}/{step:03}.jpg', cv2.cvtColor(save_set.detach().cpu().numpy().astype(np.uint8).transpose(1,2,0), cv2.COLOR_RGB2BGR))
-           
+            ##viz depth##
+            init_depth_viz = util.visualize_depth(init_depth[0])
+            cur_depth_viz = util.visualize_depth(cur_depth[0])
+            gt_depth_viz = util.visualize_depth(depth_images[0])
+            depth_set = np.concatenate([init_depth_viz, cur_depth_viz, gt_depth_viz],axis=0)
+            #############
+            
+            save_set = np.concatenate([haze_set, depth_set], axis=1)
+            cv2.imwrite(f'{output_folder}/{input_names[0][:-4]}/{step:03}.jpg', save_set)
+                       
             # cv2.imshow('depth', cv2.resize(depth_set.detach().cpu().numpy().astype(np.uint8).transpose(1,2,0),(500,500)))
             # cv2.imshow('dehaze', cv2.resize(cv2.cvtColor(haze_set.detach().cpu().numpy().astype(np.uint8).transpose(1,2,0),cv2.COLOR_RGB2BGR),(500,500)))
             # cv2.waitKey(0)    
@@ -120,7 +132,7 @@ if __name__ == '__main__':
         model.load_state_dict(weight)
         width = 1216
         height = 352
-        val_set   = KITTI_Dataset('D:/data/KITTI' + '/val',  img_size=[width,height], norm=opt.norm)
+        val_set   = KITTI_Dataset(opt.dataRoot + '/val',  img_size=[width,height], norm=opt.norm)
     elif opt.dataset == 'NYU':
         weight = torch.load('weights/depth_weights/densedepth_nyu.pt')
         model.load_state_dict(weight)
