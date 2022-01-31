@@ -65,6 +65,7 @@ def run(opt, model, loader, airlight_module, entropy_module):
         wr = csv.writer(f)
         
         cur_depth = None
+        sum_depth = torch.zeros_like(init_depth).to('cuda')
 
         airlight = airlight_module.get_airlight(cur_hazy, opt.norm)
         airlight = util.air_denorm(opt.dataset, opt.norm, airlight)
@@ -76,8 +77,11 @@ def run(opt, model, loader, airlight_module, entropy_module):
         for step in range(0,steps):
             with torch.no_grad():
                 cur_depth = model.forward(cur_hazy)
+            
+            diff_depth = cur_depth*step - sum_depth
             cur_hazy = util.denormalize(cur_hazy,opt.norm)
-            trans = torch.exp(cur_depth*opt.betaStep*-1)
+            trans = torch.exp((diff_depth+cur_depth)*opt.betaStep*-1)
+            sum_depth = cur_depth * (step+1)
             prediction = (cur_hazy - airlight) / (trans + 1e-12) + airlight
             prediction = torch.clamp(prediction.float(),0,1)
              

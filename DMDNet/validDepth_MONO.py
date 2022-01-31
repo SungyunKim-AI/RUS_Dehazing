@@ -23,7 +23,7 @@ def get_args():
     parser.add_argument('--norm', action='store_true',  help='Image Normalize flag')
     # NYU
     parser.add_argument('--dataset', required=False, default='KITTI',  help='dataset name')
-    parser.add_argument('--dataRoot', type=str, default='Z:/KITTI_eigen_benchmark',  help='data file path')
+    parser.add_argument('--dataRoot', type=str, default='D:/data/KITTI',  help='data file path')
     return parser.parse_args()
 
 def print_score(score):
@@ -56,6 +56,7 @@ def run(opt, encoder, decoder, loader, airlight_module, entropy_module):
         wr = csv.writer(f)
         
         cur_depth = None
+        sum_depth = torch.zeros_like(init_depth).to('cuda')
         
         airlight = airlight_module.get_airlight(cur_hazy, opt.norm)
         airlight = util.air_denorm(opt.dataset, opt.norm, airlight)
@@ -72,8 +73,11 @@ def run(opt, encoder, decoder, loader, airlight_module, entropy_module):
             with torch.no_grad():
                 cur_depth = decoder(encoder(cur_hazy))[("disp", 0)]
                 _, cur_depth = disp_to_depth(cur_depth, 0.1, 100)
+            
+            diff_depth = cur_depth*step - sum_depth
             cur_hazy = util.denormalize(cur_hazy,opt.norm)
-            trans = torch.exp(cur_depth*opt.betaStep*-1)
+            trans = torch.exp((diff_depth+cur_depth)*opt.betaStep*-1)
+            sum_depth = cur_depth * (step+1) 
             prediction = (cur_hazy - airlight) / (trans + 1e-12) + airlight
             prediction = torch.clamp(prediction.float(),0,1)
             
