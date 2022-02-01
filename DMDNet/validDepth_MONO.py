@@ -49,7 +49,7 @@ def run(opt, encoder, decoder, loader, airlight_module, entropy_module):
             cur_hazy = hazy_images
             _, init_depth = disp_to_depth(decoder(encoder(cur_hazy))[("disp", 0)], 0.1, 100)
 
-        output_name = output_folder + '/' + input_names[0][:-4] + '/' + input_names[0][-4] + '.csv'
+        output_name = output_folder + '/' + input_names[0][:-4] + '/' + input_names[0][:-4] + '.csv'
         if not os.path.exists(f'{output_folder}/{input_names[0][:-4]}'):
             os.makedirs(f'{output_folder}/{input_names[0][:-4]}')
         f = open(output_name,'w', newline='')

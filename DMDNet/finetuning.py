@@ -1,3 +1,4 @@
+from turtle import clear
 import cv2
 
 import torch.nn as nn
@@ -13,6 +14,8 @@ from models.depth_models import DPTDepthModel
 from dataset import *
 from torch.utils.data import DataLoader
 from utils.util import compute_errors
+from utils import util
+from utils.metrics import get_ssim, get_psnr
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -22,7 +25,7 @@ def get_args():
     parser.add_argument('--dataRoot', type=str, default='D:/data/RESIDE_V0_outdoor',  help='data file path')
     parser.add_argument('--scale', type=float, default=0.000150,  help='depth scale')
     parser.add_argument('--shift', type=float, default= 0.1378,  help='depth shift')
-    parser.add_argument('--preTrainedModel', type=str, default='weights/depth_weights/dpt_hybrid_nyu-2ce69ec_RESIDE_017.pt', help='pretrained DPT path')
+    parser.add_argument('--preTrainedModel', type=str, default='weights/depth_weights/dpt_hybrid_nyu-2ce69ec_RESIDE_017_RESIDE_003.pt', help='pretrained DPT path')
     parser.add_argument('--backbone', type=str, default="vitb_rn50_384", help='DPT backbone')
 
     # learning parameters
@@ -56,38 +59,53 @@ def train(model, train_loader, optim, device, loss_fun, log_wandb, epoch, global
             optim.step()
         if log_wandb:
             wandb.log({
-                "loss":loss.item(),
+                "train loss":loss.item(),
                 "iters": global_iter,
                 "epoch":epoch
             })
     
-def evaluate(model, input, device, log_wandb, epoch):
+def evaluate(model, val_loader, device, log_wandb, epoch):
     # hazy_input, clear_input, depth_input, airlight_input, beta_input, filename
     model.eval()
-    hazy_image, _, depth_image, _, _, _, = input
-    with torch.no_grad():
-        depth_image = torch.Tensor(depth_image).to(device)
-        hazy_image = torch.Tensor(hazy_image).to(device).unsqueeze(0)
-        depth_pred = model.forward(hazy_image)[0]
     
-    depth_set = torch.cat([depth_pred, depth_image],dim=2)
-    cv2.imwrite(f'eval_{epoch:03}.jpg',(depth_set/10*255).detach().cpu().numpy().astype(np.uint8).transpose(1,2,0))
+    for batch in val_loader:
+        hazy_images, clear_images, _, gt_airlight, gt_beta, _, = batch
+        loss = 0
+        with torch.no_grad():
+            hazy_images = hazy_images.to(device)
+            depth_pred = model(hazy_images)
+            hazy_images = util.denormalize(hazy_images,opt.norm)
+            clear_images = util.denormalize(clear_images.to(device),opt.norm)
+            trans = torch.exp(depth_pred*gt_beta.item()*-1)
+            gt_airlight = util.air_denorm(opt.dataset, opt.norm, gt_airlight)[0][0]
+            prediction = (hazy_images - gt_airlight) / (trans + 1e-12) + gt_airlight
+            #loss = loss_fun(prediction, clear_images)
+            psnr = get_psnr(prediction.detach().cpu(), clear_images.detach().cpu())
+        if log_wandb:
+            wandb.log({
+                "val psnr":psnr,
+                "epoch":epoch
+            })
+        
+        # cv2.imshow("haze", hazy_images[0].detach().cpu().numpy().transpose(1,2,0))
+        # cv2.imshow("prediction", prediction[0].detach().cpu().numpy().transpose(1,2,0))
+        # cv2.waitKey(0)
     
     
         
-def run(model, train_loader, optim, device, log_wandb):
+def run(model, train_loader, val_loader, optim, device, log_wandb):
     #loss_fun = nn.L1Loss().to(device)
     loss_fun = nn.MSELoss().to(device)
     global_iter = 0;   
-    evaluate(model, train_loader.dataset[0], device, log_wandb, 0)
+    evaluate(model, val_loader, device, log_wandb, 0)
     train(model, train_loader, optim, device, loss_fun, log_wandb, 0, global_iter)
     
     for epoch in range(1, 100):
         train(model, train_loader, optim, device, loss_fun, log_wandb, epoch, global_iter)
         
-        evaluate(model, train_loader.dataset[0], device, log_wandb, epoch)
+        evaluate(model, val_loader, device, log_wandb, epoch)
         
-        weight_path = f'{opt.save_path}/{os.path.basename(opt.preTrainedModel)[:-4]}_{opt.dataset}_{epoch:03}.pt'  #path for storing the weights of genertaor
+        weight_path = f'{opt.save_path}/{os.path.basename(opt.preTrainedModel)[:-3]}_{opt.dataset}_{epoch:03}.pt'  #path for storing the weights of genertaor
         torch.save(model.state_dict(), weight_path)
         print(weight_path, "was saved!")
         
@@ -126,10 +144,12 @@ if __name__ == '__main__':
     dataset_args = dict(img_size=[opt.imageSize_W, opt.imageSize_H], norm=opt.norm)
     if opt.dataset == 'RESIDE':
         train_set = RESIDE_Dataset(opt.dataRoot + '/train', **dataset_args)
+        val_set = RESIDE_Dataset(opt.dataRoot + '/val', **dataset_args)
         
     
-    loader_args = dict(num_workers=4, drop_last=False, shuffle=False)
+    loader_args = dict(num_workers=4, drop_last=False, shuffle=True)
     train_loader = DataLoader(dataset=train_set, batch_size=opt.batchSize_train, **loader_args)
+    val_loader = DataLoader(dataset=val_set, batch_size=1, drop_last=False, shuffle=False)
 
     optimizer = optim.Adam(model.parameters(), opt.lr, betas = (0.9, 0.999), eps=1e-08)
-    run(model, train_loader, optimizer, opt.device, opt.log_wandb)    
+    run(model, train_loader, val_loader, optimizer, opt.device, opt.log_wandb)    
