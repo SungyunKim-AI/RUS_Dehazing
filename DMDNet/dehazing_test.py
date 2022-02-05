@@ -45,7 +45,7 @@ def get_args():
     parser.add_argument('--dataset', required=False, default='RESIDE',  help='dataset name')
     parser.add_argument('--scale', type=float, default=0.000150,  help='depth scale')
     parser.add_argument('--shift', type=float, default= 0.1378,  help='depth shift')
-    parser.add_argument('--preTrainedModel', type=str, default='weights/depth_weights/dpt_hybrid-midas-501f0c75.pt', help='pretrained DPT path')
+    parser.add_argument('--preTrainedModel', type=str, default='weights/depth_weights/dpt_hybrid_nyu-2ce69ec_RESIDE_017_RESIDE_003_RESIDE_004.pt', help='pretrained DPT path')
     parser.add_argument('--preTrainedAirModel', type=str, default='weights/air_weights/Air_UNet_RESIDE_V0_epoch_16.pt', help='pretrained Air path')
     
     # learning parameters
@@ -74,7 +74,6 @@ def run(opt, model, airlight_module, entropy_module, imgs, transform):
         hazy = transform({"image": cv2.cvtColor(cv2.imread(img), cv2.COLOR_BGR2RGB) / 255.0})["image"]
         
         haze_name = os.path.basename(img)
-        print(haze_name)
 
         hazy_images = torch.Tensor(hazy).unsqueeze(0).to(opt.device)
         cur_hazy = hazy_images
@@ -86,13 +85,12 @@ def run(opt, model, airlight_module, entropy_module, imgs, transform):
 
 
         airlight = util.air_denorm(opt.dataset,opt.norm,airlight)
-        print(airlight)
 
-        folder_name = f'output/{haze_name[:-5]}'
+        folder_name = f'D:/data/output_dehaze/pred_DMD_RealHaze/{haze_name[:-5]}'
         if not os.path.exists(folder_name):
             os.mkdir(folder_name)
 
-        f = open(f'output/{haze_name[:-5]}/{haze_name[:-5]}.csv', 'w', newline = '')
+        f = open(f'D:/data/output_dehaze/pred_DMD_RealHaze/{haze_name[:-5]}/{haze_name[:-5]}.csv', 'w', newline = '')
         wr = csv.writer(f)
 
         for step in range(0, opt.stepLimit+1):

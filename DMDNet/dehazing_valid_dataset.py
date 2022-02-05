@@ -44,7 +44,7 @@ def get_args():
     parser.add_argument('--dataRoot', type=str, default='D:/data/RESIDE_V0_outdoor',  help='data file path')
     parser.add_argument('--scale', type=float, default=0.000150,  help='depth scale')
     parser.add_argument('--shift', type=float, default= 0.1378,  help='depth shift')
-    parser.add_argument('--preTrainedModel', type=str, default='weights/depth_weights/dpt_hybrid_nyu-2ce69ec_RESIDE_017_RESIDE_002.pt', help='pretrained DPT path')
+    parser.add_argument('--preTrainedModel', type=str, default='weights/depth_weights/dpt_hybrid_nyu-2ce69ec_RESIDE_017_RESIDE_003_RESIDE_004.pt', help='pretrained DPT path')
     parser.add_argument('--preTrainedAirModel', type=str, default='weights/air_weights/Air_UNet_RESIDE_V0_epoch_16.pt', help='pretrained Air path')
     
     # learning parameters
@@ -86,8 +86,9 @@ def run(opt, model, airlight_model, metrics_module, loader):
         
         with torch.no_grad():
             cur_hazy = hazy_images.to(opt.device)
-            #depth_images = depth_images.to(opt.device)
+            # depth_images = depth_images.to(opt.device)
             airlight = airlight_model.forward(cur_hazy)
+            init_depth = model.forward(cur_hazy)
         airlight = util.air_denorm(opt.dataset,opt.norm,airlight)
         hazy_image = util.denormalize(hazy_images, opt.norm)[0].detach().cpu().numpy().transpose(1,2,0)
         clear_image = util.denormalize(clear_images, opt.norm)[0].detach().cpu().numpy().transpose(1,2,0)
@@ -95,13 +96,19 @@ def run(opt, model, airlight_model, metrics_module, loader):
         # best_mean_entropy_image = None
         # best_max_entropy_image = None
         # best_min_entropy_image = None
+        
+        cur_depth = None
+        sum_depth = torch.zeros_like(init_depth).to('cuda')
 
         step_limit = int((gt_beta+0.1)/opt.betaStep)
         for step in range(0, step_limit):
             with torch.no_grad():
                 cur_depth = model.forward(cur_hazy)
+                
+            diff_depth = cur_depth*step - sum_depth
             cur_hazy = util.denormalize(cur_hazy,opt.norm)
-            trans = torch.exp(cur_depth*opt.betaStep*-1)
+            trans = torch.exp((diff_depth+cur_depth)*opt.betaStep*-1)
+            sum_depth = cur_depth * (step+1)
             prediction = (cur_hazy - airlight) / (trans + opt.eps) + airlight
             prediction = torch.clamp(prediction, 0, 1)
 
