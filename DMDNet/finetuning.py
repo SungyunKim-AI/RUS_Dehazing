@@ -25,12 +25,12 @@ def get_args():
     parser.add_argument('--dataRoot', type=str, default='D:/data/RESIDE_V0_outdoor',  help='data file path')
     parser.add_argument('--scale', type=float, default=0.000150,  help='depth scale')
     parser.add_argument('--shift', type=float, default= 0.1378,  help='depth shift')
-    parser.add_argument('--preTrainedModel', type=str, default='weights/depth_weights/dpt_hybrid_nyu-2ce69ec_RESIDE_017_RESIDE_003.pt', help='pretrained DPT path')
+    parser.add_argument('--preTrainedModel', type=str, default='weights/depth_weights/dpt_hybrid_kitti-cb926ef4.pt', help='pretrained DPT path')
     parser.add_argument('--backbone', type=str, default="vitb_rn50_384", help='DPT backbone')
 
     # learning parameters
     parser.add_argument('--lr', type=float, default=1e-5, help='Learning Rage')
-    parser.add_argument('--batchSize_train', type=int, default=4, help='train dataloader input batch size')
+    parser.add_argument('--batchSize_train', type=int, default=12, help='train dataloader input batch size')
     parser.add_argument('--imageSize_W', type=int, default=256, help='the width of the resized input image to network')
     parser.add_argument('--imageSize_H', type=int, default=256, help='the height of the resized input image to network')
     parser.add_argument('--device', default=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
@@ -54,20 +54,22 @@ def train(model, train_loader, optim, device, loss_fun, log_wandb, epoch, global
         global_iter +=1
         
         loss = loss_fun(depth_pred, depth_images)
+        loss_sum += loss.item()
         if epoch!=0:
             loss.backward()
             optim.step()
-        if log_wandb:
-            wandb.log({
-                "train loss":loss.item(),
-                "iters": global_iter,
-                "epoch":epoch
-            })
+    if log_wandb:
+        wandb.log({
+            "train loss":loss_sum/len(train_loader),
+            "iters": global_iter,
+            "epoch":epoch
+        })
     
 def evaluate(model, val_loader, device, log_wandb, epoch):
     # hazy_input, clear_input, depth_input, airlight_input, beta_input, filename
     model.eval()
-    
+    psnr_sum = 0
+
     for batch in val_loader:
         hazy_images, clear_images, _, gt_airlight, gt_beta, _, = batch
         loss = 0
@@ -81,11 +83,12 @@ def evaluate(model, val_loader, device, log_wandb, epoch):
             prediction = (hazy_images - gt_airlight) / (trans + 1e-12) + gt_airlight
             #loss = loss_fun(prediction, clear_images)
             psnr = get_psnr(prediction.detach().cpu(), clear_images.detach().cpu())
-        if log_wandb:
-            wandb.log({
-                "val psnr":psnr,
-                "epoch":epoch
-            })
+            psnr_sum += psnr
+    if log_wandb:
+        wandb.log({
+            "val psnr":psnr_sum/len(val_loader),
+            "epoch":epoch
+        })
         
         # cv2.imshow("haze", hazy_images[0].detach().cpu().numpy().transpose(1,2,0))
         # cv2.imshow("prediction", prediction[0].detach().cpu().numpy().transpose(1,2,0))
