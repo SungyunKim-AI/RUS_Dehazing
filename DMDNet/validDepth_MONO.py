@@ -21,9 +21,9 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--betaStep', type=float, default=0.005, help='beta step')
     parser.add_argument('--norm', action='store_true',  help='Image Normalize flag')
-    # NYU
     parser.add_argument('--dataset', required=False, default='KITTI',  help='dataset name')
-    parser.add_argument('--dataRoot', type=str, default='D:/data/KITTI',  help='data file path')
+    # parser.add_argument('--dataRoot', type=str, default='D:/data/KITTI',  help='data file path')
+    parser.add_argument('--dataRoot', type=str, default='C:/Users/IIPL/Desktop/data/KITTI',  help='data file path')
     return parser.parse_args()
 
 def print_score(score):
@@ -32,7 +32,7 @@ def print_score(score):
 
 def run(opt, encoder, decoder, loader, airlight_module, entropy_module):
     
-    output_folder = 'output_Monodepth_depth_' + opt.dataset
+    output_folder = 'output/Monodepth_depth_' + opt.dataset
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
     
