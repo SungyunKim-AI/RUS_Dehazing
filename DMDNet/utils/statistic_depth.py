@@ -8,15 +8,17 @@ import numpy as np
 def read_csv_all(dataRoot, target_beta=None):
     header = ['stage', 'abs_rel', 'sq_rel','rmse', 'rmse_log', 'a1', 'a2', 'a3', 'entropy']
     all_df_dict = {}
-    for folder in glob(dataRoot + '/*'):
-        gt_beta = float(os.path.basename(folder).split('_')[-1])
-        if target_beta is not None and gt_beta != target_beta:
-            continue
 
-        for file in glob(folder + '/*.csv'):
-            fileName = os.path.basename(file)[:-4]
-            df = pd.read_csv(file, header=None, names=header)
-            all_df_dict[fileName] = df
+    for file in glob(dataRoot + '/*.csv'):
+        fileName = os.path.basename(file)[:-4]
+        if fileName[0] == '_':
+            continue
+        
+        if float(fileName.split('_')[-1]) != target_beta:
+            continue
+        
+        df = pd.read_csv(file, header=None, names=header)
+        all_df_dict[fileName] = df
     
     return all_df_dict
 
@@ -39,15 +41,17 @@ def data_plot(dfName, df):
     plt.show()
 
 
-def get_Varitation(all_df_dict, labels, gt_beta=None, step_beta=0.005):
+def get_Varitation(dataRoot, all_df_dict, labels, gt_beta=None, step_beta=0.005):
     if not isinstance(labels, list):
         labels = list(labels)
     
     haze_err_dict = {'abs_rel':[], 'sq_rel':[], 'rmse':[], 'rmse_log':[], 'a1':[], 'a2':[], 'a3':[]}
     dehaze_err_dict = {'abs_rel':[], 'sq_rel':[], 'rmse':[], 'rmse_log':[], 'a1':[], 'a2':[], 'a3':[]}
+    improve_err_dict = {'name':[], 'abs_rel':[], 'sq_rel':[], 'rmse':[], 'rmse_log':[], 'a1':[], 'a2':[], 'a3':[]}
     beta_err_list, cnt = [], 0
     for df_name, df in all_df_dict.items():
-        est_step = stopper2(df)
+        improve_err_dict['name'].append(df_name)
+        est_step = stopper(df)
         if gt_beta is not None:
             beta_err = abs(gt_beta - (est_step*step_beta))
             beta_err_list.append(beta_err)
@@ -55,26 +59,19 @@ def get_Varitation(all_df_dict, labels, gt_beta=None, step_beta=0.005):
         if est_step == 0:
             cnt += 1
             # print(df_name)
-
+        
         for label in labels:
             haze_err_dict[label].append(df.loc[0, label])
             dehaze_err_dict[label].append(df.loc[est_step, label])
+            
+            percent = abs(df.loc[0, label] - df.loc[est_step, label]) / df.loc[0, label] * 100
+            improve_err_dict[label].append(percent)
     
+    improve_best_top(improve_err_dict, dataRoot, gt_beta)
     beta_err_mean = np.array(beta_err_list).mean()
     return haze_err_dict, dehaze_err_dict, beta_err_mean, cnt
 
-def stopper(df):
-    ent_max, stop_index = 0, 0
-    for row in df.itertuples():
-        if ent_max < row.entropy:
-            ent_max = row.entropy
-            stop_index = row.stage
-        else:
-            return stop_index
-
-    return 0
-
-def stopper2(df, limit=20):
+def stopper(df, limit=20):
     last_idx = df.iloc[-1]['stage']
     ent_max, ent_flag = 0, 0
     stop_index = 0
@@ -93,80 +90,41 @@ def stopper2(df, limit=20):
     
     return 0
 
-def get_Varitation2(all_df_dict, labels):
-    if not isinstance(labels, list):
-        labels = list(labels)
+def improve_best_top(improve_err_dict, save_path, gt_beta, target_label='a1', top=50):
+    df = pd.DataFrame(improve_err_dict)
+    topDF = df.nlargest(50, target_label)
+    topDF.to_csv(f'{save_path}/_{gt_beta}_{target_label}_improve.csv', sep=',',na_rep='NaN', index=False)
     
-    haze_err_dict = {'abs_rel':[], 'sq_rel':[], 'rmse':[], 'rmse_log':[], 'a1':[], 'a2':[], 'a3':[]}
-    dehaze_err_dict = {'abs_rel':[], 'sq_rel':[], 'rmse':[], 'rmse_log':[], 'a1':[], 'a2':[], 'a3':[]}
-    beta_err_list, cnt = [], 0
-    max_m = 0
-    max_name = ''
-    for df_name, df in all_df_dict.items():
-        est_step = stopper2(df)
-        
-        if est_step == 0:
-            continue
-
-        m = 0
-        for label in labels:
-            m += round(abs(df.loc[0, label] - df.loc[est_step, label]) / df.loc[0, label] * 100, 2)
-        m /= 7
-
-        if max_m < m:
-            max_m = m
-            max_name = df_name
     
-    return max_m, max_name
 
 if __name__ == '__main__':
-    dataRoot = 'Z:/output_depth/output_DenseDenpth_depth_KITTI'
-    # dataRoot = 'Z:/output_depth/output_DPT_depth_KITTI'
-    # dataRoot = 'Z:/output_depth/output_Monodepth_depth_KITTI'
-
+    dataRoot = 'D:/data/output_depth/Monodepth_depth_KITTI/_statistics'
+    # dataRoot = 'D:/data/output_depth/DenseDenpth_depth_KITTI/_statistics'
+    # dataRoot = 'D:/data/output_depth/DPT_depth_KITTI/_statistics'
+    
     labels = ['abs_rel', 'sq_rel','rmse', 'rmse_log', 'a1', 'a2', 'a3']
     beta_list = [0.02, 0.04, 0.06]
     
-    # for gt_beta in beta_list:
-    #     print(f'beta : {gt_beta}')
-    #     all_df_dict = read_csv_all(dataRoot, gt_beta)
+    for gt_beta in beta_list:
+        print(f'beta : {gt_beta}')
+        all_df_dict = read_csv_all(dataRoot, gt_beta)
         
-    #     haze_err_dict, dehaze_err_dict, beta_err_mean, cnt = get_Varitation(all_df_dict, labels, gt_beta)
+        haze_err_dict, dehaze_err_dict, beta_err_mean, cnt = get_Varitation(dataRoot, all_df_dict, labels, gt_beta)
         
-    #     for label in labels:
-    #         before_err = np.array(haze_err_dict[label]).mean()
-    #         after_err = np.array(dehaze_err_dict[label]).mean()
-    #         percent = abs(before_err - after_err) / before_err * 100
-    #         print(f"{label} : {before_err:.5f} -> {after_err:.5f} ({percent:.2f})")
+        for label in labels:
+            before_err = np.array(haze_err_dict[label]).mean()
+            after_err = np.array(dehaze_err_dict[label]).mean()
+            percent = abs(before_err - after_err) / before_err * 100
+            print(f"{label} : {before_err:.3f} -> {after_err:.3f} ({percent:.1f})")
         
-    #     print(f"beta err : {beta_err_mean:.5f}")
-    #     print(f"not found stopper : {cnt}")
-    #     print()
+        print(f"beta err : {beta_err_mean:.3f}")
+        print(f"not found stopper : {cnt}")
+        print()
         
-    #     # Data Plot
-    #     # for dfName, df in all_df_dict.items():
-    #     #     data_plot(dfName, df)
+        # Data Plot
+        # for dfName, df in all_df_dict.items():
+        #     data_plot(dfName, df)
 
-
-
-
-
-    # all_df_dict = read_csv_all(dataRoot)
-    # haze_err_dict, dehaze_err_dict, beta_err_mean, cnt = get_Varitation(all_df_dict, labels)
-        
-    # for label in labels:
-    #     before_err = np.array(haze_err_dict[label]).mean()
-    #     after_err = np.array(dehaze_err_dict[label]).mean()
-    #     percent = abs(before_err - after_err) / before_err * 100
-    #     print(f"{label} : {before_err:.5f} -> {after_err:.5f} ({percent:.2f})")
-
-
-    all_df_dict = read_csv_all(dataRoot)
-    max_m, max_name = get_Varitation2(all_df_dict, labels)
-    print(max_m)
-    print(max_name)
-    # output_Monodepth_depth_KITTI : 2011-09-28-drive-0002-sync-0000000021_1.0_0.06
-    # output_DPT_depth_KITTI : 2011-09-26-drive-0029-sync-0000000056_0.96_0.04
 
 
 """

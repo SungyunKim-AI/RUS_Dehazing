@@ -36,7 +36,7 @@ def print_score(score):
 def run(opt, model, loader, airlight_module, entropy_module):
     model.eval()
     
-    output_folder = 'output_DPT_depth_' + opt.dataset
+    output_folder = 'output/DPT_depth_' + opt.dataset
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
     
