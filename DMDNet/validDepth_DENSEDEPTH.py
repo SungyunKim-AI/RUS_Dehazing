@@ -39,7 +39,7 @@ def print_score(score):
 def run(opt, model, loader, airlight_module, entropy_module):
     up_module = torch.nn.Upsample(scale_factor=(2,2)).to('cuda').eval()
     
-    output_folder = 'output_DenseDenpth_depth_' + opt.dataset
+    output_folder = 'output/DenseDenpth_depth_' + opt.dataset
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
     
