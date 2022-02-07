@@ -12,6 +12,7 @@ from utils import util
 from utils.metrics import get_ssim, get_psnr
 import os
 import csv
+import pandas as pd
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -33,7 +34,7 @@ def print_score(score):
     abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3 = score
     print(f'{abs_rel:.2f} {sq_rel:.2f} {rmse:.2f} {rmse_log:.2f} | {a1:.2f} {a2:.2f} {a3:.2f}')
 
-def run(opt, model, loader, airlight_module, entropy_module):
+def run(opt, model, loader, airlight_module, entropy_module, improve_best_list=None):
     model.eval()
     
     output_folder = 'output/DPT_depth_' + opt.dataset
@@ -48,6 +49,12 @@ def run(opt, model, loader, airlight_module, entropy_module):
     for batch in tqdm(loader):
         # hazy_input, clear_input, GT_depth, GT_airlight, GT_beta, haze
         hazy_images, clear_images, depth_images, gt_airlight, gt_beta, input_names = batch
+        
+        # Improve best
+        if improve_best_list is not None:
+            if os.path.basename(input_names[0])[:-4] not in improve_best_list:
+                continue
+        
         with torch.no_grad():
             clear_images = clear_images.to('cuda')
             gt_depth_median = torch.median(depth_images)
@@ -99,44 +106,44 @@ def run(opt, model, loader, airlight_module, entropy_module):
             wr.writerow([step]+multi_score+[entropy])
 
 
-            # ##viz haze##
-            # init_haze_viz = (util.denormalize(hazy_images, opt.norm)[0].detach().cpu().numpy().transpose(1,2,0)*255).astype(np.uint8)
-            # cur_haze_viz = (cur_hazy[0].detach().cpu().numpy().transpose(1,2,0)*255).astype(np.uint8)
-            # init_clear_viz = (util.denormalize(clear_images, opt.norm)[0].detach().cpu().numpy().transpose(1,2,0)*255).astype(np.uint8)
-            # haze_set= cv2.cvtColor(np.concatenate([init_haze_viz, cur_haze_viz, init_clear_viz], axis = cat_axis), cv2.COLOR_RGB2BGR)
-            # ############        
+            ##viz haze##
+            init_haze_viz = (util.denormalize(hazy_images, opt.norm)[0].detach().cpu().numpy().transpose(1,2,0)*255).astype(np.uint8)
+            cur_haze_viz = (cur_hazy[0].detach().cpu().numpy().transpose(1,2,0)*255).astype(np.uint8)
+            init_clear_viz = (util.denormalize(clear_images, opt.norm)[0].detach().cpu().numpy().transpose(1,2,0)*255).astype(np.uint8)
+            haze_set= cv2.cvtColor(np.concatenate([init_haze_viz, cur_haze_viz, init_clear_viz], axis = cat_axis), cv2.COLOR_RGB2BGR)
+            ############        
 
-            # ##viz depth##
-            # init_depth_viz = util.visualize_depth(init_depth[0])
-            # cur_depth_viz = util.visualize_depth(cur_depth[0])
-            # gt_depth_viz = util.visualize_depth(depth_images[0])
-            # depth_set_1 = np.concatenate([init_depth_viz, cur_depth_viz, gt_depth_viz],axis=0)
-            # #############
+            ##viz depth##
+            init_depth_viz = util.visualize_depth(init_depth[0])
+            cur_depth_viz = util.visualize_depth(cur_depth[0])
+            gt_depth_viz = util.visualize_depth(depth_images[0])
+            depth_set_1 = np.concatenate([init_depth_viz, cur_depth_viz, gt_depth_viz],axis=0)
+            #############
 
-            # ##viz depth##
-            # init_depth_viz = util.visualize_depth_inverse(init_depth[0])
-            # cur_depth_viz = util.visualize_depth_inverse(cur_depth[0])
-            # gt_depth_viz = util.visualize_depth_inverse(depth_images[0])
-            # depth_set_2 = np.concatenate([init_depth_viz, cur_depth_viz, gt_depth_viz],axis=0)
-            # #############
+            ##viz depth##
+            init_depth_viz = util.visualize_depth_inverse(init_depth[0])
+            cur_depth_viz = util.visualize_depth_inverse(cur_depth[0])
+            gt_depth_viz = util.visualize_depth_inverse(depth_images[0])
+            depth_set_2 = np.concatenate([init_depth_viz, cur_depth_viz, gt_depth_viz],axis=0)
+            #############
 
-            # ##viz depth##
-            # init_depth_viz = util.visualize_depth_gray(init_depth[0])
-            # cur_depth_viz = util.visualize_depth_gray(cur_depth[0])
-            # gt_depth_viz = util.visualize_depth_gray(depth_images[0])
-            # depth_set_3 = np.concatenate([init_depth_viz, cur_depth_viz, gt_depth_viz],axis=0)
-            # #############
+            ##viz depth##
+            init_depth_viz = util.visualize_depth_gray(init_depth[0])
+            cur_depth_viz = util.visualize_depth_gray(cur_depth[0])
+            gt_depth_viz = util.visualize_depth_gray(depth_images[0])
+            depth_set_3 = np.concatenate([init_depth_viz, cur_depth_viz, gt_depth_viz],axis=0)
+            #############
             
-            # ##viz depth##
-            # init_depth_viz = util.visualize_depth_inverse_gray(init_depth[0])
-            # cur_depth_viz = util.visualize_depth_inverse_gray(cur_depth[0])
-            # gt_depth_viz = util.visualize_depth_inverse_gray(depth_images[0])
-            # depth_set_4 = np.concatenate([init_depth_viz, cur_depth_viz, gt_depth_viz],axis=0)
-            # #############
+            ##viz depth##
+            init_depth_viz = util.visualize_depth_inverse_gray(init_depth[0])
+            cur_depth_viz = util.visualize_depth_inverse_gray(cur_depth[0])
+            gt_depth_viz = util.visualize_depth_inverse_gray(depth_images[0])
+            depth_set_4 = np.concatenate([init_depth_viz, cur_depth_viz, gt_depth_viz],axis=0)
+            #############
 
 
-            # save_set = np.concatenate([haze_set, depth_set_1, depth_set_2, depth_set_3, depth_set_4], axis=1)
-            # cv2.imwrite(f'{output_folder}/{input_names[0][:-4]}/{step:03}.jpg', save_set)
+            save_set = np.concatenate([haze_set, depth_set_1, depth_set_2, depth_set_3, depth_set_4], axis=1)
+            cv2.imwrite(f'{output_folder}/{input_names[0][:-4]}/{step:03}.jpg', save_set)
             
             
             # cv2.imshow('depth', cv2.resize(depth_set.detach().cpu().numpy().astype(np.uint8).transpose(1,2,0),(500,500)))
@@ -184,6 +191,13 @@ if __name__ == '__main__':
     airlight_module = Airlight_Module()
     entropy_module = Entropy_Module()
     
-    run(opt, model, loader, airlight_module, entropy_module)
+    # Improve best
+    df1 = pd.read_csv('D:/data/output_depth/DPT_depth_KITTI/_statistics/_0.02_a1_improve.csv')
+    df2 = pd.read_csv('D:/data/output_depth/DPT_depth_KITTI/_statistics/_0.04_a1_improve.csv')
+    df3 = pd.read_csv('D:/data/output_depth/DPT_depth_KITTI/_statistics/_0.06_a1_improve.csv')
+    df = pd.concat([df1, df2, df3], ignore_index=True)
+    improve_best_list = df['name'].tolist()
+    
+    run(opt, model, loader, airlight_module, entropy_module, improve_best_list)
     
     

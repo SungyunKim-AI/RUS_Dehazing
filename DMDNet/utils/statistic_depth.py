@@ -90,17 +90,17 @@ def stopper(df, limit=20):
     
     return 0
 
-def improve_best_top(improve_err_dict, save_path, gt_beta, target_label='a1', top=50):
+def improve_best_top(improve_err_dict, save_path, gt_beta, target_label='a1', top=20):
     df = pd.DataFrame(improve_err_dict)
-    topDF = df.nlargest(50, target_label)
+    topDF = df.nlargest(top, target_label)
     topDF.to_csv(f'{save_path}/_{gt_beta}_{target_label}_improve.csv', sep=',',na_rep='NaN', index=False)
     
     
 
 if __name__ == '__main__':
-    dataRoot = 'D:/data/output_depth/Monodepth_depth_KITTI/_statistics'
+    # dataRoot = 'D:/data/output_depth/Monodepth_depth_KITTI/_statistics'
     # dataRoot = 'D:/data/output_depth/DenseDenpth_depth_KITTI/_statistics'
-    # dataRoot = 'D:/data/output_depth/DPT_depth_KITTI/_statistics'
+    dataRoot = 'D:/data/output_depth/DPT_depth_KITTI/_statistics'
     
     labels = ['abs_rel', 'sq_rel','rmse', 'rmse_log', 'a1', 'a2', 'a3']
     beta_list = [0.02, 0.04, 0.06]
