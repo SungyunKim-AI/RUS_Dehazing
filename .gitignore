@@ -141,3 +141,4 @@ wandb/
 1234.txt
 *.zip
 *.mat
+*.xlsx
