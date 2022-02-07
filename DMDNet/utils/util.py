@@ -103,12 +103,48 @@ def compute_errors(gt, pred):
 
     return [abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3]
 
+def visualize_depth_inverse(depth): #input : torch(1 X W X H)
+
+    depth_1 = 1/(depth+1)
+    depth_1 = ((depth_1-torch.min(depth_1))/(torch.max(depth_1)-torch.min(depth_1)))
+
+    min = torch.min(depth)
+    max = torch.max(depth)
+    depth_2 = 1 - (depth-min)/(max-min)
+
+    depth = torch.cat((depth_1, depth_2), 2)
+    depth = (depth.detach().cpu().numpy().transpose(1,2,0)*255).astype(np.uint8)
+    depth = cv2.applyColorMap(depth, cv2.COLORMAP_MAGMA)
+
+    return depth
+
 def visualize_depth(depth): #input : torch(1 X W X H)
     min = torch.min(depth)
     max = torch.max(depth)
     depth = (depth-min)/(max-min)
     depth = (depth.detach().cpu().numpy().transpose(1,2,0)*255).astype(np.uint8)
-    #depth = cv2.equalizeHist(depth)
-    depth = cv2.applyColorMap(depth, cv2.COLORMAP_INFERNO)
+    depth = cv2.applyColorMap(depth, cv2.COLORMAP_MAGMA)
+
+    return depth
+
+def visualize_depth_gray(depth):
+    min = torch.min(depth)
+    max = torch.max(depth)
+    depth = (depth-min)/(max-min)
+    depth = depth.repeat(3,1,1)
+    depth = (depth.detach().cpu().numpy().transpose(1,2,0)*255).astype(np.uint8)
+
+    return depth
+
+def visualize_depth_inverse_gray(depth):
+    depth_1 = 1/(depth+1)
+    depth_1 = ((depth_1-torch.min(depth_1))/(torch.max(depth_1)-torch.min(depth_1)))
+
+    min = torch.min(depth)
+    max = torch.max(depth)
+    depth_2 = 1 - (depth-min)/(max-min)
+
+    depth = torch.cat([depth_1, depth_2],2).repeat(3,1,1)
+    depth = 255 - (depth.detach().cpu().numpy().transpose(1,2,0)*255).astype(np.uint8)
 
     return depth
