@@ -1,9 +1,17 @@
+.vscode/
+*.zip
 # Byte-compiled / optimized / DLL files
 __pycache__/
-wandb/
-
 *.py[cod]
 *$py.class
+
+*.npy
+*.pk
+
+data/
+
+RESIDEV0/
+logs/
 
 # C extensions
 *.so
@@ -40,7 +48,6 @@ pip-delete-this-directory.txt
 # Unit test / coverage reports
 htmlcov/
 .tox/
-.nox/
 .coverage
 .coverage.*
 .cache
@@ -75,10 +82,6 @@ target/
 # Jupyter Notebook
 .ipynb_checkpoints
 
-# IPython
-profile_default/
-ipython_config.py
-
 # pyenv
 .python-version
 
@@ -91,7 +94,6 @@ celerybeat-schedule
 # Environments
 .env
 .venv
-.rus
 env/
 venv/
 ENV/
@@ -110,34 +112,3 @@ venv.bak/
 
 # mypy
 .mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre type checker
-.pyre/
-
-# Pretraied model
-*.t7
-*.weight
-*.pth
-*.pkl
-*.pt
-*.asv
-
-# Mac File Structure
-.DS_Store
-
-# Data Set
-*.png
-*.jpeg
-*.jpg
-*.bmp
-*.h5
-output_log/
-wandb/
-*.npy
-*.pk
-*.csv
-*.zip
-*.mat
-*.xlsx
