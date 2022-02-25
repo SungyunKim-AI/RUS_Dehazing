@@ -8,7 +8,7 @@ import cv2
 import torch
 import torchvision.transforms.functional as F
 from torchvision.transforms import Compose
-from models.depth_models.transforms import Resize, NormalizeImage, PrepareForNet
+from .transforms import Resize, NormalizeImage, PrepareForNet
 
 def read_pfm(path):
     """Read pfm file.
@@ -209,11 +209,16 @@ def load_item(haze, clear, transform):
 
     return haze_input, clear_input
 
-def load_item2(haze, transform):
+def load_item_2(haze, clear, dehazed, transform):
     haze = read_image(haze)
+    clear = read_image(clear)
+    dehazed = read_image(dehazed)
+    
     haze_input  = transform({"image": haze})["image"]
+    clear_input = transform({"image": clear})["image"]
+    dehazed_input = transform({"image": dehazed})["image"]
 
-    return haze_input
+    return haze_input, clear_input, dehazed_input
 
 def make_transform(img_size, norm=False, mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
     

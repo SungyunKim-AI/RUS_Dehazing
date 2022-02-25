@@ -58,3 +58,29 @@ class RESIDE_Dataset(Dataset):
         hazy_input, clear_input = load_item(haze, clear, self.transform)
         
         return hazy_input, clear_input, depth_input, airlight_input, beta_input, filename
+
+class RESIDE_RTTS_Dataset(Dataset):
+    def __init__(self, path, img_size, norm=True):
+        super().__init__()
+        self.path = path
+        self.img_size = img_size
+        self.norm = norm
+
+        self.hazy_lists = []
+        self.hazy_count = 0
+        
+        for hazy_image in glob(path+'/*'):
+            self.hazy_lists.append(hazy_image)
+            self.hazy_count+=1
+        self.transform = make_transform(img_size, norm=norm)
+    
+    def __len__(self):
+        return self.hazy_count
+    
+    def __getitem__(self, index):
+        haze = self.hazy_lists[index]
+        filename = os.path.basename(haze)
+
+        hazy_input = load_item2(haze, self.transform)
+        
+        return hazy_input, filename

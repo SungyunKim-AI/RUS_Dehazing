@@ -69,7 +69,7 @@ def run(opt, model, airlight_model, metrics_module, loader):
     model.eval()
     airlight_model.eval()
 
-    output_folder = 'output_' + opt.dataset
+    output_folder = 'D:/data/output_dehaze/SOTS_Ours'
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
@@ -77,8 +77,8 @@ def run(opt, model, airlight_model, metrics_module, loader):
     for batch in pbar:
         hazy_images, clear_images, depth_images, _, gt_betas, input_names = batch
         gt_beta = gt_betas[0]
-        if os.path.basename(input_names[0]).split('_')[0] != '0253':
-            continue
+        # if os.path.basename(input_names[0]).split('_')[0] != '0150':
+        #     continue
             
         output_name = output_folder + '/' + input_names[0][:-4] + '/' + input_names[0][:-4] + '.csv'
         if not os.path.exists(f'{output_folder}/{input_names[0][:-4]}'):

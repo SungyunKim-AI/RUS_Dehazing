@@ -20,13 +20,17 @@ if __name__=='__main__':
     gps=3
     blocks=19
     
-    hazy_imgs = glob('D:/data/RESIDE_V0_outdoor/val/hazy/*/*.jpg')
-    clear_img_dir = 'D:/data/RESIDE_V0_outdoor/val/clear'
+    # hazy_imgs = glob('D:/data/RESIDE_V0_outdoor/val/hazy/*/*.jpg')
+    # clear_img_dir = 'D:/data/RESIDE_V0_outdoor/val/clear'
+    # output_dir = 'D:/data/output_dehaze/pred_FFA_SOTS'
     
-    output_dir = 'D:/data/output_dehaze/pred_FFA_SOTS'
+    hazy_imgs = glob('D:/data/KITTI_eigen_benchmark/val/hazy/*/*.png')
+    clear_img_dir = 'D:/data/KITTI_eigen_benchmark/val/clear'
+    output_dir = 'D:/data/output_dehaze/KITTI_FFA'
+    
     if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-    f = open('D:/data/output_dehaze/pred_FFA_SOTS/FFA_SOTS.csv', 'w', newline='')
+        os.makedirs(output_dir)
+    f = open(f'{output_dir}/KITTI_SOTS.csv', 'w', newline='')
     wr = csv.writer(f)
     
     model_dir = f'trained_models/ots_train_ffa_{gps}_{blocks}.pk'

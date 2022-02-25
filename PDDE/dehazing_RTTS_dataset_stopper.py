@@ -17,7 +17,6 @@ from models.air_models import UNet
 from dataset import *
 from torch.utils.data import DataLoader
 
-from utils.metrics import get_ssim, get_psnr
 from utils import util
 from utils.util import compute_errors
 from utils.entropy_module import Entropy_Module
@@ -27,7 +26,7 @@ from utils.io import *
 def get_args():
     parser = argparse.ArgumentParser()
     # RESIDE
-    parser.add_argument('--dataset', required=False, default='RESIDE',  help='dataset name')
+    parser.add_argument('--dataset', required=False, default='RTTS',  help='dataset name')
     parser.add_argument('--dataRoot', type=str, default='D:/data/RESIDE_V0_outdoor',  help='data file path')
     parser.add_argument('--scale', type=float, default=0.000150,  help='depth scale')
     parser.add_argument('--shift', type=float, default= 0.1378,  help='depth shift')
@@ -57,61 +56,59 @@ def run(opt, model, airlight_model, metrics_module, loader):
     model.eval()
     airlight_model.eval()
 
-    output_folder = 'output/SOTS_' + opt.dataset
+    output_folder = 'D:/data/output_dehaze/RTTS_Ours'
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
-    f = open(output_folder + '/SOTS_Ours.csv','w', newline='')
+    f = open(output_folder + '/RTTS_Ours.csv','w', newline='')
     wr = csv.writer(f)
 
     pbar = tqdm(loader)
     for batch in pbar:
-        hazy_images, clear_images, _, _, gt_betas, input_names = batch
-        input_name = input_names[0][:-4]
-        gt_beta = gt_betas[0]
-        clear_image = util.denormalize(clear_images,opt.norm)[0].detach().cpu().numpy()
+        hazy_images, input_names = batch
+        input_name = input_names[0].split('.')[0]
         
         with torch.no_grad():
             cur_hazy = hazy_images.to(opt.device)
             airlight = airlight_model.forward(cur_hazy)
             init_depth = model.forward(cur_hazy)
-        airlight = util.air_denorm(opt.dataset,opt.norm,airlight)
+        airlight = util.air_denorm(opt.dataset, opt.norm, airlight)
         
         cur_depth = None
         sum_depth = torch.zeros_like(init_depth).to('cuda')
 
         entropy_max = 0
-        # entropy_max, ent_flag, ent_limit = 0, 0, 20
         for step in range(0, opt.stepLimit):
             with torch.no_grad():
                 cur_depth = model.forward(cur_hazy)
             
             diff_depth = cur_depth*step - sum_depth
-            cur_hazy = util.denormalize(cur_hazy,opt.norm)
             trans = torch.exp((diff_depth+cur_depth)*opt.betaStep*-1)
             sum_depth = cur_depth * (step+1)
             
-            prediction = (cur_hazy - airlight) / (trans + opt.eps) + airlight
-            prediction = torch.clamp(prediction, 0, 1)
+            cur_hazy = util.denormalize(cur_hazy, opt.norm)
+            
+            dehazed = (cur_hazy - airlight) / (trans + opt.eps) + airlight
+            dehazed = torch.clamp(dehazed, 0, 1)
+            dehazed = dehazed[0].detach().cpu().numpy().transpose(1,2,0)
 
-            entropy, _, _ = metrics_module.get_cur(cur_hazy[0].detach().cpu().numpy().transpose(1,2,0))
+            entropy, _, _ = metrics_module.get_cur(dehazed)
             if entropy_max < entropy:
                 entropy_max = entropy
-                optimal_dehazed = cur_hazy[0].detach().cpu().numpy()
+                optimal_dehazed = dehazed
             
-            cur_hazy = util.normalize(prediction[0].detach().cpu().numpy().transpose(1,2,0),opt.norm).unsqueeze(0).to(opt.device)
+            cur_hazy = util.normalize(dehazed, opt.norm).unsqueeze(0).to(opt.device)
+            
+            # dehazed = (dehazed*255).astype(np.uint8)
+            # cv2.imwrite(f'{output_folder}/{input_name}_{step}.jpg', cv2.cvtColor(dehazed, cv2.COLOR_RGB2BGR))
         
-        psnr = get_psnr(optimal_dehazed, clear_image)
-        ssim = get_ssim(optimal_dehazed, clear_image).item()
+        wr.writerow([input_name, entropy_max])
         
-        wr.writerow([input_name, gt_beta.item(), psnr, ssim, entropy_max])
-        
-        # optimal_dehazed = (optimal_dehazed*255).astype(np.uint8).transpose(1,2,0)
-        # cv2.imwrite(f'{output_folder}/{input_name}.jpg', cv2.cvtColor(optimal_dehazed, cv2.COLOR_RGB2BGR))
+        optimal_dehazed = (optimal_dehazed*255).astype(np.uint8)
+        cv2.imwrite(f'{output_folder}/{input_name}.jpg', cv2.cvtColor(optimal_dehazed, cv2.COLOR_RGB2BGR))
         
         # cur_depth_viz = util.visualize_depth_inverse(best_depth)
         # cv2.imwrite(f'{output_folder}/{input_name}.jpg', cur_depth_viz)
-        
-
+    
     f.close()
 
 
@@ -148,6 +145,8 @@ if __name__ == '__main__':
         val_set   = NYU_Dataset(opt.dataRoot + '/train', **dataset_args)
     elif opt.dataset == 'RESIDE':
         val_set   = RESIDE_Dataset(opt.dataRoot + '/val',   **dataset_args)
+    elif opt.dataset == 'RTTS':
+        val_set = RESIDE_RTTS_Dataset(opt.dataRoot + '/RTTS',   **dataset_args)
 
     loader_args = dict(batch_size=1, num_workers=1, drop_last=False, shuffle=False)
     val_loader = DataLoader(dataset=val_set, **loader_args)

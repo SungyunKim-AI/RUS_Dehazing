@@ -5,7 +5,7 @@ import numpy as np
 from torch.utils.data.dataloader import DataLoader
 from tqdm import tqdm
 import torch
-from dataset import *
+from KITTI_Dataset import *
 from utils.entropy_module import Entropy_Module
 from utils.airlight_module import Airlight_Module
 from utils import util
@@ -60,6 +60,7 @@ def run(opt, model, loader, airlight_module, entropy_module, improve_best_list=N
             init_ratio = gt_depth_median / torch.median(depth_images).item()
             depth_images *= init_ratio
             #depth_images = 1/up_module(model.forward(clear_images))*90
+            print(torch.max(depth_images))
 
             trans = torch.exp(depth_images*gt_beta.item()*-1)
             gt_airlight = util.air_denorm(opt.dataset, opt.norm, gt_airlight)[0][0]
@@ -106,48 +107,48 @@ def run(opt, model, loader, airlight_module, entropy_module, improve_best_list=N
             
             
             ratio = np.median(depth_images[0].detach().cpu().numpy()) / np.median(cur_depth[0].detach().cpu().numpy())
-            multi_score = util.compute_errors(cur_depth[0].detach().cpu().numpy() * ratio, depth_images[0].detach().cpu().numpy())
+            multi_score = util.compute_errors(depth_images[0].detach().cpu().numpy(), cur_depth[0].detach().cpu().numpy() * ratio)
             wr.writerow([step]+multi_score+[entropy])
             
 
-            ##viz haze##
-            init_haze_viz = (util.denormalize(hazy_images, opt.norm)[0].detach().cpu().numpy().transpose(1,2,0)*255).astype(np.uint8)
-            cur_haze_viz = (cur_hazy[0].detach().cpu().numpy().transpose(1,2,0)*255).astype(np.uint8)
-            init_clear_viz = (util.denormalize(clear_images, opt.norm)[0].detach().cpu().numpy().transpose(1,2,0)*255).astype(np.uint8)
-            haze_set= cv2.cvtColor(np.concatenate([init_haze_viz, cur_haze_viz, init_clear_viz], axis = 0), cv2.COLOR_RGB2BGR)
-            ############
+            # ##viz haze##
+            # init_haze_viz = (util.denormalize(hazy_images, opt.norm)[0].detach().cpu().numpy().transpose(1,2,0)*255).astype(np.uint8)
+            # cur_haze_viz = (cur_hazy[0].detach().cpu().numpy().transpose(1,2,0)*255).astype(np.uint8)
+            # init_clear_viz = (util.denormalize(clear_images, opt.norm)[0].detach().cpu().numpy().transpose(1,2,0)*255).astype(np.uint8)
+            # haze_set= cv2.cvtColor(np.concatenate([init_haze_viz, cur_haze_viz, init_clear_viz], axis = 0), cv2.COLOR_RGB2BGR)
+            # ############
 
-            ##viz depth##
-            init_depth_viz = util.visualize_depth(init_depth[0])
-            cur_depth_viz = util.visualize_depth(cur_depth[0])
-            gt_depth_viz = util.visualize_depth(depth_images[0])
-            depth_set_1 = np.concatenate([init_depth_viz, cur_depth_viz, gt_depth_viz],axis=0)
-            #############
+            # ##viz depth##
+            # init_depth_viz = util.visualize_depth(init_depth[0])
+            # cur_depth_viz = util.visualize_depth(cur_depth[0])
+            # gt_depth_viz = util.visualize_depth(depth_images[0])
+            # depth_set_1 = np.concatenate([init_depth_viz, cur_depth_viz, gt_depth_viz],axis=0)
+            # #############
 
-            ##viz depth##
-            init_depth_viz = util.visualize_depth_inverse(init_depth[0])
-            cur_depth_viz = util.visualize_depth_inverse(cur_depth[0])
-            gt_depth_viz = util.visualize_depth_inverse(depth_images[0])
-            depth_set_2 = np.concatenate([init_depth_viz, cur_depth_viz, gt_depth_viz],axis=0)
-            #############
+            # ##viz depth##
+            # init_depth_viz = util.visualize_depth_inverse(init_depth[0])
+            # cur_depth_viz = util.visualize_depth_inverse(cur_depth[0])
+            # gt_depth_viz = util.visualize_depth_inverse(depth_images[0])
+            # depth_set_2 = np.concatenate([init_depth_viz, cur_depth_viz, gt_depth_viz],axis=0)
+            # #############
 
-            ##viz depth##
-            init_depth_viz = util.visualize_depth_gray(init_depth[0])
-            cur_depth_viz = util.visualize_depth_gray(cur_depth[0])
-            gt_depth_viz = util.visualize_depth_gray(depth_images[0])
-            depth_set_3 = np.concatenate([init_depth_viz, cur_depth_viz, gt_depth_viz],axis=0)
-            #############
+            # ##viz depth##
+            # init_depth_viz = util.visualize_depth_gray(init_depth[0])
+            # cur_depth_viz = util.visualize_depth_gray(cur_depth[0])
+            # gt_depth_viz = util.visualize_depth_gray(depth_images[0])
+            # depth_set_3 = np.concatenate([init_depth_viz, cur_depth_viz, gt_depth_viz],axis=0)
+            # #############
             
-            ##viz depth##
-            init_depth_viz = util.visualize_depth_inverse_gray(init_depth[0])
-            cur_depth_viz = util.visualize_depth_inverse_gray(cur_depth[0])
-            gt_depth_viz = util.visualize_depth_inverse_gray(depth_images[0])
-            depth_set_4 = np.concatenate([init_depth_viz, cur_depth_viz, gt_depth_viz],axis=0)
-            #############
+            # ##viz depth##
+            # init_depth_viz = util.visualize_depth_inverse_gray(init_depth[0])
+            # cur_depth_viz = util.visualize_depth_inverse_gray(cur_depth[0])
+            # gt_depth_viz = util.visualize_depth_inverse_gray(depth_images[0])
+            # depth_set_4 = np.concatenate([init_depth_viz, cur_depth_viz, gt_depth_viz],axis=0)
+            # #############
 
 
-            save_set = np.concatenate([haze_set, depth_set_1, depth_set_2, depth_set_3, depth_set_4], axis=1)
-            cv2.imwrite(f'{output_folder}/{input_names[0][:-4]}/{step:03}.jpg', save_set)
+            # save_set = np.concatenate([haze_set, depth_set_1], axis=1)
+            # cv2.imwrite(f'{output_folder}/{input_names[0][:-4]}/{step:03}.jpg', save_set)
                        
             # cv2.imshow('depth', cv2.resize(save_set,(2000,1000)))
             # cv2.waitKey(0)    
@@ -172,13 +173,13 @@ if __name__ == '__main__':
     
     # init dataset
     if opt.dataset=='KITTI':
-        weight = torch.load('weights/depth_weights/densedepth_kitti.pt')
+        weight = torch.load('densedepth/weights/densedepth_kitti.pt')
         model.load_state_dict(weight)
         width = 1216
         height = 352
         val_set   = KITTI_Dataset(opt.dataRoot + '/val',  img_size=[width,height], norm=opt.norm)
     elif opt.dataset == 'NYU':
-        weight = torch.load('weights/depth_weights/densedepth_nyu.pt')
+        weight = torch.load('densedepth/weights/densedepth_nyu.pt')
         model.load_state_dict(weight)
         width = 640
         height = 480
@@ -199,6 +200,6 @@ if __name__ == '__main__':
     df = pd.read_csv('D:/data/output_depth/_statistics/KITTI_statistic.csv')
     improve_best_list = df['name'].tolist()
 
-    run(opt, model, val_loader, airlight_module, entropy_module, improve_best_list)
+    run(opt, model, val_loader, airlight_module, entropy_module, improve_best_list=None)
     
     

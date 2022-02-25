@@ -4,6 +4,7 @@ from glob import glob
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+import matplotlib.ticker as ticker
 
 
 def read_csv_all(dataRoot, target_beta=None, cerry_picker_flag=False):
@@ -29,28 +30,36 @@ def read_csv_all(dataRoot, target_beta=None, cerry_picker_flag=False):
 
 
 def data_plot(dfName, df):
-    font = {'family': 'Times New Roman', 'size': 24}
+    font = {'family': 'Times New Roman', 'weight' : 'bold', 'size': 35}
     plt.rc('font', **font)
-    fig, ax1 = plt.subplots(figsize=(15,8))
+    plt.rcParams['axes.linewidth'] = 4
+    fig, ax1 = plt.subplots(figsize=(15,7))
     # ax1.set_title(dfName, fontsize=16)
-    # ax1.set_xticks(df['stage'])
-    ax1.set_xticks([0,4,9,14,19,24,29,33,39,44,49], [1,5,10,15,20,25,30,34,40,45,50])
-    ax1.set_xlabel('Iteration index')
+    ax1.set_xticks(df['stage'])
+    ax1.set_xticks([0,4,9,14,19,24,29,34,39,44,49], [1,5,10,15,20,25,30,35,40,45,50])
+    # ax1.set_xticks([0,4,9,14,19,25,29,34,37,44,49], [1,5,10,15,20,26,30,35,38,45,50])
+    # ax1.set_xlabel('Iteration index')
     
     color_1 = 'tab:blue' 
     # ax1.set_ylabel('PSNR', color=color_1) 
-    line1, = ax1.plot(df['psnr'], marker='.', color=color_1, label='PSNR')
+    line1, = ax1.plot(df['psnr'], marker='.', markersize=15, color=color_1, linewidth=4, label='PSNR')
     ax1.tick_params(axis='y', labelcolor=color_1)
-    # ax1.
+    ax1.yaxis.set_major_locator(ticker.MultipleLocator(5))
     
     ax2 = ax1.twinx() 
     color_2 = 'tab:red' 
     # ax2.set_ylabel('Entropy', color=color_2) 
-    line2, = ax2.plot(df['entropy'], marker='.', color=color_2, label='Entropy')
+    line2, = ax2.plot(df['entropy'], marker='.', markersize=15, color=color_2, linewidth=4, label='Entropy')
     ax2.tick_params(axis='y', labelcolor=color_2)
-    ax2.legend([line1, line2], ['PSNR', 'Entropy'])
-    plt.axvline(x=33, color='r', linestyle='-', linewidth=1)
-    plt.savefig("C:\\Users\\pc\\Desktop\\OneDrive\\논문준비\\figure\\fig5.png", dpi=500)
+    ax2.yaxis.set_major_locator(ticker.MultipleLocator(0.3))
+    legend = plt.legend([line1, line2], ['PSNR', 'Entropy'], loc=1)
+    # legend = plt.legend([line1, line2], ['PSNR', 'Entropy'])
+    legend.get_frame().set_linewidth(2)
+    legend.get_frame().set_edgecolor("black")
+    plt.axvline(x=24, color='tab:red', linestyle='-', linewidth=1)
+    # plt.axvline(x=25, color='tab:blue', linestyle='-', linewidth=1)
+    # plt.axvline(x=37, color='tab:red', linestyle='-', linewidth=1)
+    plt.savefig("C:\\Users\\pc\\Desktop\\OneDrive\\논문준비\\figure_svg\\fig2_1.svg", format='svg', dpi=1200)
     # plt.show()
     
 
@@ -226,9 +235,18 @@ if __name__ == '__main__':
     # print(f"Total : {total_mean_psnr:.3f} {total_mean_ssim:.4f}")
 
     header = ['stage', 'entropy', 'psnr', 'ssim']
-    file_path = 'C:\\Users\\pc\\Documents\\GitHub\\RUS_Dehazing\\DMDNet\\output_RESIDE\\0253_1_0.16\\0253_1_0.16.csv'
+    # for file_path in glob('D:\\data\\output_dehaze\\SOTS_Ours\\*\\*.csv'):
+    #     file_name = os.path.basename(file_path)[:-4]
+    #     beta = float(file_name.split('_')[-1])
+    #     if beta > 0.1:
+    #         df = pd.read_csv(file_path, header=None, names=header)
+    #         data_plot(file_name, df)
+        
+    # file_path = 'D:\\data\\output_dehaze\\SOTS_Ours\\0253_1_0.16\\0253_1_0.16.csv'
+    file_path = 'D:\\data\\output_dehaze\\SOTS_Ours\\1728_0.9_0.12\\1728_0.9_0.12.csv'
+    # file_path = 'D:\\data\\output_dehaze\\SOTS_Ours\\0162_0.95_0.12\\0162_0.95_0.12.csv'
     df = pd.read_csv(file_path, header=None, names=header)
-    data_plot("0253_1_0.16", df)
+    data_plot('0162_0.95_0.12', df)
     
     
 """
