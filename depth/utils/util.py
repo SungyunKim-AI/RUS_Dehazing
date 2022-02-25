@@ -48,9 +48,9 @@ def air_denorm(dataset,norm, airlight):
     if norm:
         if dataset == 'NYU':
             air_list = torch.Tensor([0.8, 0.9, 1.0])
-        elif dataset == 'RESIDE' or 'RTTS':
+        elif dataset == 'RESIDE':
             air_list = torch.Tensor([0.8, 0.85, 0.9, 0.95, 1.0])
-        else:
+        elif dataset == 'KITTI':
             return airlight
         mean, std = air_list.mean(), air_list.std(unbiased=False)
         airlight = (airlight * std) + mean
@@ -118,12 +118,23 @@ def visualize_depth_inverse(depth): #input : torch(1 X W X H)
 
     return depth
 
+def visualize_depth_inverse_single(depth): #input : torch(1 X W X H)
+    min = torch.min(depth)
+    max = torch.max(depth)
+    inv_depth = 1 - (depth-min)/(max-min)
+    
+    inv_depth = (inv_depth.detach().cpu().numpy().transpose(1,2,0)*255).astype(np.uint8)
+    inv_depth = cv2.applyColorMap(inv_depth, cv2.COLORMAP_MAGMA)
+
+    return inv_depth
+
 def visualize_depth(depth): #input : torch(1 X W X H)
     min = torch.min(depth)
     max = torch.max(depth)
     depth = (depth-min)/(max-min)
     depth = (depth.detach().cpu().numpy().transpose(1,2,0)*255).astype(np.uint8)
     depth = cv2.applyColorMap(depth, cv2.COLORMAP_MAGMA)
+    print(min,max)
 
     return depth
 

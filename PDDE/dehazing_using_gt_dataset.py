@@ -1,8 +1,5 @@
 # User warnings ignore
 import warnings
-
-from torch._C import wait
-
 warnings.filterwarnings("ignore")
 
 import os

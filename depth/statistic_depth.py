@@ -51,7 +51,7 @@ def get_Varitation(dataRoot, all_df_dict, labels, gt_beta=None, step_beta=0.005)
     beta_err_list, cnt = [], 0
     for df_name, df in all_df_dict.items():
         improve_err_dict['name'].append(df_name)
-        est_step = stopper(df)
+        est_step = int(df.iloc[df['entropy'].idxmax()].stage)
         if gt_beta is not None:
             beta_err = abs(gt_beta - (est_step*step_beta))
             beta_err_list.append(beta_err)
@@ -71,25 +71,6 @@ def get_Varitation(dataRoot, all_df_dict, labels, gt_beta=None, step_beta=0.005)
     beta_err_mean = np.array(beta_err_list).mean()
     return haze_err_dict, dehaze_err_dict, beta_err_mean, cnt
 
-def stopper(df, limit=20):
-    last_idx = df.iloc[-1]['stage']
-    ent_max, ent_flag = 0, 0
-    stop_index = 0
-    for row in df.itertuples():
-        if ent_max < row.entropy:
-            ent_max, ent_flag = row.entropy, 0
-            stop_index = row.stage
-        else:
-            if row.stage < last_idx:
-                if ent_flag < (limit-1):
-                    ent_flag += 1
-                else:
-                    return stop_index
-            else:
-                return stop_index
-    
-    return 0
-
 def improve_best_top(improve_err_dict, save_path, gt_beta, target_label='a1', top=20):
     df = pd.DataFrame(improve_err_dict)
     topDF = df.nlargest(top, target_label)
@@ -98,12 +79,13 @@ def improve_best_top(improve_err_dict, save_path, gt_beta, target_label='a1', to
     
 
 if __name__ == '__main__':
-    # dataRoot = 'D:/data/output_depth/Monodepth_depth_KITTI/_statistics'
-    # dataRoot = 'D:/data/output_depth/DenseDenpth_depth_KITTI/_statistics'
-    dataRoot = 'D:/data/output_depth/DPT_depth_KITTI/_statistics'
+    # dataRoot = 'D:/data/output_depth/Monodepth_KITTI/_statistics'
+    # dataRoot = 'D:/data/output_depth/DenseDenpth_KITTI/_statistics'
+    dataRoot = 'D:/data/output_depth/DPT_KITTI/_statistics'
     
     labels = ['abs_rel', 'sq_rel','rmse', 'rmse_log', 'a1', 'a2', 'a3']
-    beta_list = [0.02, 0.04, 0.06]
+    # beta_list = [0.02, 0.04, 0.06]
+    beta_list = [0.06]
     
     for gt_beta in beta_list:
         print(f'beta : {gt_beta}')
@@ -117,8 +99,8 @@ if __name__ == '__main__':
             percent = abs(before_err - after_err) / before_err * 100
             print(f"{label} : {before_err:.3f} -> {after_err:.3f} ({percent:.1f})")
         
-        print(f"beta err : {beta_err_mean:.3f}")
-        print(f"not found stopper : {cnt}")
+        # print(f"beta err : {beta_err_mean:.3f}")
+        # print(f"not found stopper : {cnt}")
         print()
         
         # Data Plot

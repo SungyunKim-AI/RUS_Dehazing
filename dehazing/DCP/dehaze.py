@@ -81,13 +81,17 @@ def Recover(im,t,A,tx = 0.1):
 
 if __name__ == '__main__':
     
-    hazy_imgs = glob('D:/data/RESIDE_V0_outdoor/val/hazy/*/*.jpg')
-    clear_img_dir = 'D:/data/RESIDE_V0_outdoor/val/clear'
+    # hazy_imgs = glob('D:/data/RESIDE_V0_outdoor/val/hazy/*/*.jpg')
+    # clear_img_dir = 'D:/data/RESIDE_V0_outdoor/val/clear'
     
-    output_dir = 'D:/data/output_dehaze/pred_DCP_SOTS'
+    data_root = 'D:/data/RESIDE_V0_outdoor/RTTS/'
+    choices = ['BD_Google_435.jpeg', 'GSGL_Baidu_479.jpeg']
+    hazy_imgs = [data_root + choice for choice in choices]
+    
+    output_dir = 'D:/data/output_dehaze/RTTS_DCP'
     if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-    f = open('D:/data/output_dehaze/pred_DCP_SOTS/DCP_SOTS.csv', 'w', newline='')
+    f = open('D:/data/output_dehaze/RTTS_DCP/RTTS_DCP.csv', 'w', newline='')
     wr = csv.writer(f)
     
     entropy_module = Entropy_Module()
@@ -95,12 +99,12 @@ if __name__ == '__main__':
     for hazy_img in tqdm(hazy_imgs):
         file_name = os.path.basename(hazy_img);
         token = file_name.split('_')
-        clear_img = clear_img_dir+'/'+token[0]+'.png'
-        beta = token[-1][:-4]
+        # clear_img = clear_img_dir+'/'+token[0]+'.png'
+        # beta = token[-1][:-4]
 
         haze = cv2.imread(hazy_img)
         I = haze.astype(np.float64)/255
-        clear = cv2.imread(clear_img).astype(np.float64)/255
+        # clear = cv2.imread(clear_img).astype(np.float64)/255
 
     
         dark = DarkChannel(I,15);
@@ -109,10 +113,11 @@ if __name__ == '__main__':
         t = TransmissionRefine(haze,te);
         J = Recover(I,t,A,0.1);
 
-        pred_psnr = psnr(torch.Tensor(J), torch.Tensor(clear))
+        # pred_psnr = psnr(torch.Tensor(J), torch.Tensor(clear))
         pred_entropy, _, _ = entropy_module.get_cur(J)
         
-        wr.writerow([file_name, beta, pred_psnr, pred_entropy])
+        # wr.writerow([file_name, beta, pred_psnr, pred_entropy])
+        wr.writerow([file_name, pred_entropy])
         
         cv2.imwrite(output_dir+'/'+file_name, (np.clip(J,0,1)*255).astype(np.uint8))
         # cv2.imshow("pred", J)
